@@ -598,6 +598,22 @@
 /* כל האזהרות במיכל אחד, עם גבול גובה: סריקה מתקדמת מוסיפה שתיים-שלוש,
    ופתיחת סריקה שמורה עשויה להוסיף עוד — והן לא יכולות לדחוק את הרשימה */
 .results-warnings { max-height: 28vh; overflow-y: auto; flex-shrink: 0; }
+
+/* שורה אחת מקופלת: "3 הערות על הסריקה · הצגה" */
+.results-notes { flex-shrink: 0; border-bottom: 1px solid var(--warn-line); background: var(--warn-soft); }
+.results-notes summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 16px;
+  font-size: 12.5px; font-weight: 600; color: var(--warn-text);
+  cursor: pointer; list-style: none; user-select: none;
+}
+.results-notes summary::-webkit-details-marker { display: none; }
+.results-notes summary svg { width: 15px; height: 15px; flex-shrink: 0; }
+.notes-toggle { font-weight: 400; opacity: 0.8; }
+.notes-toggle::before { content: '· הצגה'; }
+.results-notes[open] .notes-toggle::before { content: '· הסתרה'; }
+.results-notes summary:hover .notes-toggle { text-decoration: underline; }
+.results-notes .results-warning { background: none; border-bottom: 0; border-top: 1px solid var(--warn-line); }
 .results-flash { padding: 10px 16px 0; flex-shrink: 0; }
 .results-flash .notice { margin-bottom: 10px; }
 

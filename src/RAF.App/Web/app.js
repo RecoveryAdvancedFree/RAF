@@ -124,7 +124,8 @@ const Icon = {
   shield: '<svg viewBox="0 0 24 24"><path d="M12 2.5 20 6v6c0 5-3.4 8.4-8 9.5-4.6-1.1-8-4.5-8-9.5V6l8-3.5Z"/><path d="m9 12 2 2 4-4"/></svg>',
   folder: '<svg viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5Z"/></svg>',
   file: '<svg viewBox="0 0 24 24"><path d="M6 3h8l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/></svg>',
-  back: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5-7 7 7 7"/></svg>',
+  // "חזרה" בממשק מימין לשמאל מצביעה ימינה — אל הכיוון שממנו באנו.
+  back: '<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 5 7 7-7 7"/></svg>',
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   save: '<svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>',
   stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
@@ -675,6 +676,7 @@ function openHuntPanel(disk) {
 
 async function startHunt(disk) {
   closePanel();
+  Steps.set(2);  // סריקה רצה — גם כשמה שמחפשים הוא מחיצה
 
   el('content').innerHTML = `
     <div class="scanning">
@@ -737,6 +739,7 @@ async function startHunt(disk) {
           'הקבצים עדיין חסרים? נסו <b>סריקה מתקדמת</b> על אחת המחיצות — היא מוצאת קבצים לפי סוגם.',
           hidden);
 
+    Steps.set(1);  // מה שנמצא מוצג כמחיצות לבחירה
     renderDisks();
   } catch (err) {
     el('content').innerHTML = `
@@ -1822,8 +1825,7 @@ async function renderResults() {
         </div>
       </div>
 
-      ${(s.warnings || []).length ? `<div class="results-warnings">${s.warnings.map((w) =>
-        `<div class="results-warning">${Icon.alert}<div>${esc(w)}</div></div>`).join('')}</div>` : ''}
+      ${(s.warnings || []).length ? notesHtml(s.warnings.map(esc)) : ''}
 
       <div class="results-grid">
         <aside class="tree" id="tree"></aside>
@@ -1898,11 +1900,14 @@ async function buildTree(restorePath) {
   // בנייה מחדש של העץ אינה אמורה להחזיר את המשתמש לשורש.
   if (restorePath) {
     await expandToPath(restorePath);
-  } else if (FileList.total === 0) {
-    // שורש ריק עם תיקיות משנה — כמו בסריקה מתקדמת, שבה הקבצים מסודרים לפי סוג:
-    // התיקייה הראשונה נפתחת, במקום מסך ריק.
-    const child = root.querySelector('.tree-children .tree-item');
-    if (child) await child.expand();
+  } else {
+    // תיקייה ריקה עם תיקיות משנה — כמו בסריקה מתקדמת (הקבצים לפי סוג) או במחיצת
+    // EFI (EFI\Microsoft\Boot): יורדים לתיקייה הראשונה עד שיש מה להציג, במקום מסך ריק.
+    let item = first;
+    for (let depth = 0; item && FileList.total === 0 && depth < 8; depth++) {
+      item = item.parentElement.querySelector(':scope > .tree-children > .tree-node > .tree-item');
+      if (item) await item.expand();
+    }
   }
 }
 
@@ -2420,13 +2425,39 @@ function showResultsNotice(html) {
   bar.insertAdjacentHTML('afterend', `<div class="results-flash">${html}</div>`);
 }
 
+/* ---------- הערות על הסריקה ---------- */
+
+/// כל ההערות בשורה אחת מקופלת: שורת אזהרה מלאה לכל הערה דחקה את רשימת הקבצים
+/// לחצי המסך התחתון. הרשימה היא העיקר; ההערות — למי שרוצה לדעת.
+function notesHtml(items) {
+  return `<details class="results-notes" id="results-notes">
+    <summary>${Icon.info}<span id="notes-title">${notesTitle(items.length)}</span>
+      <span class="notes-toggle"></span></summary>
+    <div class="results-warnings" id="notes-list">${items.map(noteItem).join('')}</div>
+  </details>`;
+}
+const notesTitle = (n) => n === 1 ? 'הערה אחת על הסריקה' : `${n.toLocaleString('he-IL')} הערות על הסריקה`;
+const noteItem = (html) => `<div class="results-warning">${Icon.alert}<div>${html}</div></div>`;
+
+/// הערה שמגיעה אחרי שהמסך הוצג (למשל: השמירה האוטומטית דולגה).
+function addResultsNote(html) {
+  if (!el('results-notes')) {
+    const bar = document.querySelector('.results-bar');
+    if (!bar) return;
+    bar.insertAdjacentHTML('afterend', notesHtml([]));
+  }
+  el('notes-list').insertAdjacentHTML('afterbegin', noteItem(html));
+  el('notes-title').textContent = notesTitle(el('notes-list').children.length);
+}
+
 // השמירה האוטומטית רצה ברקע אחרי הסריקה, ומודיעה כשהסתיימה — או למה לא נשמרה.
 Bridge.on('scan.saved', (s) => {
   if (s.path) {
     setStatus(s.partial ? 'נקודת ביניים של הסריקה נשמרה' : 'הסריקה נשמרה אוטומטית');
   } else if (!s.partial) {
-    showResultsNotice(notice('warn', Icon.info, 'הסריקה לא נשמרה אוטומטית',
-      'כדי לחזור אליה בלי לסרוק שוב — שמרו אותה בכפתור השמירה, לכונן אחר.', esc(s.skipped)));
+    setStatus('הסריקה לא נשמרה אוטומטית');
+    addResultsNote(`<b>הסריקה לא נשמרה אוטומטית:</b> ${esc(s.skipped)} ` +
+      'כדי לחזור אליה בלי לסרוק שוב, שמרו אותה בכפתור השמירה לכונן אחר.');
   }
 });
 

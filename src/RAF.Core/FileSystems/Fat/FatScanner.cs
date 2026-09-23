@@ -217,7 +217,8 @@ public sealed class FatScanner
             }
         }
 
-        _warnings.Add($"הסריקה העמוקה איתרה {found:N0} אשכולות ספרייה שאינם מקושרים עוד לעץ התיקיות.");
+        if (found > 0)
+            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} אשכולות ספרייה שאינם מקושרים עוד לעץ התיקיות.");
     }
 
     /// <summary>
