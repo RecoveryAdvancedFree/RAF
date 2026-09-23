@@ -102,7 +102,8 @@ internal sealed class Bridge
         "scan.start" => await StartScanAsync(p),
         "scan.cancel" => Cancel(_scanCancel),
         "scan.children" => Children(p),
-        "scan.search" => Search(p),
+        "scan.list" => ListView(p),
+        "scan.selectable" => Selectable(p),
         "scan.preview" => await Task.Run(() => Preview(p)),
         "scan.summary" => Summary(),
 
@@ -363,7 +364,7 @@ internal sealed class Bridge
         };
     }
 
-    /// <summary>רמה אחת בעץ התוצאות: תיקיות משנה והקבצים שבנתיב.</summary>
+    /// <summary>רמה אחת בעץ התוצאות: תיקיות המשנה שבנתיב. הקבצים נמשכים דרך scan.list.</summary>
     private object Children(JsonObject? p)
     {
         var session = RequireSession();
@@ -378,21 +379,44 @@ internal sealed class Bridge
                 name,
                 path = string.IsNullOrEmpty(path) ? name : path + Separator + name,
             }),
-            files = session.FilesIn(path, evidence).Select(FileDto),
         };
     }
 
     /// <summary>מפריד הנתיבים של NTFS.</summary>
     private const string Separator = "\\";
 
-    private object Search(JsonObject? p)
-    {
-        var session = RequireSession();
-        string query = p?["query"]?.GetValue<string>() ?? "";
+    private static ViewQuery ReadView(JsonObject? p) => new(
+        p?["path"]?.GetValue<string>() ?? "",
+        p?["query"]?.GetValue<string>(),
+        p?["evidence"]?.GetValue<bool>() ?? false);
 
-        bool evidence = p?["evidence"]?.GetValue<bool>() ?? false;
-        var hits = session.Search(query, 2000, evidence);
-        return new { count = hits.Count, files = hits.Select(FileDto) };
+    /// <summary>
+    /// טווח שורות מתוך הרשימה המוצגת. הממשק מבקש רק את מה שנראה על המסך,
+    /// כך שגם תיקייה של מאות אלפי קבצים נטענת מיד.
+    /// </summary>
+    private object ListView(JsonObject? p)
+    {
+        var view = RequireSession().View(ReadView(p));
+        int offset = Math.Clamp(p?["offset"]?.GetValue<int>() ?? 0, 0, view.Count);
+        int count = Math.Clamp(p?["count"]?.GetValue<int>() ?? 200, 0, 1000);
+
+        return new
+        {
+            total = view.Count,
+            offset,
+            files = view.Skip(offset).Take(count).Select(FileDto),
+        };
+    }
+
+    /// <summary>מזהי כל הקבצים הניתנים לשחזור ברשימה המוצגת, עם גודלם — עבור "סמן הכל".</summary>
+    private object Selectable(JsonObject? p)
+    {
+        var selectable = RequireSession().View(ReadView(p)).Where(f => f.IsWorthRecovering).ToList();
+        return new
+        {
+            ids = selectable.Select(f => f.Id),
+            sizes = selectable.Select(f => f.Size),
+        };
     }
 
     private object FileDto(RecoveredFile f) => new

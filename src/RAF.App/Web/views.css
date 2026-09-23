@@ -157,7 +157,7 @@
 .tree-label { overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- רשימת קבצים ---------- */
-.filelist-wrap { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; }
+.filelist-wrap { display: grid; grid-template-rows: auto auto 1fr; min-height: 0; min-width: 0; }
 
 .filelist-head,
 .frow {
@@ -186,6 +186,21 @@
   border: 3px solid var(--bg);
 }
 
+/* רשימה וירטואלית: המיכל בגובה הרשימה המלאה, והשורות הנראות מוזזות למקומן */
+.vlist { position: relative; }
+.vlist-rows { position: absolute; inset-inline: 0; top: 0; will-change: transform; }
+
+/* שורה שהנתונים שלה עוד בדרך מהמנוע */
+.frow.placeholder { cursor: default; }
+.frow.placeholder::before {
+  content: '';
+  grid-column: 2 / 5;
+  height: 10px; width: 60%;
+  border-radius: 5px;
+  background: var(--surface-3);
+}
+
+.list-banner[hidden] { display: none; }
 .list-banner {
   padding: 9px 14px;
   font-size: 12px; color: var(--text-dim);

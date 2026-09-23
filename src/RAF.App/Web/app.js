@@ -59,13 +59,15 @@ const Bridge = (() => {
 
 /* ------------------------------------------------------------ כלי עזר */
 
+/// הגודל עטוף בבידוד כיווניות (LRI…PDI): בתוך משפט עברי "216 GB" היה מתהפך ל-"GB 216".
+/// הבידוד עובד גם ב-textContent וגם ב-HTML, ואינו משפיע בהקשר משמאל לימין.
 function formatSize(bytes) {
   if (bytes === null || bytes === undefined || bytes < 0) return '—';
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return '⁦0 B⁩';
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   let v = bytes, i = 0;
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2) + ' ' + units[i];
+  return '⁦' + v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2) + ' ' + units[i] + '⁩';
 }
 
 function formatDuration(seconds) {
@@ -219,8 +221,6 @@ const State = {
   currentPath: '',
   selected: new Set(), // מזהי הקבצים שסומנו לשחזור
   selectedBytes: 0,
-  files: [],           // הקבצים המוצגים כרגע
-  searchMode: false,
   showEvidence: false, // רשומות יומן מוסתרות כברירת מחדל
   openDisks: new Set(), // כוננים שהמחיצות שלהם פתוחות
   failed: [],           // התקנים ש-Windows לא הצליח להפעיל
@@ -1336,7 +1336,7 @@ function renderDoctorList() {
     return `
       <div class="doc-row">
         <div class="doc-top">
-          <span class="doc-name" title="${esc(f.path)}">${esc(f.name)}</span>
+          <span class="doc-name" title="${esc(f.path)}"><bdi>${esc(f.name)}</bdi></span>
           <span class="doc-size">${formatSize(f.size)}</span>
           <span class="chip ${cls} tiny">${label}</span>
         </div>
@@ -1385,7 +1385,7 @@ async function runDoctorRepair(paths) {
   const rows = data.results.map((r) => `
     <div class="doc-row">
       <div class="doc-top">
-        <span class="doc-name">${esc(r.name)}</span>
+        <span class="doc-name"><bdi>${esc(r.name)}</bdi></span>
         <span class="chip ${r.healthyAfter ? 'ok' : r.succeeded ? 'warn' : 'danger'} tiny">
           ${r.healthyAfter ? 'תוקן — תקין' : r.succeeded ? 'תוקן חלקית' : 'לא תוקן'}</span>
       </div>
@@ -1624,6 +1624,7 @@ async function renderResults() {
             <span class="col-date">שונה</span>
             <span class="col-quality">איכות</span>
           </div>
+          <div class="list-banner" id="list-banner" hidden></div>
           <div class="filelist" id="filelist"></div>
         </div>
         <aside class="preview" id="preview">
@@ -1639,7 +1640,8 @@ async function renderResults() {
 
   el('btn-home').onclick = loadDisks;
   el('btn-recover').onclick = openRecoverPanel;
-  el('chk-all').onchange = (e) => toggleAllVisible(e.target.checked);
+  el('chk-all').onchange = (e) => FileList.toggleAll(e.target.checked);
+  FileList.attach();
 
   const evidenceToggle = el('chk-evidence');
   if (evidenceToggle) {
@@ -1756,31 +1758,119 @@ async function makeTreeNode(path, label, depth) {
 
 async function openFolder(path) {
   State.currentPath = path;
-  State.searchMode = false;
-
-  const data = await Bridge.call('scan.children', { path, evidence: State.showEvidence });
-  State.files = data.files || [];
-  renderFileList();
+  await FileList.open({ path, query: null });
 }
 
 async function runSearch(query) {
-  State.searchMode = true;
-  const data = await Bridge.call('scan.search', { query, evidence: State.showEvidence });
-  State.files = data.files || [];
-  renderFileList(`נמצאו ${data.count} תוצאות עבור "${query}"`);
+  await FileList.open({ path: '', query });
 }
 
-function renderFileList(banner) {
-  const list = el('filelist');
+/// רשימת קבצים וירטואלית: רק השורות שעל המסך קיימות ב-DOM, והנתונים נמשכים
+/// מהמנוע בעמודים לפי הגלילה. כך תיקייה של מאות אלפי קבצים נפתחת מיד —
+/// סריקה מתקדמת שמה את כל קבצי ה-JPEG בתיקייה אחת.
+const FileList = (() => {
+  const ROW = 40;          // גובה שורה קבוע, תואם ל-.frow ב-views.css
+  const PAGE = 200;        // שורות בכל בקשה למנוע
+  const OVERSCAN = 8;      // שורות נוספות מעל ומתחת לאזור הנראה
 
-  if (State.files.length === 0) {
-    list.innerHTML = `<div class="empty small"><h3>אין קבצים להצגה</h3>
-                      <p>${State.searchMode ? 'לא נמצאו תוצאות לחיפוש.' : 'התיקייה הזו ריקה.'}</p></div>`;
+  let view = null;         // { path, query, evidence }
+  let total = 0;
+  let pages = new Map();   // מספר עמוד ← מערך קבצים
+  let pending = new Set(); // עמודים שבקשתם בדרך
+  let byId = new Map();    // קבצים שנטענו, לתצוגה מקדימה ולסימון
+  let selectable = null;   // { ids: [], sizes: [] } — כל מה שניתן לסמן בתצוגה
+  let generation = 0;      // תשובה מתצוגה קודמת נזרקת
+  let activeId = null;
+  let frame = 0;
+
+  const params = () => ({ path: view.path, query: view.query, evidence: view.evidence });
+
+  async function open(target) {
+    const gen = ++generation;
+    view = { ...target, evidence: State.showEvidence };
+    total = 0;
+    pages = new Map();
+    pending = new Set();
+    byId = new Map();
+    selectable = null;
+
+    const list = el('filelist');
+    list.scrollTop = 0;
+
+    // העמוד הראשון והמזהים לסימון נמשכים במקביל.
+    const [first, sel] = await Promise.all([
+      Bridge.call('scan.list', { ...params(), offset: 0, count: PAGE }),
+      Bridge.call('scan.selectable', params()),
+    ]);
+    if (gen !== generation) return;
+
+    total = first.total;
+    store(0, first.files);
+    selectable = sel;
+
+    list.innerHTML = total === 0
+      ? `<div class="empty small"><h3>אין קבצים להצגה</h3>
+           <p>${view.query ? 'לא נמצאו תוצאות לחיפוש.' : 'התיקייה הזו ריקה.'}</p></div>`
+      : `<div class="vlist" style="height:${total * ROW}px"><div class="vlist-rows"></div></div>`;
+
+    const banner = el('list-banner');
+    banner.hidden = !view.query;
+    if (view.query) {
+      banner.textContent = `נמצאו ${total.toLocaleString('he-IL')} תוצאות עבור "${view.query}"`;
+    }
+
+    render();
     syncSelectAll();
-    return;
   }
 
-  const rows = State.files.map((f) => {
+  function store(pageIndex, files) {
+    pages.set(pageIndex, files);
+    for (const f of files) byId.set(f.id, f);
+  }
+
+  async function fetchPage(pageIndex) {
+    if (pages.has(pageIndex) || pending.has(pageIndex)) return;
+    pending.add(pageIndex);
+    const gen = generation;
+    try {
+      const data = await Bridge.call('scan.list', { ...params(), offset: pageIndex * PAGE, count: PAGE });
+      if (gen !== generation) return;
+      store(pageIndex, data.files);
+      render();
+    } finally {
+      if (gen === generation) pending.delete(pageIndex);
+    }
+  }
+
+  function fileAt(index) {
+    const page = pages.get(Math.floor(index / PAGE));
+    return page ? page[index % PAGE] : undefined;
+  }
+
+  function render() {
+    const list = el('filelist');
+    const rows = list && list.querySelector('.vlist-rows');
+    if (!rows) return;
+
+    const first = Math.max(0, Math.floor(list.scrollTop / ROW) - OVERSCAN);
+    const last = Math.min(total, Math.ceil((list.scrollTop + list.clientHeight) / ROW) + OVERSCAN);
+
+    let html = '';
+    for (let i = first; i < last; i++) {
+      const f = fileAt(i);
+      if (f) {
+        html += rowHtml(f, i);
+      } else {
+        html += `<div class="frow placeholder" data-index="${i}"></div>`;
+        fetchPage(Math.floor(i / PAGE));
+      }
+    }
+
+    rows.style.transform = `translateY(${first * ROW}px)`;
+    rows.innerHTML = html;
+  }
+
+  function rowHtml(f, index) {
     const q = f.quality === 'Excellent' ? 'ok' : f.quality === 'Good' ? '' :
               f.quality === 'Poor' ? 'warn' : 'danger';
     const checked = State.selected.has(f.id) ? ' checked' : '';
@@ -1793,11 +1883,12 @@ function renderFileList(banner) {
       : f.qualityLabel;
 
     return `
-      <div class="frow${f.recoverable ? '' : ' unrecoverable'}" data-id="${f.id}">
+      <div class="frow${f.recoverable ? '' : ' unrecoverable'}${f.id === activeId ? ' active' : ''}"
+           data-id="${f.id}" data-index="${index}">
         <label class="frow-chk"><input type="checkbox"${checked}${disabled}></label>
         <div class="frow-name">
           <span class="frow-icon">${Icon.file}</span>
-          <span class="frow-text" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}">${esc(f.name)}</span>
+          <span class="frow-text" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}"><bdi>${esc(f.name)}</bdi></span>
           ${f.deleted ? '<span class="chip warn tiny">נמחק</span>' : ''}
           ${f.compressed ? '<span class="chip tiny">דחוס</span>' : ''}
           ${f.verified ? '<span class="chip ok tiny" title="נדגם תוכן אמיתי מהדיסק">אומת</span>' : ''}
@@ -1812,54 +1903,69 @@ function renderFileList(banner) {
           <span class="chip ${q} tiny" title="${esc(f.qualityReason || '')}">${esc(label)}</span>
         </div>
       </div>`;
-  }).join('');
+  }
 
-  list.innerHTML = (banner ? `<div class="list-banner">${esc(banner)}</div>` : '') + rows;
+  /// האזנה אחת לכל הרשימה: השורות נבנות מחדש בכל גלילה, ולכן אין טעם לחבר אירועים לכל שורה.
+  function attach() {
+    const list = el('filelist');
 
-  list.querySelectorAll('.frow').forEach((row) => {
-    const id = +row.dataset.id;
-    const box = row.querySelector('input');
+    list.addEventListener('scroll', () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; render(); });
+    });
 
-    row.onclick = (e) => {
-      if (e.target.tagName !== 'INPUT') {
-        list.querySelectorAll('.frow').forEach((r) => r.classList.remove('active'));
-        row.classList.add('active');
-        showPreview(id);
-      }
-    };
+    list.addEventListener('click', (e) => {
+      const row = e.target.closest('.frow[data-id]');
+      if (!row || e.target.closest('.frow-chk')) return;
+      activeId = +row.dataset.id;
+      list.querySelectorAll('.frow.active').forEach((r) => r.classList.remove('active'));
+      row.classList.add('active');
+      showPreview(activeId);
+    });
 
-    if (box && !box.disabled) {
-      box.onchange = () => {
-        const file = State.files.find((f) => f.id === id);
-        if (box.checked) { State.selected.add(id); State.selectedBytes += file.size; }
-        else { State.selected.delete(id); State.selectedBytes -= file.size; }
-        updateRecoverBar();
-        syncSelectAll();
-      };
-    }
-  });
+    list.addEventListener('change', (e) => {
+      const row = e.target.closest('.frow[data-id]');
+      if (!row) return;
+      const file = byId.get(+row.dataset.id);
+      if (!file) return;
+      select(file.id, file.size, e.target.checked);
+      updateRecoverBar();
+      syncSelectAll();
+    });
 
-  syncSelectAll();
-}
+    new ResizeObserver(() => render()).observe(list);
+  }
 
-function toggleAllVisible(checked) {
-  el('filelist').querySelectorAll('.frow input:not([disabled])').forEach((box) => {
-    const id = +box.closest('.frow').dataset.id;
-    const file = State.files.find((f) => f.id === id);
-    if (checked && !State.selected.has(id)) { State.selected.add(id); State.selectedBytes += file.size; }
-    if (!checked && State.selected.has(id)) { State.selected.delete(id); State.selectedBytes -= file.size; }
-    box.checked = checked;
-  });
-  updateRecoverBar();
-}
+  function select(id, size, on) {
+    if (on && !State.selected.has(id)) { State.selected.add(id); State.selectedBytes += size; }
+    if (!on && State.selected.has(id)) { State.selected.delete(id); State.selectedBytes -= size; }
+  }
 
-function syncSelectAll() {
-  const boxes = [...el('filelist').querySelectorAll('.frow input:not([disabled])')];
-  const all = el('chk-all');
-  if (!all) return;
-  all.checked = boxes.length > 0 && boxes.every((b) => b.checked);
-  all.indeterminate = boxes.some((b) => b.checked) && !all.checked;
-}
+  /// "הכל" מסמן את כל הרשימה המוצגת — גם שורות שעוד לא נגללו אליהן.
+  function toggleAll(on) {
+    if (!selectable) return;
+    selectable.ids.forEach((id, i) => select(id, selectable.sizes[i], on));
+    render();
+    updateRecoverBar();
+    syncSelectAll();
+  }
+
+  function syncSelectAll() {
+    const all = el('chk-all');
+    if (!all) return;
+    const n = selectable ? selectable.ids.length : 0;
+    let marked = 0;
+    if (selectable) for (const id of selectable.ids) if (State.selected.has(id)) marked++;
+    all.checked = n > 0 && marked === n;
+    all.indeterminate = marked > 0 && marked < n;
+    all.disabled = n === 0;
+  }
+
+  return {
+    open, attach, toggleAll, render,
+    get: (id) => byId.get(id),
+  };
+})();
 
 function updateRecoverBar() {
   const count = State.selected.size;
@@ -1900,7 +2006,7 @@ async function showPreview(id) {
     body = `<div class="preview-empty">${Icon.file}<p>אין תצוגה מקדימה לסוג קובץ זה</p></div>`;
   }
 
-  const meta = State.files.find((f) => f.id === id);
+  const meta = FileList.get(id);
   const reason = meta && meta.qualityReason
     ? `<div class="notice ${meta.recoverable ? 'info' : 'danger'} tiny-notice">
          ${meta.recoverable ? Icon.shield : Icon.alert}
@@ -1909,7 +2015,7 @@ async function showPreview(id) {
 
   panel.innerHTML = `
     <div class="preview-head">
-      <div class="preview-name" title="${esc(p.name)}">${esc(p.name)}</div>
+      <div class="preview-name" title="${esc(p.name)}"><bdi>${esc(p.name)}</bdi></div>
       ${p.signature ? `<div class="preview-sig">${esc(p.signature)}</div>` : ''}
     </div>
     ${reason}

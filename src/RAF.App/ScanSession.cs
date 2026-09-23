@@ -2,6 +2,9 @@ using RAF.Core.Model;
 
 namespace RAF.App;
 
+/// <summary>מה מוצג ברשימת הקבצים: תיקייה, או חיפוש בשם על פני כל התוצאות.</summary>
+internal sealed record ViewQuery(string Path, string? Search, bool Evidence);
+
 /// <summary>
 /// תוצאות סריקה שהושלמה, מאורגנות לעץ תיקיות שניתן לדפדף בו מהממשק.
 /// העץ נבנה פעם אחת בסיום הסריקה, והממשק מושך ממנו רמה אחת בכל פעם
@@ -122,20 +125,34 @@ internal sealed class ScanSession
         => ids.Select(ById).Where(f => f is not null)!;
 
     /// <summary>
-    /// חיפוש בשם הקובץ על פני כל התוצאות.
-    /// מוגבל במספר התוצאות כדי שהממשק יישאר מגיב.
+    /// הרשימה שהממשק מציג כרגע: קבצי תיקייה אחת, או תוצאות חיפוש על פני הכל.
+    /// הממשק מושך ממנה טווחים לפי הגלילה, ולכן היא נשמרת בין בקשה לבקשה —
+    /// אחרת כל גלילה בתיקייה של עשרות אלפי קבצים הייתה מסננת מחדש.
     /// </summary>
-    internal List<RecoveredFile> Search(string query, int limit, bool includeEvidence)
+    internal IReadOnlyList<RecoveredFile> View(ViewQuery query)
     {
-        if (string.IsNullOrWhiteSpace(query)) return new List<RecoveredFile>();
+        if (_view is { } cached && cached.Query == query) return cached.Files;
 
-        return Result.Files
-            .Where(f => !f.IsDirectory &&
-                        (includeEvidence || !IsEvidence(f)) &&
-                        f.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .Take(limit)
-            .ToList();
+        List<RecoveredFile> files;
+        if (string.IsNullOrWhiteSpace(query.Search))
+        {
+            files = FilesIn(query.Path, query.Evidence).ToList();
+        }
+        else
+        {
+            files = Result.Files
+                .Where(f => !f.IsDirectory &&
+                            (query.Evidence || !IsEvidence(f)) &&
+                            f.Name.Contains(query.Search, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        _view = (query, files);
+        return files;
     }
+
+    private (ViewQuery Query, List<RecoveredFile> Files)? _view;
 
     /// <summary>כל הקבצים תחת נתיב נתון, כולל תיקיות משנה — לבחירת תיקייה שלמה.</summary>
     internal List<RecoveredFile> AllUnder(string path)
