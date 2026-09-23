@@ -41,6 +41,30 @@ public static class VolumeScanner
             return FileCarver.ScanAsync(
                 diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint);
 
+        return WithOverlapCheck(ScanMetadataAsync(
+            kind, diskNumber, partitionOffset, partitionSize, sectorSize, mode, includeExisting, trim, progress, token));
+    }
+
+    /// <summary>
+    /// אחרי סריקת מטא-דאטה: קבצים מחוקים שקובץ מחוק מאוחר יותר תפס את אשכולותיהם
+    /// מדורגים מחדש. מפת ההקצאה לבדה אינה רואה זאת — ראו OverlapCheck.
+    /// </summary>
+    private static async Task<ScanResult> WithOverlapCheck(Task<ScanResult> scan)
+    {
+        var result = await scan.ConfigureAwait(false);
+        int changed = OverlapCheck.Apply(result.Files);
+        if (changed > 0)
+            result.Warnings.Add($"{changed:N0} קבצים מחוקים דורגו מחדש: קובץ מחוק אחר, שנכתב אחריהם, " +
+                                "תפס את האשכולות שלהם — גם אם עכשיו הם נראים פנויים.");
+        return result;
+    }
+
+    private static Task<ScanResult> ScanMetadataAsync(
+        FileSystemKind kind,
+        int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
+        ScanMode mode, bool includeExisting, TrimState trim,
+        IProgress<ScanProgress>? progress, CancellationToken token)
+    {
         return kind switch
         {
             FileSystemKind.Ntfs => NtfsScanner.ScanAsync(
