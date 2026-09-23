@@ -188,7 +188,7 @@ internal static class PartitionTableReader
                 OffsetBytes = offset,
                 SizeBytes = size,
                 FileSystem = fs.Kind,
-                TypeName = MbrTypeName(type),
+                TypeName = MbrTypeName(type, fs.Kind),
                 Label = fs.Label,
                 IsBootable = status == 0x80,
                 IsHidden = type is 0x11 or 0x14 or 0x16 or 0x17 or 0x1B or 0x1C or 0x1E,
@@ -232,7 +232,7 @@ internal static class PartitionTableReader
                     OffsetBytes = offset,
                     SizeBytes = size,
                     FileSystem = fs.Kind,
-                    TypeName = MbrTypeName(type),
+                    TypeName = MbrTypeName(type, fs.Kind),
                     Label = fs.Label,
                 });
             }
@@ -246,10 +246,16 @@ internal static class PartitionTableReader
         }
     }
 
-    private static string MbrTypeName(byte type) => type switch
+    /// <summary>
+    /// שם סוג המחיצה. הסוג 0x07 משותף ל-NTFS ול-exFAT — כשמערכת הקבצים זוהתה
+    /// מתוך המחיצה עצמה, מוצג רק מה שנמצא בפועל.
+    /// </summary>
+    private static string MbrTypeName(byte type, FileSystemKind detected) => type switch
     {
         0x01 => "FAT12",
         0x04 or 0x06 or 0x0E => "FAT16",
+        0x07 when detected == FileSystemKind.Ntfs => "NTFS",
+        0x07 when detected == FileSystemKind.ExFat => "exFAT",
         0x07 => "NTFS / exFAT",
         0x0B or 0x0C => "FAT32",
         0x11 or 0x14 or 0x16 or 0x17 or 0x1B or 0x1C or 0x1E => "מחיצה מוסתרת",
