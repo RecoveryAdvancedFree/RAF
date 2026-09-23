@@ -196,6 +196,21 @@ public class CarvingTests : IDisposable
         Assert.Equal(jpeg.Length, Resolve(jpeg, "jpg", followedBy: after).Bytes);
     }
 
+    [Fact]
+    public void A_cut_jpeg_is_kept_even_when_the_foreign_data_after_it_looks_like_a_segment()
+    {
+        // הבאג: אחרי הנתונים הדחוסים מגיעים בתים של קובץ אחר, והראשונים שבהם
+        // הם FF E1 — נראה כמו מקטע Exif. הקריאה ניסתה להמשיך "למקטע" הזה,
+        // נכשלה, ופסלה את כל הקובץ. כך כ-8% מהקבצים המפוצלים לא נמצאו כלל.
+        byte[] jpeg = JpegEncoder.Encode(320, 240, 36);
+        int cut = jpeg.Length / 2;
+        byte[] foreign = [0xFF, 0xE1, 0x12, 0x34, .. RealFormats.Random(5000, 37)];
+
+        var r = Resolve([.. jpeg[..cut], .. foreign], "jpg");
+
+        Assert.True(r.Bytes >= cut, $"הקובץ נפסל או קוצר מדי: {r.Bytes}");
+    }
+
     // ==================================================== התאמות שווא
 
     [Fact]
@@ -214,6 +229,59 @@ public class CarvingTests : IDisposable
         fake[0] = (byte)'M'; fake[1] = (byte)'Z';
 
         Assert.Equal(0, Resolve(fake, "exe").Bytes);
+    }
+
+    // ==================================================== JPEG: אימות וחיבור מקטעים
+
+    [Fact]
+    public void A_fragmented_jpeg_is_rebuilt_from_both_fragments_and_the_file_in_the_gap_is_found_too()
+    {
+        byte[] jpeg = JpegEncoder.Encode(640, 480, 31, restartInterval: 8);
+        int split = 20 * SectorSize;
+
+        long first = Place(jpeg[..split]);
+        long png = Place(RealFormats.Png(3000, 32));          // קובץ אחר שיושב בפער
+        long second = Place(jpeg[split..]);
+
+        var files = Sweep();
+        var image = _image.ToArray();
+
+        var j = files.Single(f => f.Extension == "jpg");
+        Assert.Equal(jpeg.Length, j.Size);
+        Assert.Equal(RAF.Core.Model.RecoveryQuality.Good, j.Quality);
+        Assert.Contains("מפוצל", j.QualityReason);
+        Assert.Equal(2, j.Extents.Count);
+        Assert.Equal(first / SectorSize, j.Extents[0].StartCluster);
+        Assert.Equal(second / SectorSize, j.Extents[1].StartCluster);
+
+        // התוכן לפי המקטעים זהה לקובץ המקורי, בית-בית.
+        byte[] rebuilt = [.. image.AsSpan((int)first, split), .. image.AsSpan((int)second, jpeg.Length - split)];
+        Assert.Equal(jpeg, rebuilt);
+
+        // הפער לא "נבלע": ה-PNG שבתוכו נמצא.
+        Assert.Contains(files, f => f.Extension == "png" && f.Extents[0].StartCluster == png / SectorSize);
+    }
+
+    [Fact]
+    public void A_whole_jpeg_is_verified_by_decoding()
+    {
+        Place(JpegEncoder.Encode(320, 240, 33));
+
+        var j = Assert.Single(Sweep());
+        Assert.Equal(RAF.Core.Model.RecoveryQuality.Excellent, j.Quality);
+        Assert.Contains("פוענחו", j.QualityReason);
+    }
+
+    [Fact]
+    public void A_jpeg_whose_rest_was_overwritten_is_graded_poor_not_excellent()
+    {
+        byte[] jpeg = JpegEncoder.Encode(640, 480, 34);
+        int cut = jpeg.Length / 2 / SectorSize * SectorSize;
+        Place([.. jpeg[..cut], .. RealFormats.Random(jpeg.Length - cut - 2, 35), 0xFF, 0xD9]);
+
+        var j = Assert.Single(Sweep());
+        Assert.Equal(RAF.Core.Model.RecoveryQuality.Poor, j.Quality);
+        Assert.Contains("משתבשים", j.QualityReason);
     }
 
     [Fact]

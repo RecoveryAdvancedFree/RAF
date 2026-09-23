@@ -7,6 +7,8 @@
     <Platforms>x64</Platforms>
     <IsPackable>false</IsPackable>
     <RootNamespace>RAF.Core.Tests</RootNamespace>
+    <!-- ל-System.Drawing: JPEG אמיתי מהמקודד של Windows, לבדיקת המפענח מול קובץ שלא אנחנו כתבנו -->
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>

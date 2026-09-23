@@ -330,20 +330,27 @@ internal static class StructureCheck
     {
         long pos = 2;
 
+        // סוף הנתונים הדחוסים האחרונים שנקראו. סמן שנראה כמו מקטע נוסף אחריהם
+        // עשוי להיות סריקה נוספת בתמונה מתקדמת — או סתם בתים של קובץ אחר,
+        // שבמקרה נראים כך (כ-8% מהמקרים בקובץ מפוצל). אם ה"מקטע" אינו נקרא,
+        // הקובץ נחתך כאן, ואינו נפסל כולו: החלק התקין עד כאן הוא עדיין תמונה.
+        long afterScan = 0;
+        long Fail() => afterScan;
+
         for (int guard = 0; guard < 100_000; guard++)
         {
-            if (r.Byte(pos) != 0xFF) return 0;
+            if (r.Byte(pos) != 0xFF) return Fail();
             while (r.Byte(pos + 1) == 0xFF) pos++;           // בתי מילוי
 
             int marker = r.Byte(pos + 1);
-            if (marker < 0) return 0;
+            if (marker < 0) return Fail();
 
             if (marker is 0x01 or >= 0xD0 and <= 0xD7) { pos += 2; continue; }
             if (marker == 0xD9) return pos + 2;
-            if (marker is 0x00 or 0xD8) return 0;
+            if (marker is 0x00 or 0xD8) return Fail();
 
             int length = r.BigEndian16(pos + 2);
-            if (length < 2) return 0;
+            if (length < 2) return Fail();
 
             if (marker != 0xDA)
             {
@@ -357,10 +364,10 @@ internal static class StructureCheck
             while (true)
             {
                 long ff = r.IndexOf(0xFF, pos);
-                if (ff < 0) return 0;
+                if (ff < 0) return Fail();
 
                 int next = r.Byte(ff + 1);
-                if (next < 0) return 0;
+                if (next < 0) return Fail();
 
                 if (next == 0x00 || next is >= 0xD0 and <= 0xD7) { pos = ff + 2; continue; }
                 if (next == 0xFF) { pos = ff + 1; continue; }
@@ -372,12 +379,13 @@ internal static class StructureCheck
                 if (!IsJpegSegmentMarker(next)) return ff;
 
                 // סמן אחר — בתמונה מתקדמת זו טבלה או סריקה נוספת.
+                afterScan = ff;
                 pos = ff;
                 break;
             }
         }
 
-        return 0;
+        return Fail();
     }
 
     /// <summary>סמנים שמותר להם להופיע בין סריקות של תמונה מתקדמת.</summary>
