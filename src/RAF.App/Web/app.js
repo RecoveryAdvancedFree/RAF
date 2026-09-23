@@ -26,8 +26,14 @@ const Bridge = (() => {
     if (!entry) return;
     pending.delete(msg.id);
 
-    if (msg.ok) entry.resolve(msg.data);
-    else entry.reject(new Error(msg.error || 'שגיאה לא ידועה'));
+    if (msg.ok) { entry.resolve(msg.data); return; }
+
+    // השגיאה מגיעה מתורגמת: מה קרה, מה לעשות, והפירוט הטכני המקורי בנפרד.
+    const err = new Error(msg.error || 'שגיאה לא ידועה');
+    err.advice = msg.advice;
+    err.detail = msg.detail;
+    err.sourceUntouched = msg.sourceUntouched;
+    entry.reject(err);
   });
 
   function call(method, params, timeoutMs) {
@@ -42,7 +48,9 @@ const Bridge = (() => {
         setTimeout(() => {
           if (pending.has(id)) {
             pending.delete(id);
-            reject(new Error('הבקשה למנוע לא נענתה בזמן'));
+            const err = new Error('הפעולה לא הסתיימה בזמן הצפוי.');
+            err.advice = 'ייתכן שהכונן איטי או תקוע. בדקו שהוא מחובר ונסו שוב.';
+            reject(err);
           }
         }, limit);
       }
@@ -104,6 +112,19 @@ function notice(cls, icon, title, text, why, extra) {
   const sep = title && text ? '<br>' : '';
   const more = why ? `<details class="why"><summary>למה?</summary><div>${why}</div></details>` : '';
   return `<div class="notice ${cls}${extra ? ' ' + extra : ''}">${icon}<div>${head}${sep}${text || ''}${more}</div></div>`;
+}
+
+/// שגיאה במבנה אחיד: מה קרה (הכותרת וההודעה), מה זה אומר על הקבצים,
+/// ומה לעשות עכשיו. ההודעה הטכנית המקורית מקופלת תחת "פרטים טכניים".
+function errorNotice(title, err, extra) {
+  const lines = [esc(err.message)];
+  if (err.sourceUntouched) lines.push('הקבצים המקוריים לא השתנו.');
+  if (err.advice) lines.push(`<b>מה לעשות:</b> ${esc(err.advice)}`);
+  const detail = err.detail
+    ? `<details class="why"><summary>פרטים טכניים</summary><div dir="ltr">${esc(err.detail)}</div></details>`
+    : '';
+  const head = title ? `<b>${title}</b><br>` : '';
+  return `<div class="notice danger${extra ? ' ' + extra : ''}">${Icon.alert}<div>${head}${lines.join('<br>')}${detail}</div></div>`;
 }
 
 /* ------------------------------------------------------------- סמלים */
@@ -318,7 +339,7 @@ async function loadDisks() {
     renderDisks();
   } catch (err) {
     el('content').innerHTML =
-      `<div class="notice danger">${Icon.alert}<div><b>שגיאה בקריאת אמצעי האחסון</b><br>${esc(err.message)}</div></div>`;
+      errorNotice('לא ניתן לקרוא את רשימת הכוננים', err);
     setStatus('שגיאה');
   }
 }
@@ -335,7 +356,7 @@ function renderDisks() {
       <div class="head-actions">
         <button class="btn" id="btn-open-scan">${Icon.history}<span>פתיחת סריקה שמורה</span></button>
         <button class="btn" id="btn-open-image">${Icon.open}<span>פתיחת תמונת דיסק</span></button>
-        <button class="btn" id="btn-doctor">${Icon.wrench}<span>תיקון קבצים פגומים</span></button>
+        <button class="btn" id="btn-doctor">${Icon.wrench}<span>תיקון קבצים שלא נפתחים</span></button>
         <button class="btn" id="btn-refresh">${Icon.refresh}<span>רענון</span></button>
       </div>
     </div>`;
@@ -350,7 +371,8 @@ function renderDisks() {
     html += notice('danger', Icon.alert,
       'אין הרשאות מנהל — השחזור לא יעבוד',
       'סגרו את התוכנה והפעילו אותה מחדש: לחיצה ימנית ← "הפעל כמנהל".',
-      'בלי הרשאות מנהל Windows לא מאפשר לקרוא את הדיסק ברמת הסקטורים, ושם נמצאים הקבצים שנמחקו.');
+      'בלי הרשאות מנהל Windows מאפשר לראות רק את הקבצים הקיימים. קבצים שנמחקו נמצאים מתחת לרשימת הקבצים, ' +
+      'ורק קריאה ישירה של הכונן מגיעה אליהם.');
   }
 
   if (State.disks.length === 0 && State.failed.length === 0) {
@@ -414,8 +436,12 @@ function renderDisk(disk) {
   const icon = diskIcon(disk.media);
   const open = State.openDisks.has(disk.number);
 
-  const trimChip = disk.trim === 'Enabled' ? '<span class="chip warn">TRIM פעיל</span>'
-    : disk.trim === 'NotSupported' ? '<span class="chip ok">ללא TRIM</span>' : '';
+  // TRIM הוא המונח המוכר, ולכן הוא נשאר על השבב; ההסבר במילים פשוטות — בריחוף.
+  const trimChip = disk.trim === 'Enabled'
+    ? '<span class="chip warn" title="הכונן מוחק מעצמו את התוכן של קבצים שנמחקו, ולכן סיכויי השחזור נמוכים יותר.">TRIM פעיל</span>'
+    : disk.trim === 'NotSupported'
+      ? '<span class="chip ok" title="הכונן אינו מוחק מעצמו את התוכן של קבצים שנמחקו — מצב טוב לשחזור.">ללא TRIM</span>'
+      : '';
   const stateChip = disk.unresponsive ? '<span class="chip danger">לא מגיב</span>'
     : disk.rawAccessible ? '' : '<span class="chip danger">אין גישה גולמית</span>';
 
@@ -586,10 +612,10 @@ async function renderRecentScans() {
 async function forgetScans(path) {
   let error = null;
   try { await Bridge.call('scan.forget', path ? { path } : {}); }
-  catch (err) { error = err.message; }
+  catch (err) { error = err; }
   await renderRecentScans();
   if (error) el('recent-scans')?.insertAdjacentHTML('afterbegin',
-    notice('danger', Icon.alert, 'לא ניתן להסיר את הסריקה', esc(error)));
+    errorNotice('לא ניתן להסיר את הסריקה', error));
 }
 
 /// פתיחת סריקה שמורה — מהרשימה, או מקובץ שבוחרים. הבחירה שנשמרה איתה חוזרת.
@@ -604,7 +630,7 @@ async function openSavedScan(path) {
     State.selection = { count: summary.selection.count, bytes: summary.selection.bytes };
     await renderResults();
   } catch (err) {
-    State.flash = notice('danger', Icon.alert, 'לא ניתן לפתוח את הסריקה', esc(err.message));
+    State.flash = errorNotice('לא ניתן לפתוח את הסריקה', err);
     renderDisks();
   }
 }
@@ -748,7 +774,7 @@ async function startHunt(disk) {
         <div class="page-desc">${esc(disk.name)}</div>
       </div>
       <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button></div>
-      <div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+      ${errorNotice('', err)}`;
     el('btn-home').onclick = loadDisks;
     setStatus('שגיאה');
   }
@@ -805,12 +831,13 @@ async function openRestorePanel(disk, part) {
   try {
     plan = await Bridge.call('partition.restorePlan', { disk: disk.number, part: part.index });
   } catch (err) {
-    plan = { canRestore: false, explanation: err.message };
+    plan = { canRestore: false, error: err };
   }
 
   if (!plan.canRestore) {
-    el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="notice warn">${Icon.alert}<div>${esc(plan.explanation)}</div></div>`;
+    el('panel').querySelector('.panel-body').innerHTML = plan.error
+      ? errorNotice('לא ניתן לבדוק אם אפשר להחזיר את המחיצה', plan.error)
+      : `<div class="notice warn">${Icon.alert}<div>${esc(plan.explanation)}</div></div>`;
     el('panel').insertAdjacentHTML('beforeend', `
       <div class="panel-foot"><button class="btn" id="btn-back-restore">חזרה</button></div>`);
     el('btn-back-restore').onclick = () => openScanPanel(disk.number, part.index);
@@ -822,7 +849,7 @@ async function openRestorePanel(disk, part) {
     <div class="strategy"><p>${esc(plan.whatWillChange)}</p></div>
     ${notice('warn', Icon.alert, 'הפעולה כותבת לכונן',
       'יש במחיצה קבצים חשובים? העתיקו אותם קודם: סגרו את החלון ובחרו סריקה.',
-      'לפני הכתיבה נשמר גיבוי של כל סקטור שישתנה. אם משהו ישתבש, התוכנה תחזיר את המצב הקודם אוטומטית.')}
+      'לפני הכתיבה נשמר גיבוי של כל מה שעומד להשתנות בכונן. אם משהו ישתבש, התוכנה תחזיר את המצב הקודם אוטומטית.')}
 
     <div class="section-label">תיקיית גיבוי — על כונן אחר</div>
     <div class="target-row">
@@ -858,12 +885,13 @@ async function openRestorePanel(disk, part) {
     try {
       r = await Bridge.call('partition.restore', { disk: disk.number, part: part.index, undoFolder }, 0);
     } catch (err) {
-      r = { succeeded: false, message: err.message };
+      r = { succeeded: false, error: err };
     }
 
     const cls = r.succeeded ? 'ok-notice' : r.rolledBack ? 'warn' : 'danger';
-    el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="notice ${cls}">${r.succeeded ? Icon.check : Icon.alert}<div>${esc(r.message)}</div></div>`;
+    el('panel').querySelector('.panel-body').innerHTML = r.error
+      ? errorNotice('החזרת המחיצה לא הושלמה', r.error)
+      : `<div class="notice ${cls}">${r.succeeded ? Icon.check : Icon.alert}<div>${esc(r.message)}</div></div>`;
     el('panel').querySelector('.panel-foot').innerHTML =
       `<button class="btn btn-primary" id="btn-done-restore">סיום</button>`;
     el('btn-done-restore').onclick = () => { closePanel(); State.openDisks.add(disk.number); loadDisks(); };
@@ -895,7 +923,8 @@ const SCAN_MODES = [
     id: 3, name: 'סריקה מתקדמת', icon: Icon.radar,
     desc: 'אחרי פירמוט או נזק כבד.',
     time: 'בלי שמות מקוריים · שעה ומעלה',
-    tech: 'קוראת כל סקטור ומזהה קבצים לפי חתימות HEX, בלי תלות במערכת הקבצים. ' +
+    tech: 'קוראת את הכונן כולו ומזהה קבצים לפי חתימות HEX — הבתים הקבועים שבתחילת כל סוג קובץ — ' +
+          'בלי תלות במערכת הקבצים. ' +
           'עובדת גם אחרי פירמוט, אבל שמות ותיקיות אינם נשמרים.',
   },
 ];
@@ -956,7 +985,7 @@ function openScanPanel(diskNumber, partIndex) {
   const readThroughNotice = part.readThrough
     ? notice('ok-notice', Icon.shield, 'המחיצה נקראת דרך עותק הגיבוי',
         'בחרו <b>סריקה מהירה</b> — יוצגו כל הקבצים עם השמות, ולא רק קבצים שנמחקו.',
-        'תחילת המחיצה פגומה, והתוכנה קוראת אותה דרך עותק הגיבוי של מגזר האתחול — בזיכרון בלבד. שום דבר לא נכתב לכונן.')
+        'תחילת המחיצה (מגזר האתחול) פגומה, והתוכנה קוראת אותה דרך עותק הגיבוי שלה — בזיכרון בלבד. שום דבר לא נכתב לכונן.')
     : '';
 
   el('panel').innerHTML = `
@@ -1032,8 +1061,7 @@ async function openRepairPanel(disk, part) {
   try {
     d = await Bridge.call('repair.diagnose', { disk: disk.number, part: part.index });
   } catch (err) {
-    el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+    el('panel').querySelector('.panel-body').innerHTML = errorNotice('לא ניתן לבדוק את המחיצה', err);
     return;
   }
 
@@ -1051,7 +1079,7 @@ async function openRepairPanel(disk, part) {
     </div>
     ${notice('info', Icon.shield, 'שום דבר לא נכתב לכונן',
       'התיקון קיים רק בזיכרון של התוכנה.',
-      'התוכנה קוראת את המחיצה דרך עותק הגיבוי של מגזר האתחול שנמצא, והכונן נשאר בדיוק כפי שהוא.')}` : '';
+      'התוכנה קוראת את המחיצה דרך עותק הגיבוי של תחילתה (מגזר האתחול), והכונן נשאר בדיוק כפי שהוא.')}` : '';
 
   const repairBlock = d.canRepair ? `
     <div class="section-label" style="margin-top:18px">אפשרות 2 — תיקון המחיצה</div>
@@ -1117,12 +1145,13 @@ async function startReadThrough(disk, part) {
   try {
     r = await Bridge.call('repair.readThrough', { disk: disk.number, part: part.index }, 0);
   } catch (err) {
-    r = { ok: false, message: err.message };
+    r = { ok: false, error: err };
   }
 
   if (!r.ok) {
-    el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="notice danger">${Icon.alert}<div>${esc(r.message)}</div></div>`;
+    el('panel').querySelector('.panel-body').innerHTML = r.error
+      ? errorNotice('לא ניתן לקרוא את המחיצה דרך עותק הגיבוי', r.error)
+      : `<div class="notice danger">${Icon.alert}<div>${esc(r.message)}</div></div>`;
     el('panel').querySelector('.panel-foot').innerHTML =
       `<button class="btn" id="btn-back-rt">חזרה</button>`;
     el('btn-back-rt').onclick = () => openRepairPanel(disk, part);
@@ -1148,7 +1177,7 @@ function confirmRepair(disk, part, diagnosis) {
     <div class="panel-body">
       ${notice('warn', Icon.alert, 'הפעולה כותבת לדיסק', esc(diagnosis.whatWillChange))}
 
-      <div class="section-label">תיקיית גיבוי לסקטורים — על כונן אחר</div>
+      <div class="section-label">תיקיית גיבוי — על כונן אחר</div>
       <div class="target-row">
         <input type="text" id="undo-path" readonly placeholder="לא נבחרה תיקייה">
         <button class="btn" id="btn-pick-undo">${Icon.folder}<span>בחירה</span></button>
@@ -1156,7 +1185,7 @@ function confirmRepair(disk, part, diagnosis) {
       <div id="undo-status"></div>
 
       ${notice('info', Icon.shield, 'אפשר לחזור אחורה',
-        'לפני הכתיבה יישמר כאן עותק של הסקטורים. אם התיקון ייכשל, המצב הקודם יוחזר אוטומטית.',
+        'לפני הכתיבה יישמר כאן עותק של כל מה שעומד להשתנות בכונן. אם התיקון ייכשל, המצב הקודם יוחזר אוטומטית.',
         '', 'spaced')}
     </div>
     <div class="panel-foot">
@@ -1192,14 +1221,15 @@ async function runRepair(disk, part) {
     r = await Bridge.call('repair.apply',
       { disk: disk.number, part: part.index, undoFolder }, 0);
   } catch (err) {
-    r = { succeeded: false, message: err.message };
+    r = { succeeded: false, error: err };
   }
 
   const cls = r.succeeded ? 'ok-notice' : r.rolledBack ? 'warn' : 'danger';
   const icon = r.succeeded ? Icon.check : Icon.alert;
 
   el('panel').querySelector('.panel-body').innerHTML = `
-    <div class="notice ${cls}">${icon}<div>${esc(r.message)}</div></div>
+    ${r.error ? errorNotice('תיקון המחיצה לא הושלם', r.error)
+      : `<div class="notice ${cls}">${icon}<div>${esc(r.message)}</div></div>`}
     ${r.undoFile ? `<div class="notice info tiny-notice">${Icon.info}
       <div>קובץ ביטול: <span style="direction:ltr;display:inline-block">${esc(r.undoFile)}</span></div>
     </div>` : ''}`;
@@ -1227,7 +1257,7 @@ async function openImageFile(path) {
     setStatus('התמונה נפתחה — בחרו מחיצה מתוכה לסריקה');
   } catch (err) {
     el('content').insertAdjacentHTML('afterbegin',
-      `<div class="notice danger">${Icon.alert}<div><b>לא ניתן לפתוח את התמונה.</b><br>${esc(err.message)}</div></div>`);
+      errorNotice('לא ניתן לפתוח את תמונת הדיסק', err));
   }
 }
 
@@ -1251,7 +1281,7 @@ function openImagePanel(disk, part) {
         ירוצו על ההעתק — הכונן המקורי כבר לא ייקרא.</p>
         <ol class="image-steps">
           <li><b>מעבר 1 — העתקה מהירה.</b> מדלגים על אזורים פגומים, ואוספים קודם את מה שנקרא בקלות.</li>
-          <li><b>מעבר 2 — ניסיון חוזר.</b> חוזרים לאזורים שדולגו, סקטור אחר סקטור.</li>
+          <li><b>מעבר 2 — ניסיון חוזר.</b> חוזרים לאזורים שדולגו, וקוראים אותם בחלקים קטנים ככל האפשר.</li>
         </ol>
       </div>
 
@@ -1263,8 +1293,8 @@ function openImagePanel(disk, part) {
       <div id="image-status"></div>
 
       ${notice('info', Icon.shield, 'קריאה בלבד מהכונן המקורי',
-        'סקטורים שלא ייקראו יתועדו בקובץ מפה לצד התמונה.',
-        'סקטור שלא נקרא נשמר בתמונה כאפסים, ואי אפשר להבחין בינו לבין אפסים אמיתיים. המפה מראה בדיוק מה חסר.',
+        'אזורים שלא ייקראו יתועדו בקובץ מפה לצד התמונה.',
+        'אזור שלא נקרא נשמר בתמונה כאפסים, ואי אפשר להבחין בינו לבין אפסים אמיתיים. המפה מראה בדיוק מה חסר.',
         'spaced')}
     </div>
     <div class="panel-foot">
@@ -1326,8 +1356,8 @@ function existingImageChoice(e) {
       `התמונה הקודמת נוצרה מ: <bdi>${esc(e.source)}</bdi>. ודאו שזה אותו כונן.`, 'tiny-notice')}
     <div class="radio-group">
       ${onlyRetry
-        ? option('retry', true, 'ניסיון חוזר בסקטורים שלא נקראו',
-            'רק הם נקראים שוב. לפעמים כונן מצליח לקרוא סקטור בניסיון מאוחר יותר.')
+        ? option('retry', true, 'ניסיון חוזר באזורים שלא נקראו',
+            'רק הם נקראים שוב. לפעמים כונן מצליח לקרוא אזור פגום בניסיון מאוחר יותר.')
         : option('resume', true, 'המשך מהנקודה שנעצרה',
             'רק מה שלא הועתק נקרא מהכונן. מה שכבר בתמונה נשאר כפי שהוא.')}
       ${option('new', false, 'התחלה מחדש', 'התמונה הקודמת תידרס, והכונן כולו ייקרא שוב.')}
@@ -1394,7 +1424,7 @@ async function startImaging(disk, part, request) {
         <div class="page-desc">${esc(title)}</div>
       </div>
       <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button></div>
-      <div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+      ${errorNotice('', err)}`;
     el('btn-home').onclick = loadDisks;
     setStatus('שגיאה');
     return;
@@ -1438,7 +1468,7 @@ function showImageResult(title, r) {
     <div class="progress-card">
       <div class="kv">
         <div><dt>גודל התמונה</dt><dd>${formatSize(r.size)}</dd></div>
-        <div><dt>סקטורים שלא נקראו</dt><dd>${r.unreadable > 0 ? formatSize(r.unreadable) : 'אין'}</dd></div>
+        <div><dt>לא נקרא מהכונן</dt><dd>${r.unreadable > 0 ? formatSize(r.unreadable) : 'אין'}</dd></div>
         <div><dt>לא הועתק</dt><dd>${r.notCopied > 0 ? formatSize(r.notCopied) : 'אין'}</dd></div>
         <div><dt>משך</dt><dd>${formatDuration(r.duration)}</dd></div>
       </div>
@@ -1458,7 +1488,7 @@ function showImageResult(title, r) {
 }
 
 /* =====================================================================
-   תיקון קבצים פגומים לפי זיהוי HEX
+   תיקון קבצים שלא נפתחים — זיהוי לפי תוכן הקובץ (חתימות HEX)
    ===================================================================== */
 
 const Doctor = { files: [] };
@@ -1467,8 +1497,8 @@ async function openDoctorPanel(source) {
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
-        <div class="panel-title">תיקון קבצים פגומים</div>
-        <div class="panel-sub">זיהוי לפי חתימות HEX ומבנה הקובץ</div>
+        <div class="panel-title">תיקון קבצים שלא נפתחים</div>
+        <div class="panel-sub">הבדיקה לפי מה שיש בתוך הקובץ, לא לפי השם שלו</div>
       </div>
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
     </div>
@@ -1489,10 +1519,12 @@ function renderDoctorEmpty() {
   el('doctor-body').innerHTML = `
     ${notice('info', Icon.shield, 'הקבצים המקוריים לא משתנים',
       'התיקון נכתב לעותק חדש, ונבדק שוב אחרי הכתיבה.',
-      'הבדיקה משווה בין חתימת הפתיחה של כל קובץ, הסיומת שלו והאורך שמבנה הקובץ מצהיר עליו.')}
+      'הבדיקה משווה בין חתימת הפתיחה של כל קובץ (הבתים הראשונים שמזהים את סוגו), הסיומת שלו, ' +
+      'והאורך שמבנה הקובץ מצהיר עליו. כל פער ביניהם הוא בעיה מזוהה.')}
     <div class="section-label">מה אפשר לתקן</div>
     <div class="strategy"><p>
-      חתימת פתיחה שנמחקה · נתונים עודפים בסוף הקובץ · חתימת סיום חסרה · סיומת שגויה ·
+      תחילת קובץ שנמחקה או נפגעה · נתונים מיותרים בסוף הקובץ · סוף קובץ חסר ·
+      סיומת שגויה (למשל תמונה שנשמרה בשם ‎.doc) ·
       מסמך Word, Excel או PowerPoint (או ZIP) שלא נפתח — תוכן העניינים שלו נבנה מחדש.</p>
       <p>קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.</p></div>`;
 
@@ -1520,7 +1552,7 @@ async function diagnoseInto(request) {
     Doctor.files = data.files || [];
     renderDoctorList();
   } catch (err) {
-    el('doctor-body').innerHTML = `<div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+    el('doctor-body').innerHTML = errorNotice('לא ניתן לבדוק את הקבצים', err);
   }
 }
 
@@ -1584,7 +1616,7 @@ async function runDoctorRepair(paths) {
   try {
     data = await Bridge.call('doctor.repair', { paths, output }, 0);
   } catch (err) {
-    el('doctor-body').innerHTML = `<div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+    el('doctor-body').innerHTML = errorNotice('התיקון לא הושלם', err);
     return;
   }
 
@@ -1644,8 +1676,7 @@ async function showStrategy(disk, part, modeId) {
   try {
     profile = await Bridge.call('scan.profile', { disk: disk.number, mode: modeId });
   } catch (err) {
-    el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+    el('panel').querySelector('.panel-body').innerHTML = errorNotice('לא ניתן להכין את הסריקה', err);
     return;
   }
 
@@ -1760,7 +1791,7 @@ async function startScan(disk, part, modeId, includeExisting) {
         <div class="page-desc">${esc(partTitle(part))}</div>
       </div>
       <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button></div>
-      <div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+      ${errorNotice('', err)}`;
     el('btn-home').onclick = loadDisks;
     setStatus('שגיאה');
   }
@@ -2413,7 +2444,7 @@ async function saveScanAs() {
     const r = await Bridge.call('scan.save', {}, 0);
     if (r.path) setStatus('הסריקה נשמרה: ' + r.path);
   } catch (err) {
-    showResultsNotice(notice('danger', Icon.alert, 'הסריקה לא נשמרה', esc(err.message)));
+    showResultsNotice(errorNotice('הסריקה לא נשמרה', err));
   }
 }
 
@@ -2482,7 +2513,7 @@ async function showPreview(id) {
   try {
     p = await Bridge.call('scan.preview', { id });
   } catch (err) {
-    panel.innerHTML = `<div class="notice danger" style="margin:12px">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+    panel.innerHTML = `<div style="margin:12px">${errorNotice('לא ניתן להציג את הקובץ', err)}</div>`;
     return;
   }
 
@@ -2520,7 +2551,7 @@ async function showPreview(id) {
     <div class="preview-body">${body}</div>
     ${p.hex ? `
       <details class="hex-box">
-        <summary>${Icon.hash}<span>תצוגת HEX</span></summary>
+        <summary>${Icon.hash}<span>התוכן הגולמי (HEX)</span></summary>
         <pre class="hex-dump">${esc(p.hex)}</pre>
       </details>` : ''}`;
 }
@@ -2618,8 +2649,10 @@ async function runRecovery() {
     const report = await longCall('recover.start', { target, preservePaths });
     showRecoveryReport(report);
   } catch (err) {
-    el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="notice danger">${Icon.alert}<div>${esc(err.message)}</div></div>`;
+    el('panel').querySelector('.panel-body').innerHTML = errorNotice('השחזור נעצר', err);
+    el('panel').querySelector('.panel-foot').innerHTML =
+      `<button class="btn" id="btn-rec-close">סגירה</button>`;
+    el('btn-rec-close').onclick = closePanel;
   }
 }
 

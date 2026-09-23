@@ -78,7 +78,7 @@ public sealed class NtfsScanner
 
         using var volume = NtfsVolume.Open(reader)
             ?? throw new InvalidDataException(
-                "המחיצה אינה NTFS תקין, או שמגזר האתחול שלה פגום.");
+                "המחיצה אינה NTFS תקין, או שתחילת המחיצה (מגזר האתחול) פגומה.");
 
         _volume = volume;
         volume.LoadClusterBitmap();
@@ -101,7 +101,7 @@ public sealed class NtfsScanner
             double gb = (_bytesRead - bytesBefore) / 1024.0 / 1024 / 1024;
             _warnings.Add(
                 $"הסריקה העמוקה קראה {gb:F1} GB מהמחיצה ואיתרה {gained:N0} קבצים נוספים " +
-                "שרשומתם כבר אינה בטבלת ה-MFT.");
+                "שרשומתם כבר אינה בטבלת הקבצים (MFT).");
         }
 
         // היומנים נסרקים אחרונים: הם מאתרים קבצים שרשומת ה-MFT שלהם כבר
@@ -121,8 +121,8 @@ public sealed class NtfsScanner
             _warnings.Add(
                 $"{_verifiedEmpty:N0} קבצים נמצאו ברשומות המטא-דאטה אך תוכנם כבר אינו קיים על הכונן. " +
                 (_trim == TrimState.Enabled
-                    ? "בכונן זה פקודת TRIM פעילה, והבקר מוחק פיזית בלוקים של קבצים שנמחקו. "
-                    : "האשכולות שלהם נדרסו או אופסו. ") +
+                    ? "הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM). "
+                    : "המקום שלהם בכונן נדרס או אופס. ") +
                 "קבצים אלה סומנו כלא ניתנים לשחזור ולא יוצעו לשחזור.");
         }
 
@@ -193,7 +193,7 @@ public sealed class NtfsScanner
             {
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "קורא את טבלת ה-MFT",
+                    Stage = "קורא את טבלת הקבצים",
                     Percent = total > 0 ? index * 100.0 / total : null,
                     FilesFound = files.Count,
                     BytesProcessed = _bytesRead,
@@ -397,7 +397,7 @@ public sealed class NtfsScanner
                 file.Quality = RecoveryQuality.Unrecoverable;
                 file.QualityReason = _trim == TrimState.Enabled
                     ? "רשומת הקובץ שרדה, אך אזור הנתונים שלו מכיל אפסים בלבד. " +
-                      "בכונן זה פקודת TRIM פעילה, ולכן הבקר מחק את הנתונים פיזית. לא ניתן לשחזר."
+                      "הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM), והתוכן כבר אינו קיים. לא ניתן לשחזר."
                     : "אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק או אופס. לא ניתן לשחזר.";
                 return;
 
@@ -429,7 +429,7 @@ public sealed class NtfsScanner
                 if (allocated is null)
                 {
                     file.Quality = RecoveryQuality.Good;
-                    file.QualityReason = "נמצאו נתונים בקובץ. מפת האשכולות אינה זמינה לבדיקת דריסה.";
+                    file.QualityReason = "נמצאו נתונים בקובץ. לא ניתן היה לבדוק אם קבצים אחרים נכתבו במקומו.";
                     return;
                 }
 
@@ -450,13 +450,13 @@ public sealed class NtfsScanner
         (file.Quality, file.QualityReason) = ratio switch
         {
             0 => (RecoveryQuality.Excellent,
-                  "נמצאו נתונים בקובץ, וכל האשכולות שלו עדיין פנויים."),
+                  "נמצאו נתונים בקובץ, וכל המקום שהוא תפס בכונן עדיין פנוי."),
             < 0.15 => (RecoveryQuality.Good,
-                  $"נמצאו נתונים בקובץ. כ-{ratio:P0} מהאשכולות כבר הוקצו לקבצים אחרים."),
+                  $"נמצאו נתונים בקובץ. כ-{ratio:P0} מהמקום שהוא תפס בכונן כבר תפוס על ידי קבצים אחרים."),
             < 0.85 => (RecoveryQuality.Poor,
-                  $"כ-{ratio:P0} מאשכולות הקובץ כבר הוקצו לקבצים אחרים. הקובץ ישוחזר פגום."),
+                  $"כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום."),
             _ => (RecoveryQuality.Unrecoverable,
-                  "כמעט כל אשכולות הקובץ נדרסו על ידי קבצים אחרים."),
+                  "כמעט כל המקום שהקובץ תפס בכונן נדרס על ידי קבצים אחרים."),
         };
     }
 

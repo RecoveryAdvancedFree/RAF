@@ -46,7 +46,7 @@ public sealed class ExFatScanner
 
         using var volume = ExFatVolume.Open(reader)
             ?? throw new InvalidDataException(
-                "המחיצה אינה exFAT תקין, או שמגזר האתחול שלה פגום.");
+                "המחיצה אינה exFAT תקין, או שתחילת המחיצה (מגזר האתחול) פגומה.");
 
         _volume = volume;
         var files = new List<RecoveredFile>();
@@ -189,7 +189,7 @@ public sealed class ExFatScanner
         }
 
         if (found > 0)
-            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} אשכולות ספרייה שאינם מקושרים עוד לעץ התיקיות.");
+            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} שרידי תיקיות שאינם מקושרים עוד לעץ התיקיות.");
     }
 
     // ------------------------------------------------------------ המרה
@@ -264,7 +264,7 @@ public sealed class ExFatScanner
         if (entry.FirstCluster == 0 || file.Extents.Count == 0)
         {
             file.Quality = RecoveryQuality.Unrecoverable;
-            file.QualityReason = "רשומת הספרייה אינה מציינת אשכול התחלה תקין.";
+            file.QualityReason = "רשומת הקובץ אינה מציינת היכן בכונן מתחיל התוכן שלו.";
             return;
         }
 
@@ -315,9 +315,9 @@ public sealed class ExFatScanner
         {
             Placement.Contiguous => "הרשומה מציינת שהקובץ היה רציף על הכונן, ולכן מיקומו ידוע בוודאות.",
             Placement.SurvivingChain when file.Extents.Count > 1 =>
-                $"הקובץ היה מפוצל ל-{file.Extents.Count} חלקים, ושרשרת האשכולות שלו שרדה במלואה — מיקום כל חלק ידוע.",
-            Placement.SurvivingChain => "שרשרת האשכולות של הקובץ שרדה במלואה, ולכן מיקומו ידוע.",
-            _ => "הקובץ לא נשמר ברצף, ושרשרת האשכולות שלו אינה שלמה עוד. השחזור מניח רצף — " +
+                $"הקובץ היה מפוצל ל-{file.Extents.Count} חלקים, והמפה של חלקיו שרדה במלואה — מיקום כל חלק ידוע.",
+            Placement.SurvivingChain => "המפה של חלקי הקובץ שרדה במלואה, ולכן מיקומו ידוע.",
+            _ => "הקובץ לא נשמר ברצף, והמפה של חלקיו אינה שלמה עוד. השחזור מניח רצף — " +
                  "ייתכן שחלק מהתוכן יהיה של קובץ אחר.",
         };
 
@@ -325,10 +325,10 @@ public sealed class ExFatScanner
 
         (file.Quality, file.QualityReason) = ratio switch
         {
-            0 => (RecoveryQuality.Excellent, $"נמצאו נתונים וכל האשכולות פנויים. {basis}"),
-            < 0.15 => (RecoveryQuality.Good, $"נמצאו נתונים. כ-{ratio:P0} מהאשכולות הוקצו לקבצים אחרים. {basis}"),
-            < 0.85 => (RecoveryQuality.Poor, $"כ-{ratio:P0} מהאשכולות הוקצו לקבצים אחרים. הקובץ ישוחזר פגום."),
-            _ => (RecoveryQuality.Unrecoverable, "כמעט כל האשכולות שהקובץ תפס הוקצו מחדש."),
+            0 => (RecoveryQuality.Excellent, $"נמצאו נתונים, וכל המקום שהקובץ תפס בכונן עדיין פנוי. {basis}"),
+            < 0.15 => (RecoveryQuality.Good, $"נמצאו נתונים. כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. {basis}"),
+            < 0.85 => (RecoveryQuality.Poor, $"כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום."),
+            _ => (RecoveryQuality.Unrecoverable, "כמעט כל המקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים."),
         };
 
         // הנחת רצף לא תקבל יותר מ"חלש": אשכולות פנויים אינם מוכיחים שהם של הקובץ הזה.

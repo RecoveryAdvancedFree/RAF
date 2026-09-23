@@ -55,7 +55,7 @@ public static class VolumeScanner
         int changed = OverlapCheck.Apply(result.Files);
         if (changed > 0)
             result.Warnings.Add($"{changed:N0} קבצים מחוקים דורגו מחדש: קובץ מחוק אחר, שנכתב אחריהם, " +
-                                "תפס את האשכולות שלהם — גם אם עכשיו הם נראים פנויים.");
+                                "נכתב במקום שלהם בכונן — גם אם עכשיו המקום נראה פנוי.");
         return result;
     }
 

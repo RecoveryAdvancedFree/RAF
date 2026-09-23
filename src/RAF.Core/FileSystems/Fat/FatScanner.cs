@@ -48,7 +48,7 @@ public sealed class FatScanner
 
         using var volume = FatVolume.Open(reader)
             ?? throw new InvalidDataException(
-                "המחיצה אינה FAT תקין, או שמגזר האתחול שלה פגום.");
+                "המחיצה אינה FAT תקין, או שתחילת המחיצה (מגזר האתחול) פגומה.");
 
         _volume = volume;
 
@@ -72,8 +72,8 @@ public sealed class FatScanner
                 "הם סומנו כלא ניתנים לשחזור.");
 
         _warnings.Add(
-            "ב-FAT מחיקת קובץ מוחקת את שרשרת האשכולות שלו. השחזור מניח שהקובץ " +
-            "הוקצה ברצף מאשכול ההתחלה — הנחה נכונה ברוב הקבצים, אך קובץ שהיה " +
+            "ב-FAT מחיקת קובץ מוחקת את המפה של חלקיו. השחזור מניח שהקובץ " +
+            "נשמר ברצף מתחילתו — הנחה נכונה ברוב הקבצים, אך קובץ שהיה " +
             "מפוצל על פני הכונן ישוחזר פגום.");
 
         return new ScanResult
@@ -218,7 +218,7 @@ public sealed class FatScanner
         }
 
         if (found > 0)
-            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} אשכולות ספרייה שאינם מקושרים עוד לעץ התיקיות.");
+            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} שרידי תיקיות שאינם מקושרים עוד לעץ התיקיות.");
     }
 
     /// <summary>
@@ -311,7 +311,7 @@ public sealed class FatScanner
             file.Quality = file.Size == 0 ? RecoveryQuality.Excellent : RecoveryQuality.Unrecoverable;
             file.QualityReason = file.Size == 0
                 ? "הקובץ ריק ואין לו תוכן לשחזר."
-                : "רשומת הספרייה אינה מציינת אשכול התחלה, ולכן לא ניתן לאתר את תוכן הקובץ.";
+                : "רשומת הקובץ אינה מציינת היכן בכונן מתחיל התוכן שלו, ולכן לא ניתן לאתר אותו.";
             return;
         }
 
@@ -319,7 +319,7 @@ public sealed class FatScanner
         {
             file.Quality = RecoveryQuality.Excellent;
             file.Content = ContentCheck.HasData;
-            file.QualityReason = "הקובץ קיים במערכת הקבצים ושרשרת האשכולות שלו שלמה.";
+            file.QualityReason = "הקובץ קיים במערכת הקבצים, והמפה של חלקיו שלמה.";
             return;
         }
 
@@ -363,14 +363,14 @@ public sealed class FatScanner
         (file.Quality, file.QualityReason) = ratio switch
         {
             0 => (RecoveryQuality.Excellent,
-                  "נמצאו נתונים, וכל האשכולות שהקובץ תפס עדיין פנויים. " +
+                  "נמצאו נתונים, וכל המקום שהקובץ תפס בכונן עדיין פנוי. " +
                   "השחזור מניח שהקובץ היה רציף על הכונן."),
             < 0.15 => (RecoveryQuality.Good,
-                  $"נמצאו נתונים. כ-{ratio:P0} מהאשכולות כבר הוקצו לקבצים אחרים."),
+                  $"נמצאו נתונים. כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים."),
             < 0.85 => (RecoveryQuality.Poor,
-                  $"כ-{ratio:P0} מהאשכולות כבר הוקצו לקבצים אחרים. הקובץ ישוחזר פגום."),
+                  $"כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום."),
             _ => (RecoveryQuality.Unrecoverable,
-                  "כמעט כל האשכולות שהקובץ תפס הוקצו מחדש לקבצים אחרים."),
+                  "כמעט כל המקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים."),
         };
     }
 

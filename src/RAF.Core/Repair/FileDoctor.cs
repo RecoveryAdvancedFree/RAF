@@ -126,9 +126,8 @@ public static class FileDoctor
             {
                 format = expected;
                 issues.Add(new FileIssue(FileIssueKind.HeaderDamaged,
-                    $"חתימת הפתיחה של {expected.Name} נפגעה. הבתים הראשונים של הקובץ " +
-                    "אינם תואמים לפורמט, אך הם חלקיים או מאופסים — סימן לנזק ולא לסוג קובץ אחר. " +
-                    "ניתן לשחזר את החתימה.", true));
+                    $"תחילת הקובץ נפגעה: חתימת הפתיחה של {expected.Name} — הבתים שמזהים את סוג הקובץ — " +
+                    "חלקית או מאופסת. זה סימן לנזק, ולא לסוג קובץ אחר, ולכן ניתן לשחזר אותה.", true));
             }
             else
             {
@@ -159,11 +158,11 @@ public static class FileDoctor
 
                 issues.Add(inferred is not null
                     ? new FileIssue(FileIssueKind.HeaderDamaged,
-                        "סמן המקטע הראשון של ה-JPEG נפגע. מזהה המקטע שאחריו שרד, " +
-                        "ולכן ניתן לשחזר את הסמן במדויק.", true)
+                        "גם הבית שאחרי חתימת ה-JPEG (סמן המקטע הראשון) נפגע. המידע שאחריו שרד, " +
+                        "ולכן ניתן לשחזר אותו במדויק.", true)
                     : new FileIssue(FileIssueKind.HeaderDamaged,
-                        "סמן המקטע הראשון של ה-JPEG נפגע, וגם המידע שממנו ניתן היה לשחזר " +
-                        "אותו אבד. לא ניתן לשחזר את הסמן בוודאות, והתמונה עלולה שלא להיפתח.", false));
+                        "גם הבית שאחרי חתימת ה-JPEG (סמן המקטע הראשון) נפגע, וגם המידע שממנו " +
+                        "ניתן היה לשחזר אותו אבד. לא ניתן לשחזר אותו בוודאות, והתמונה עלולה שלא להיפתח.", false));
             }
         }
 
@@ -214,14 +213,14 @@ public static class FileDoctor
                 if (footerEnd <= 0)
                 {
                     issues.Add(new FileIssue(FileIssueKind.FooterMissing,
-                        $"חתימת הסיום של {format.Name} חסרה — ככל הנראה הקובץ נקטע. " +
+                        $"סוף הקובץ חסר (חתימת הסיום של {format.Name}) — ככל הנראה הקובץ נקטע. " +
                         "השלמת החתימה מאפשרת לרוב התוכנות לפתוח את החלק הקיים.", true));
                 }
                 else if (footerEnd < size && !volume.IsZeroRange(footerEnd, size))
                 {
                     correctLength = footerEnd;
                     issues.Add(new FileIssue(FileIssueKind.TrailingData,
-                        $"אחרי חתימת הסיום של הקובץ יש {size - footerEnd:N0} בתים עודפים " +
+                        $"אחרי סוף הקובץ יש {size - footerEnd:N0} בתים עודפים " +
                         "שאינם חלק ממנו. ניתן להסיר אותם.", true));
                 }
             }
@@ -388,7 +387,7 @@ public static class FileDoctor
             {
                 // חתימה וסמן נפגעים לרוב יחד; השחזור מטפל בשניהם בפעם אחת.
                 case FileIssueKind.HeaderDamaged when format is not null && !restoreHeader:
-                    applied.Add($"שוחזרה חתימת הפתיחה של {format.Name}");
+                    applied.Add($"שוחזרה תחילת הקובץ (חתימת הפתיחה של {format.Name})");
                     restoreHeader = true;
                     break;
 
@@ -399,7 +398,7 @@ public static class FileDoctor
 
                 case FileIssueKind.FooterMissing when format?.Footer is { Length: > 0 }:
                     footer = format.Footer;
-                    applied.Add($"הושלמה חתימת הסיום של {format.Name}");
+                    applied.Add($"הושלם סוף הקובץ (חתימת הסיום של {format.Name})");
                     break;
 
                 case FileIssueKind.ExtensionMismatch:

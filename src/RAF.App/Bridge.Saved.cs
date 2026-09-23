@@ -69,7 +69,7 @@ internal sealed partial class Bridge
         }
         catch (Exception ex)
         {
-            PushEvent("scan.saved", new { skipped = "השמירה האוטומטית נכשלה: " + ex.Message, partial });
+            PushEvent("scan.saved", new { skipped = "השמירה האוטומטית נכשלה. " + FriendlyError.From(ex).Text, partial });
         }
     }
 

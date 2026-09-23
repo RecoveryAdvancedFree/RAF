@@ -80,11 +80,11 @@ internal static class Display
 
     internal static string Source(DiscoverySource s) => s switch
     {
-        DiscoverySource.MftActive => "רשומת MFT",
-        DiscoverySource.MftOrphan => "רשומה יתומה",
+        DiscoverySource.MftActive => "טבלת הקבצים",
+        DiscoverySource.MftOrphan => "שריד בטבלת הקבצים",
         DiscoverySource.UsnJournal => "יומן שינויים",
-        DiscoverySource.LogFile => "יומן טרנזקציות",
-        DiscoverySource.Carving => "חתימת HEX",
+        DiscoverySource.LogFile => "יומן מערכת הקבצים",
+        DiscoverySource.Carving => "זיהוי לפי תוכן",
         _ => "",
     };
 

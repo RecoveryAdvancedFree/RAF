@@ -126,7 +126,7 @@ public static class ImageDisk
     private static string Describe(ImageMap? map)
     {
         if (map is null)
-            return "תמונה ללא קובץ מפה — לא ידוע אם כל הסקטורים נקראו בעת יצירתה.";
+            return "תמונה ללא קובץ מפה — לא ידוע אם הכונן כולו נקרא בעת יצירתה.";
 
         string origin = string.IsNullOrWhiteSpace(map.Source) ? "" : $"נוצרה מ: {map.Source}. ";
 
@@ -135,9 +135,9 @@ public static class ImageDisk
                    "קבצים שישבו באזורים האלה לא ישוחזרו.";
 
         if (map.UnreadableBytes > 0)
-            return origin + $"{map.UnreadableBytes / map.SectorSize:N0} סקטורים לא נקראו בעת היצירה " +
+            return origin + $"{DiskImager.Size(map.UnreadableBytes)} לא נקראו מהכונן בעת היצירה " +
                    "ומולאו באפסים. קבצים שישבו בהם יחזרו פגומים חלקית.";
 
-        return origin + "כל הסקטורים נקראו בהצלחה.";
+        return origin + "הכונן כולו נקרא בהצלחה.";
     }
 }

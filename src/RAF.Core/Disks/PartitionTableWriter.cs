@@ -51,7 +51,7 @@ public static class PartitionTableWriter
         VolumeReader reader, long diskSize, int sector, IReadOnlyList<PartitionInfo> existing, FoundPartition found)
     {
         if (found.Offset % sector != 0 || found.Size % sector != 0)
-            return Refuse("גבולות המחיצה אינם מיושרים לסקטור, ולכן אי אפשר לרשום אותה בטבלה.");
+            return Refuse("גבולות המחיצה שנמצאה אינם תקינים, ולכן אי אפשר לרשום אותה בטבלה.");
 
         if (found.Offset + found.Size > diskSize)
             return Refuse("המחיצה חורגת מסוף הכונן.");
@@ -132,8 +132,8 @@ public static class PartitionTableWriter
                 ? "לכונן אין טבלת מחיצות. תיווצר טבלה חדשה, ובה המחיצה שנמצאה."
                 : "בטבלת המחיצות של הכונן יש רשומה פנויה, והמחיצה תירשם בה.",
             WhatWillChange = fresh
-                ? "ייכתב סקטור אחד — הסקטור הראשון של הכונן, שבו יושבת טבלת המחיצות. המחיצה עצמה והקבצים לא ישתנו."
-                : "תשתנה רשומה אחת בטבלת המחיצות (בסקטור הראשון של הכונן). המחיצה עצמה והקבצים לא ישתנו.",
+                ? "תיכתב טבלת מחיצות חדשה בתחילת הכונן. המחיצה עצמה והקבצים לא ישתנו."
+                : "תשתנה רשומה אחת בטבלת המחיצות, בתחילת הכונן. המחיצה עצמה והקבצים לא ישתנו.",
             Writes = { (0, updated) },
         };
     }
@@ -267,7 +267,7 @@ public static class PartitionTableWriter
             {
                 byte[] current = reader.ReadBlock(offset, data.Length);
                 if (current.Length != data.Length)
-                    return new RepairResult { Message = "לא ניתן לקרוא את הסקטורים שעומדים להשתנות, ולכן לא נכתב דבר." };
+                    return new RepairResult { Message = "לא ניתן לקרוא את מה שעומד להשתנות בכונן כדי לגבות אותו, ולכן לא נכתב דבר." };
                 before.Add((offset, current));
             }
         }
@@ -317,7 +317,7 @@ public static class PartitionTableWriter
                 UndoFile = undoPath,
                 Message = "המחיצה הוחזרה לטבלת המחיצות. " +
                           (found.BootSectorDamaged
-                              ? "מגזר האתחול שלה עדיין פגום, ולכן Windows יציג אותה כמחיצה שדורשת פירמוט — " +
+                              ? "תחילת המחיצה (מגזר האתחול) עדיין פגומה, ולכן Windows יציג אותה כמחיצה שדורשת פירמוט — " +
                                 "אל תפרמט. השלב הבא הוא תיקון המחיצה, או העתקת הקבצים דרך עותק הגיבוי. "
                               : "אם היא עדיין לא מופיעה ב-Windows, נתקו וחברו את הכונן או הפעילו מחדש את המחשב. ") +
                           $"גיבוי המצב הקודם נשמר ב: {undoPath}",

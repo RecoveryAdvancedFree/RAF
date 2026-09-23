@@ -94,14 +94,14 @@ internal static class OverlapCheck
                 };
 
                 if (quality > f.Quality) f.Quality = quality;
-                f.QualityReason = $"קובץ מחוק אחר שנכתב אחריו — {by} — תפס כ-{ratio:P0} מהאשכולות של הקובץ " +
-                                  $"הזה, ולכן התוכן שבהם כבר אינו שלו. {tail}";
+                f.QualityReason = $"קובץ מחוק אחר שנכתב אחריו — {by} — נכתב על כ-{ratio:P0} מהמקום של הקובץ " +
+                                  $"הזה, ולכן התוכן שם כבר אינו שלו. {tail}";
                 changed++;
             }
             else if (unclear.TryGetValue(i, out var others) && f.Quality < RecoveryQuality.Good)
             {
                 f.Quality = RecoveryQuality.Good;
-                f.QualityReason += $" קובץ מחוק אחר ({Names(others)}) תפס חלק מאותם אשכולות, " +
+                f.QualityReason += $" קובץ מחוק אחר ({Names(others)}) נכתב על חלק מאותו מקום, " +
                                    "ולא ידוע מי מהשניים נכתב אחרון — ייתכן שחלק מהתוכן שלו.";
                 changed++;
             }

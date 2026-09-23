@@ -46,14 +46,14 @@ internal sealed partial class Bridge
 
     internal async Task<string> HandleAsync(string rawMessage)
     {
-        string id = "";
+        string id = "", method = "";
         try
         {
             var request = JsonNode.Parse(rawMessage)?.AsObject()
                           ?? throw new InvalidOperationException("בקשה ריקה");
 
             id = request["id"]?.GetValue<string>() ?? "";
-            string method = request["method"]?.GetValue<string>() ?? "";
+            method = request["method"]?.GetValue<string>() ?? "";
             var p = request["params"]?.AsObject();
 
             object? result = await DispatchAsync(method, p);
@@ -61,11 +61,11 @@ internal sealed partial class Bridge
         }
         catch (OperationCanceledException)
         {
-            return Fail(id, "הפעולה בוטלה.");
+            return Fail(id, new FriendlyError("הפעולה בוטלה.", null, null), method);
         }
         catch (Exception ex)
         {
-            return Fail(id, ex.Message);
+            return Fail(id, FriendlyError.From(ex), method);
         }
     }
 
@@ -79,7 +79,7 @@ internal sealed partial class Bridge
         "repair.diagnose" => await Task.Run(() => Diagnose(p)),
         "repair.apply" => await Task.Run(() => ApplyRepair(p)),
         "repair.readThrough" => await Task.Run(() => ReadThrough(p)),
-        "repair.pickFolder" => PickFolder("בחרו תיקייה לגיבוי הסקטורים — חייבת להיות על כונן אחר"),
+        "repair.pickFolder" => PickFolder("בחרו תיקייה לגיבוי — חייבת להיות על כונן אחר"),
 
         "doctor.pickFiles" => PickFiles(),
         "doctor.pickFolder" => PickFolder("בחרו תיקייה לשמירת הקבצים המתוקנים"),
@@ -720,7 +720,7 @@ internal sealed partial class Bridge
         }
         catch (Exception ex)
         {
-            return new { valid = false, freeSpace = 0L, error = ex.Message };
+            return new { valid = false, freeSpace = 0L, error = FriendlyError.From(ex).Text };
         }
     }
 
@@ -1001,7 +1001,7 @@ internal sealed partial class Bridge
         }
         catch (Exception ex)
         {
-            return new { valid = false, size, freeSpace = 0L, error = ex.Message, existing = (object?)null };
+            return new { valid = false, size, freeSpace = 0L, error = FriendlyError.From(ex).Text, existing = (object?)null };
         }
     }
 
@@ -1182,7 +1182,7 @@ internal sealed partial class Bridge
         string undoFolder = p?["undoFolder"]?.GetValue<string>() ?? "";
 
         if (string.IsNullOrWhiteSpace(undoFolder))
-            throw new InvalidOperationException("יש לבחור תיקייה לגיבוי הסקטורים לפני התיקון.");
+            throw new InvalidOperationException("יש לבחור תיקייה לגיבוי לפני התיקון.");
 
         var diagnosis = PartitionDiagnosis.Diagnose(
             disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize);
@@ -1292,7 +1292,7 @@ internal sealed partial class Bridge
                     succeeded = false,
                     output = (string?)null,
                     applied = new List<string>(),
-                    message = ex.Message,
+                    message = FriendlyError.From(ex).Text,
                     healthyAfter = false,
                 };
             }
@@ -1327,7 +1327,7 @@ internal sealed partial class Bridge
         {
             return new DiagnosisView(
                 path, Path.GetFileName(path), 0, false, false, null, null, null,
-                new List<IssueView> { new("Error", $"לא ניתן לקרוא את הקובץ: {ex.Message}", false) });
+                new List<IssueView> { new("Error", "לא ניתן לקרוא את הקובץ. " + FriendlyError.From(ex).Text, false) });
         }
     }
 
@@ -1366,6 +1366,13 @@ internal sealed partial class Bridge
     private static string Ok(string id, object? data) =>
         JsonSerializer.Serialize(new { id, ok = true, data }, JsonOptions);
 
-    private static string Fail(string id, string error) =>
-        JsonSerializer.Serialize(new { id, ok = false, error }, JsonOptions);
+    /// <summary>הפעולות היחידות שכותבות לכונן המקור. בכל השאר, שגיאה אינה נוגעת בו.</summary>
+    private static readonly HashSet<string> WritesToSource = new() { "repair.apply", "partition.restore" };
+
+    private static string Fail(string id, FriendlyError e, string method) =>
+        JsonSerializer.Serialize(new
+        {
+            id, ok = false, error = e.Message, advice = e.Advice, detail = e.Detail,
+            sourceUntouched = !WritesToSource.Contains(method),
+        }, JsonOptions);
 }

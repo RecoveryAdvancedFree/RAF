@@ -173,7 +173,7 @@ public static class DiskImager
             : new FileInfo(imagePath).Length != size
                 ? "קובץ התמונה קצר מהצפוי — ייתכן שנקטע. אי אפשר להמשיך ממנו."
             : map.NotCopied.Count == 0 && map.Unreadable.Count == 0
-                ? "התמונה הזו כבר שלמה, וכל הסקטורים בה נקראו."
+                ? "התמונה הזו כבר שלמה, והכונן כולו נקרא."
             : null;
 
         return new ExistingImage(reason is null, map.NotCopiedBytes, map.UnreadableBytes, map.Complete, map.Source, reason);
@@ -449,11 +449,10 @@ public static class DiskImager
                    "בחרו שוב את אותו קובץ ביצירת תמונה, ורק מה שחסר ייקרא מהכונן.";
 
         if (map.UnreadableBytes == 0)
-            return "התמונה הושלמה. כל הסקטורים נקראו בהצלחה — התמונה זהה לכונן.";
+            return "התמונה הושלמה. הכונן כולו נקרא בהצלחה — התמונה זהה לכונן.";
 
-        long sectors = map.UnreadableBytes / sector;
-        return $"התמונה הושלמה. {sectors:N0} סקטורים ({Size(map.UnreadableBytes)}) לא נקראו גם " +
-               "בניסיון החוזר ומולאו באפסים. כל השאר הועתק. קבצים שישבו בסקטורים האלה " +
+        return $"התמונה הושלמה. {Size(map.UnreadableBytes)} לא נקראו מהכונן גם " +
+               "בניסיון החוזר ומולאו באפסים. כל השאר הועתק. קבצים שישבו באזורים האלה " +
                "יחזרו פגומים חלקית; כל השאר ישוחזרו כרגיל.";
     }
 

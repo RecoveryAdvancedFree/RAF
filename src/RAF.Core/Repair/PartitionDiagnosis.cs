@@ -87,7 +87,7 @@ public static class PartitionDiagnosis
             {
                 Outlook = RepairOutlook.Healthy,
                 DetectedFileSystem = primaryKind,
-                Summary = $"מגזר האתחול של המחיצה תקין ומזהה מערכת קבצים {Name(primaryKind)}. " +
+                Summary = $"תחילת המחיצה (מגזר האתחול) תקינה ומזהה מערכת קבצים {Name(primaryKind)}. " +
                           "אין צורך בתיקון.",
             };
         }
@@ -112,12 +112,12 @@ public static class PartitionDiagnosis
                 PrimaryOffset = 0,
                 RepairLength = candidate.Length,
                 Summary =
-                    $"מגזר האתחול של המחיצה פגום, אך נמצא עותק גיבוי תקין של {Name(kind)} " +
-                    $"בהיסט {candidate.Offset:N0} בתים ({candidate.Description}). " +
+                    $"תחילת המחיצה (מגזר האתחול) פגומה, אך נמצא עותק גיבוי תקין של {Name(kind)} " +
+                    $"{candidate.Description}. " +
                     "העותק נבדק והתפענח בהצלחה.",
                 WhatWillChange =
                     $"התיקון יעתיק {candidate.Length:N0} בתים מעותק הגיבוי אל תחילת המחיצה. " +
-                    "זו כתיבה לדיסק המקור. התוכנה תשמור תחילה עותק של הסקטורים שיוחלפו, " +
+                    "זו כתיבה לדיסק המקור. התוכנה תשמור תחילה עותק של מה שיוחלף, " +
                     "כדי שניתן יהיה לבטל את הפעולה.",
             };
         }
@@ -126,7 +126,7 @@ public static class PartitionDiagnosis
         {
             Outlook = RepairOutlook.NoBackup,
             Summary =
-                "מגזר האתחול של המחיצה פגום, ולא נמצא עותק גיבוי תקין במיקומים המוכרים. " +
+                "תחילת המחיצה (מגזר האתחול) פגומה, ולא נמצא עותק גיבוי תקין במקומות שבהם הוא נשמר. " +
                 "לא ניתן לתקן את המחיצה, אך עדיין אפשר לשחזר ממנה קבצים בסריקה מתקדמת, " +
                 "שאינה תלויה במערכת הקבצים.",
         };
@@ -143,18 +143,18 @@ public static class PartitionDiagnosis
         // NTFS: עותק בסקטור האחרון של המחיצה.
         if (partitionSize > sectorSize)
             yield return new BackupCandidate(
-                partitionSize - sectorSize, 512, "הסקטור האחרון של המחיצה — מיקום הגיבוי של NTFS");
+                partitionSize - sectorSize, 512, "בסוף המחיצה, במקום שבו NTFS שומר את הגיבוי");
 
         // NTFS מדווח לעיתים גודל הקטן בסקטור אחד; נבדק גם המיקום הסמוך.
         if (partitionSize > sectorSize * 2)
             yield return new BackupCandidate(
-                partitionSize - sectorSize * 2, 512, "סקטור לפני האחרון");
+                partitionSize - sectorSize * 2, 512, "סמוך לסוף המחיצה, במקום שבו NTFS שומר את הגיבוי");
 
         // FAT32: עותק בסקטור 6.
-        yield return new BackupCandidate(6L * sectorSize, 512, "סקטור 6 — מיקום הגיבוי של FAT32");
+        yield return new BackupCandidate(6L * sectorSize, 512, "בתחילת המחיצה, במקום שבו FAT32 שומר את הגיבוי");
 
         // exFAT: אזור אתחול משני בסקטורים 12 עד 23.
-        yield return new BackupCandidate(12L * sectorSize, 512, "סקטור 12 — אזור האתחול המשני של exFAT");
+        yield return new BackupCandidate(12L * sectorSize, 512, "בתחילת המחיצה, באזור הגיבוי של exFAT");
     }
 
     /// <summary>זיהוי מערכת קבצים ממגזר אתחול.</summary>
