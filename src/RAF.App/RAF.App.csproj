@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- חבילת WebView2 כוללת גם וריאנט WPF שאיננו בשימוש; הסתרת התנגשות ההפניה שלו -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>RAF.App</RootNamespace>
+    <AssemblyName>RAF</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+
+    <!-- ניידות: קובץ EXE יחיד, ללא התקנה, ללא תלות ב-runtime -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- פלט נקי: קובץ EXE אחד בלבד, ללא קובצי תיעוד או ניפוי נלווים -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Product>שיחזור מתקדם חינם</Product>
+    <AssemblyTitle>RAF — Recovery Advanced Free</AssemblyTitle>
+    <Company>RAF</Company>
+    <Version>0.2.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RAF.Core\RAF.Core.csproj" />
+  </ItemGroup>
+
+  <!-- נכסי הממשק נצרבים לתוך ה-EXE ומוגשים מהזיכרון (ללא חילוץ לדיסק) -->
+  <ItemGroup>
+    <EmbeddedResource Include="Web\**\*" LogicalName="RAF.Web.%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,487 @@
+/* ==========================================================================
+   שיחזור מתקדם חינם — RAF
+   סגנונות מסכי העבודה: סריקה, תוצאות, תצוגה מקדימה ושיחזור.
+   הבסיס (מעטפת החלון, כרטיסי הדיסקים והלוח הצדדי) נמצא ב-styles.css.
+   ========================================================================== */
+
+.part-empty {
+  padding: 16px 18px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+/* ---------- מתג ---------- */
+.switch {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 13px;
+  margin-top: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+}
+.switch:hover { border-color: var(--border-strong); }
+.switch input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+/* ---------- מסך סריקה ---------- */
+.scanning { max-width: 720px; margin: 0 auto; padding-top: 24px; }
+
+.scan-head { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.scan-icon {
+  width: 46px; height: 46px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+}
+.scan-icon svg { width: 23px; height: 23px; }
+
+.progress-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.progress-stage { font-size: 13.5px; font-weight: 550; margin-bottom: 12px; }
+
+.progress-track {
+  height: 8px; border-radius: 5px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 5px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.3s ease;
+}
+
+/* התקדמות שלא ניתן לכמת מוצגת כפס נע, ולא כאחוז שאינו אמיתי */
+.progress-fill.indeterminate {
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: sweep 1.3s ease-in-out infinite;
+}
+@keyframes sweep {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -40% 0; }
+}
+
+.progress-numbers {
+  display: flex; justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px; color: var(--text-dim);
+  direction: ltr;
+}
+
+.scan-actions { display: flex; gap: 10px; margin: 18px 0; }
+
+/* ---------- פריסת התוצאות ---------- */
+.content:has(.results) { padding: 0; overflow: hidden; }
+
+.results { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+
+.results-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 16px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.result-stats {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--text-dim);
+  flex: 1;
+}
+.result-stats b { color: var(--text); font-weight: 650; }
+.result-stats .sep { color: var(--text-faint); }
+
+.search-box {
+  display: flex; align-items: center; gap: 7px;
+  width: 260px;
+  padding: 6px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+}
+.search-box svg { width: 15px; height: 15px; flex-shrink: 0; }
+.search-box input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0; outline: 0;
+  color: var(--text); font-family: inherit; font-size: 13px;
+}
+.search-box:focus-within { border-color: var(--accent-line); }
+
+.results-grid {
+  display: grid;
+  grid-template-columns: 250px 1fr 330px;
+  min-height: 0;
+}
+
+/* ---------- עץ תיקיות ---------- */
+.tree {
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--border);
+  background: var(--surface-1);
+  padding: 8px 0;
+}
+.tree::-webkit-scrollbar { width: 8px; }
+.tree::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+.tree-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  margin: 0 6px 1px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tree-item:hover { background: var(--surface-3); }
+.tree-item.active { background: var(--accent-soft); color: var(--accent); }
+
+.tree-caret {
+  width: 14px; height: 14px; flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.15s;
+}
+.tree-caret svg { width: 14px; height: 14px; }
+.tree-item.open .tree-caret { transform: rotate(-90deg); }
+.tree-item.leaf .tree-caret { visibility: hidden; }
+
+.tree-icon { width: 15px; height: 15px; flex-shrink: 0; color: var(--warn); }
+.tree-icon svg { width: 15px; height: 15px; }
+.tree-label { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- רשימת קבצים ---------- */
+.filelist-wrap { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; }
+
+.filelist-head,
+.frow {
+  display: grid;
+  grid-template-columns: 34px 1fr 96px 128px 108px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.filelist-head {
+  height: 36px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.chk-all { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.chk-all input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+.filelist { overflow-y: auto; min-height: 0; }
+.filelist::-webkit-scrollbar { width: 10px; }
+.filelist::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 3px solid var(--bg);
+}
+
+.list-banner {
+  padding: 9px 14px;
+  font-size: 12px; color: var(--text-dim);
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.frow {
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+}
+.frow:hover { background: var(--surface-2); }
+.frow.active { background: var(--accent-soft); }
+.frow.unrecoverable { opacity: 0.5; }
+
+.frow-chk { display: flex; align-items: center; }
+.frow-chk input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+.frow-name { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.frow-icon { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-faint); }
+.frow-icon svg { width: 15px; height: 15px; }
+.frow-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.frow-size { direction: ltr; text-align: start; color: var(--text-dim); font-size: 12.5px; }
+.frow-date { direction: ltr; text-align: start; color: var(--text-faint); font-size: 12px; }
+
+.chip.tiny { padding: 1px 6px; font-size: 10px; }
+
+/* ---------- תצוגה מקדימה ---------- */
+.preview {
+  overflow-y: auto;
+  border-inline-start: 1px solid var(--border);
+  background: var(--surface-1);
+  min-width: 0;
+}
+.preview::-webkit-scrollbar { width: 8px; }
+.preview::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+.preview-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; height: 220px; padding: 20px;
+  color: var(--text-faint); text-align: center; font-size: 12.5px;
+}
+.preview-empty svg { width: 32px; height: 32px; opacity: 0.5; }
+
+.preview-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+.preview-name {
+  font-size: 13.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.preview-sig { font-size: 11.5px; color: var(--text-faint); margin-top: 3px; }
+
+.preview-body { padding: 14px 16px; }
+
+.preview-img {
+  display: block;
+  width: 100%; height: auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+}
+
+.preview-text {
+  max-height: 340px; overflow: auto;
+  padding: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 11.5px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.hex-box { margin: 0 16px 16px; }
+.hex-box summary {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 11px;
+  font-size: 12.5px; font-weight: 550;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.hex-box summary::-webkit-details-marker { display: none; }
+.hex-box summary svg { width: 15px; height: 15px; color: var(--accent); }
+.hex-box summary:hover { background: var(--surface-3); }
+
+.hex-dump {
+  margin-top: 8px;
+  max-height: 260px; overflow: auto;
+  padding: 11px;
+  background: var(--hex-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 10.5px; line-height: 1.55;
+  color: var(--hex-text);
+  direction: ltr; text-align: left;
+  white-space: pre;
+}
+
+/* ---------- שורת שיחזור ---------- */
+.recover-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px;
+  padding: 11px 16px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+}
+.recover-info { font-size: 13px; color: var(--text-dim); }
+
+/* ---------- בחירת תיקיית יעד ---------- */
+.target-row { display: flex; gap: 8px; }
+.target-row input {
+  flex: 1; min-width: 0;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit; font-size: 12.5px;
+  direction: ltr; text-align: left;
+  outline: 0;
+}
+.target-check { padding: 10px 0; font-size: 12.5px; color: var(--text-dim); }
+
+.notice.ok-notice {
+  background: var(--ok-soft);
+  border: 1px solid var(--ok-line);
+  color: var(--ok-text);
+}
+.notice.tiny-notice { margin: 12px 0 0; padding: 10px 12px; font-size: 12.5px; }
+
+/* ---------- רשימת כשלונות ---------- */
+.fail-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.fail-row {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.fail-row:last-child { border-bottom: 0; }
+.fail-row b { font-weight: 600; }
+.fail-row span { color: var(--text-faint); }
+
+.empty.small { padding: 50px 20px; }
+
+/* ---------- אזהרות ברמת הסריקה ---------- */
+.results { grid-template-rows: auto 1fr auto; }
+.results.has-warning { grid-template-rows: auto auto 1fr auto; }
+
+.results-warning {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 16px;
+  font-size: 12.5px; line-height: 1.6;
+  color: var(--warn-text);
+  background: var(--warn-soft);
+  border-bottom: 1px solid var(--warn-line);
+}
+.results-warning svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+
+.ok-text { color: var(--ok); }
+.danger-text { color: var(--danger); }
+
+/* ---------- מתג סינון בשורת התוצאות ---------- */
+.toggle {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.toggle:hover { border-color: var(--border-strong); color: var(--text); }
+.toggle input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.toggle:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+/* ---------- תיקון קבצים ---------- */
+.head-actions { display: flex; gap: 8px; }
+
+.doc-summary {
+  display: flex; align-items: center; gap: 7px;
+  margin-bottom: 14px;
+  font-size: 12.5px; color: var(--text-dim);
+}
+.doc-summary .sep { color: var(--text-faint); }
+
+.doc-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.doc-row {
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+}
+.doc-row:last-child { border-bottom: 0; }
+
+.doc-top { display: flex; align-items: center; gap: 9px; }
+.doc-name {
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 550;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.doc-size { font-size: 11.5px; color: var(--text-faint); direction: ltr; }
+.doc-meta { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; }
+
+.doc-issues {
+  margin: 7px 0 0; padding-inline-start: 18px;
+  font-size: 12px; line-height: 1.6; color: var(--text-dim);
+}
+.doc-issues li { margin-bottom: 3px; }
+.doc-issues li.nofix { color: var(--danger-text); }
+.doc-issues.fixed li { color: var(--ok-text); }
+
+/* ---------- תמונת דיסק ---------- */
+.btn.btn-sm { padding: 6px 11px; font-size: 12px; flex-shrink: 0; }
+.btn.btn-sm svg { width: 13px; height: 13px; }
+
+.disk-icon.is-image {
+  background: var(--violet-soft); border-color: var(--violet-line); color: var(--violet);
+}
+
+.disk-note {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 9px 18px;
+  font-size: 12px; line-height: 1.6; color: var(--text-dim);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.disk-note svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; }
+.disk-note.warn { color: var(--warn-text); background: var(--warn-soft); }
+
+.ltr-inline { direction: ltr; unicode-bidi: isolate; }
+
+.scan-opt.subtle { background: transparent; }
+
+.image-steps { margin: 4px 0 0; padding-inline-start: 18px; line-height: 1.75; font-size: 13px; color: var(--text-dim); }
+.image-steps b { color: var(--text); font-weight: 600; }
+
+.image-files {
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+  display: grid; gap: 6px; font-size: 12.5px; color: var(--text-dim);
+}
+.image-files div { display: flex; gap: 12px; min-width: 0; }
+.image-files div span:first-child { width: 48px; flex-shrink: 0; color: var(--text-faint); }
+.image-files .ltr-inline { overflow-wrap: anywhere; color: var(--text); }
+.warn-text { color: var(--warn) !important; }
+.part-letter.is-image { font-size: 11px; color: var(--violet); background: var(--violet-soft); border-color: var(--violet-line); }
+
+/* ---------- מתג ערכת נושא ---------- */
+.theme-btn svg { width: 15px; height: 15px; }
+.theme-btn { margin-inline-end: 8px; }
+
+/* ---------- כוננים מקופלים ---------- */
+.disk-head[data-toggle-disk] { cursor: pointer; }
+.disk-head[data-toggle-disk]:hover { background: var(--surface-2); }
+
+.disk-toggle {
+  width: 18px; height: 18px; flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.16s;
+}
+.disk.open .disk-toggle { transform: rotate(-90deg); color: var(--accent); }
+
+/* המחיצות מוצגות רק בכונן פתוח. גם הערות הכונן — כדי שהשורה הסגורה תישאר שורה אחת,
+   למעט אזהרות על כונן תקול, שחשוב לראות מיד. */
+.disk .parts { display: none; }
+.disk.open .parts { display: block; }
+.disk:not(.open) .disk-head { border-bottom: 0; }
+.disk:not(.open) .disk-note:not(.danger):not(.warn) { display: none; }
+
+.disk-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.disk-note.danger { color: var(--danger-text); background: var(--danger-soft); }
+
+.disk-icon.is-failed { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
+.failed-device .disk-head { cursor: default; }
+.faint { color: var(--text-faint); }
+
+.part.is-found { background: linear-gradient(90deg, transparent, var(--accent-soft)); }
+
+.part-letter.unmounted { font-size: 22px; font-weight: 500; line-height: 1; padding-top: 6px; }
+.failed-device .disk-note { display: flex !important; }

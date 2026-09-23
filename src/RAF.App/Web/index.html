@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>שיחזור מתקדם חינם</title>
+  <script>
+    (function () {
+      var pref = 'system';
+      try { pref = localStorage.getItem('raf-theme') || 'system'; } catch (e) {}
+      var dark = pref === 'dark' ||
+        (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="views.css">
+</head>
+<body>
+
+  <!-- אזורי שינוי גודל לחלון חסר המסגרת -->
+  <div class="resize-edge edge-t"  data-hit="12"></div>
+  <div class="resize-edge edge-b"  data-hit="15"></div>
+  <div class="resize-edge edge-r"  data-hit="11"></div>
+  <div class="resize-edge edge-l"  data-hit="10"></div>
+  <div class="resize-edge edge-tr" data-hit="14"></div>
+  <div class="resize-edge edge-tl" data-hit="13"></div>
+  <div class="resize-edge edge-br" data-hit="17"></div>
+  <div class="resize-edge edge-bl" data-hit="16"></div>
+
+  <div class="app">
+
+    <!-- ===================== שורת כותרת ===================== -->
+    <header class="titlebar" id="titlebar">
+      <div class="win-controls">
+        <button class="win-btn theme-btn" id="btn-theme" title="ערכת נושא" aria-label="ערכת נושא"></button>
+        <button class="win-btn" id="btn-min" title="מזעור" aria-label="מזעור">
+          <svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg>
+        </button>
+        <button class="win-btn" id="btn-max" title="הגדלה" aria-label="הגדלה">
+          <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/></svg>
+        </button>
+        <button class="win-btn danger" id="btn-close" title="סגירה" aria-label="סגירה">
+          <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg>
+        </button>
+      </div>
+
+      <div class="brand">
+        <img class="brand-mark" src="icon.png" alt="" aria-hidden="true">
+        <div class="brand-text">
+          <span class="brand-title">שיחזור מתקדם חינם</span>
+          <span class="brand-sub">Recovery Advanced Free</span>
+        </div>
+        <span class="brand-badge">RAF</span>
+      </div>
+    </header>
+
+    <!-- ===================== תוכן ===================== -->
+    <main class="content" id="content">
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>סורק את אמצעי האחסון במערכת…</p>
+      </div>
+    </main>
+
+    <!-- ===================== שורת מצב ===================== -->
+    <footer class="statusbar">
+      <div class="status-right">
+        <span id="status-text">מאתחל…</span>
+      </div>
+      <div class="status-left">
+        <span class="status-chip" id="status-elevation"></span>
+        <span class="status-chip muted" id="status-diag"></span>
+        <span class="status-chip muted" id="status-version"></span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- ===================== לוח צדדי לבחירת סריקה ===================== -->
+  <div class="overlay" id="overlay" hidden>
+    <div class="panel" id="panel" role="dialog" aria-modal="true"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
