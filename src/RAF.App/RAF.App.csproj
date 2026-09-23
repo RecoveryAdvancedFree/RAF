@@ -43,6 +43,32 @@
     <ProjectReference Include="..\RAF.Core\RAF.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    הפצה עצמאית מעתיקה את חבילת Windows Desktop כולה, כולל WPF (כ-47MB),
+    אף שהתוכנה משתמשת רק ב-WinForms. אף הרכבה שבשימוש אינה מפנה אליהן
+    (נבדק על שרשרת ההפניות המלאה), ולכן הן מוסרות לפני יצירת deps.json,
+    כך שהקבצים ורשימת התלויות נשארים עקביים.
+  -->
+  <Target Name="RemoveUnusedWpf" AfterTargets="ResolveRuntimePackAssets"
+          Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <!-- הסיומת נחוצה כדי ש-Filename יכלול את השם המלא, כמו PresentationFramework.Aero -->
+      <_UnusedWpf Include="
+        PresentationCore.dll; PresentationFramework.dll; PresentationFramework-SystemCore.dll;
+        PresentationFramework-SystemData.dll; PresentationFramework-SystemDrawing.dll;
+        PresentationFramework-SystemXml.dll; PresentationFramework-SystemXmlLinq.dll;
+        PresentationFramework.Aero.dll; PresentationFramework.Aero2.dll; PresentationFramework.AeroLite.dll;
+        PresentationFramework.Classic.dll; PresentationFramework.Luna.dll; PresentationFramework.Royale.dll;
+        PresentationUI.dll; ReachFramework.dll; System.Windows.Controls.Ribbon.dll;
+        System.Windows.Input.Manipulations.dll; System.Windows.Presentation.dll; System.Xaml.dll;
+        UIAutomationClient.dll; UIAutomationClientSideProviders.dll; UIAutomationProvider.dll;
+        UIAutomationTypes.dll; WindowsBase.dll;
+        D3DCompiler_47_cor3.dll; PenImc_cor3.dll; PresentationNative_cor3.dll; wpfgfx_cor3.dll" />
+      <RuntimePackAsset Remove="@(_UnusedWpf)" MatchOnMetadata="Filename" />
+      <ReferenceCopyLocalPaths Remove="@(_UnusedWpf)" MatchOnMetadata="Filename" />
+    </ItemGroup>
+  </Target>
+
   <!-- נכסי הממשק נצרבים לתוך ה-EXE ומוגשים מהזיכרון (ללא חילוץ לדיסק) -->
   <ItemGroup>
     <EmbeddedResource Include="Web\**\*" LogicalName="RAF.Web.%(RecursiveDir)%(Filename)%(Extension)" />

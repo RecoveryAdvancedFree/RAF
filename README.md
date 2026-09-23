@@ -36,7 +36,7 @@ dotnet test  tests/RAF.Core.Tests          # בדיקות המפענחים הב�
 dotnet publish src/RAF.App/RAF.App.csproj -c Release -o dist
 ```
 
-התוצר: `dist\RAF.exe` — קובץ יחיד (~63MB), ללא התקנה וללא תלות ב-.NET Runtime מותקן.
+התוצר: `dist\RAF.exe` — קובץ יחיד (~47MB), ללא התקנה וללא תלות ב-.NET Runtime מותקן.
 
 **הרצה מחייבת הרשאות מנהל.** גישה גולמית לדיסק אינה אפשרית בלעדיהן;
 התוכנה מבקשת אותן אוטומטית דרך ה-manifest.
