@@ -111,8 +111,8 @@ function notice(cls, icon, title, text, why, extra) {
 const Icon = {
   drive: '<svg viewBox="0 0 24 24"><path d="M3 6.5c0-1.4 4-2.5 9-2.5s9 1.1 9 2.5S17 9 12 9 3 7.9 3 6.5Z"/><path d="M21 6.5v11c0 1.4-4 2.5-9 2.5s-9-1.1-9-2.5v-11"/><path d="M3 12c0 1.4 4 2.5 9 2.5s9-1.1 9-2.5"/></svg>',
   hdd: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="0.6"/></svg>',
-  usb: '<svg viewBox="0 0 24 24"><path d="M12 21V6"/><path d="m9 9 3-3 3 3"/><path d="M8 13h8v5a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2Z"/></svg>',
-  card: '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M9 7v3M12 7v3M15 8v2"/></svg>',
+  usb: '<svg viewBox="0 0 24 24"><path d="M9 8.5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5"/><path d="M11 5h.01M13 5h.01"/><rect x="6.5" y="8.5" width="11" height="13" rx="2.5"/><path d="M10.5 17.5h3"/></svg>',
+  card: '<svg viewBox="0 0 24 24"><path d="M7 2.5h7.5L18.5 6.5v13.5a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 20V4A1.5 1.5 0 0 1 7 2.5Z"/><path d="M8.75 5.75v3M11.25 5.75v3M13.75 5.75v3"/><path d="M8.5 15.5h7"/></svg>',
   bolt: '<svg viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/></svg>',
   layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></svg>',
   radar: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 3v9l6.5 4"/></svg>',

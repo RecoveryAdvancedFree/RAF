@@ -195,7 +195,7 @@ public static class DiskEnumerator
                 Vendor = vendor,
                 Serial = descriptor?.Serial ?? "",
                 Bus = BusDisplayName(bus),
-                Media = StorageQuery.Classify(bus, seekPenalty, removable),
+                Media = StorageQuery.Classify(bus, seekPenalty, removable, $"{vendor} {model}"),
                 Trim = StorageQuery.GetTrimState(probe),
                 Removable = removable,
                 LogicalSector = sectors?.Logical ?? 512,

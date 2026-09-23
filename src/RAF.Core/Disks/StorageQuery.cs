@@ -137,7 +137,7 @@ internal static class StorageQuery
 
     /// <summary>סיווג סוג המדיה על בסיס כל הנתונים שנאספו.</summary>
     internal static MediaKind Classify(
-        Win32.StorageBusType bus, bool? seekPenalty, bool removable)
+        Win32.StorageBusType bus, bool? seekPenalty, bool removable, string name = "")
     {
         // סוג הפס הוא האינדיקציה החזקה ביותר כשהוא חד-משמעי.
         switch (bus)
@@ -150,7 +150,8 @@ internal static class StorageQuery
             case Win32.StorageBusType.Usb:
                 // התקן USB עלול להיות דיסק חיצוני מגנטי ולא רק DiskOnKey.
                 if (seekPenalty == true) return MediaKind.HardDisk;
-                return MediaKind.UsbFlash;
+                // כרטיס בקורא כרטיסים מדווח על פס USB; רק שם ההתקן מסגיר אותו.
+                return IsCardReader(name) ? MediaKind.MemoryCard : MediaKind.UsbFlash;
             case Win32.StorageBusType.Atapi:
                 return MediaKind.Optical;
             case Win32.StorageBusType.Virtual:
@@ -166,6 +167,16 @@ internal static class StorageQuery
             _ => removable ? MediaKind.UsbFlash : MediaKind.Unknown,
         };
     }
+
+    /// <summary>
+    /// שמות שקוראי כרטיסים מדווחים: "Generic- SD/MMC", "USB3.0 CRW -SD",
+    /// "Multi-Card Reader" וכדומה. מילים שלמות בלבד — "SD" בתוך "SanDisk" אינו כרטיס.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex CardReaderName = new(
+        @"card|reader|compact ?flash|\bcrw\b|\b(micro)?sd(hc|xc)?\b|\bmmc\b|\bxd\b|\bcf\b|\bms(-pro)?\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    internal static bool IsCardReader(string name) => CardReaderName.IsMatch(name);
 
     /// <summary>קריאת מחרוזת ANSI מסתיימת-אפס מתוך מאגר, לפי היסט.</summary>
     private static string ReadAnsiAt(byte[] buffer, uint offset)
