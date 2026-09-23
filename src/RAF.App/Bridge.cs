@@ -961,7 +961,8 @@ internal sealed partial class Bridge
                 FileName = suggested,
                 Filter = "תמונת דיסק גולמית (*.img)|*.img",
                 DefaultExt = "img",
-                OverwritePrompt = true,
+                // תמונה קיימת אינה בהכרח דריסה — אפשר להמשיך ממנה. הלוח מסביר מה יקרה.
+                OverwritePrompt = false,
             };
 
             if (dialog.ShowDialog(_form) == DialogResult.OK)
@@ -973,18 +974,33 @@ internal sealed partial class Bridge
 
     private object ValidateImageTarget(JsonObject? p)
     {
-        var (disk, _, _, size, _) = ImageSource(p);
+        var (disk, part, _, size, _) = ImageSource(p);
         string path = p?["path"]?.GetValue<string>() ?? "";
 
         try
         {
             DiskImager.ValidateDestination(path, disk.DiskNumber, size);
             var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path))!);
-            return new { valid = true, size, freeSpace = drive.AvailableFreeSpace, error = (string?)null };
+
+            // תמונה קודמת באותו נתיב — אפשר להמשיך ממנה במקום להתחיל מחדש.
+            var existing = DiskImager.Inspect(path, size, part is null ? "disk" : "partition");
+            return new
+            {
+                valid = true, size, freeSpace = drive.AvailableFreeSpace, error = (string?)null,
+                existing = existing is null ? null : new
+                {
+                    canResume = existing.CanResume,
+                    notCopied = existing.NotCopiedBytes,
+                    unreadable = existing.UnreadableBytes,
+                    complete = existing.Complete,
+                    source = existing.Source,
+                    reason = existing.Reason,
+                },
+            };
         }
         catch (Exception ex)
         {
-            return new { valid = false, size, freeSpace = 0L, error = ex.Message };
+            return new { valid = false, size, freeSpace = 0L, error = ex.Message, existing = (object?)null };
         }
     }
 
@@ -1020,7 +1036,9 @@ internal sealed partial class Bridge
         var result = await DiskImager.CreateAsync(
             disk.DiskNumber, offset, size, disk.LogicalSectorSize,
             part is null ? "disk" : "partition", description, path,
-            progress, _imageCancel.Token);
+            progress, _imageCancel.Token,
+            resume: p?["resume"]?.GetValue<bool>() ?? false,
+            retryUnreadable: p?["retryUnreadable"]?.GetValue<bool>() ?? false);
 
         return new
         {

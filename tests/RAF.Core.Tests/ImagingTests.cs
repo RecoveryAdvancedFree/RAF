@@ -369,4 +369,93 @@ public sealed class ImagingTests : IDisposable
         Assert.Null(DevicePaths.PathOf(DevicePaths.FirstImageNumber + 999));
         Assert.Null(VolumeReader.TryOpen(DevicePaths.FirstImageNumber + 999, 0, 0, Sector));
     }
+
+    // ------------------------------------------------------------ המשך תמונה
+
+    [Fact]
+    public void A_stopped_image_resumes_from_the_map_without_reading_what_was_already_copied()
+    {
+        int chunk = DiskImager.ChunkSize;
+        byte[] data = Pattern(6 * chunk, 21);
+
+        // עצירה אחרי שלושה בלוקים.
+        using var cancel = new CancellationTokenSource();
+        var first = new FaultySource(data, Array.Empty<long>())
+        {
+            OnRead = offset => { if (offset >= 3L * chunk) cancel.Cancel(); },
+        };
+        var stopped = Image(first, out string path, cancel.Token);
+        Assert.True(stopped.Cancelled);
+        long copied = data.Length - stopped.NotCopiedBytes;
+        Assert.True(copied > 0);
+
+        // בינתיים האזור שכבר הועתק "נהרס" במקור: אם ההמשך היה קורא אותו
+        // שוב, הוא היה נכשל שם. ההמשך אמור לא לגעת בו בכלל.
+        var badNow = Enumerable.Range(0, (int)(copied / Sector)).Select(s => (long)s);
+        var second = new FaultySource(data, badNow);
+        var resumed = DiskImager.Resume(second, "disk", "בדיקה", path, retryUnreadable: false, null, CancellationToken.None);
+
+        Assert.True(resumed.Complete);
+        Assert.Equal(0, resumed.UnreadableBytes);
+        Assert.Equal(data, File.ReadAllBytes(path));
+        Assert.All(second.Reads, r => Assert.True(r.Offset >= copied, $"קריאה חוזרת של אזור שכבר הועתק: {r.Offset}"));
+
+        var map = ImageMap.TryLoad(ImageMap.PathFor(path))!;
+        Assert.True(map.Complete);
+        Assert.Empty(map.NotCopied);
+    }
+
+    [Fact]
+    public void Retrying_unreadable_sectors_recovers_the_ones_that_now_read_and_keeps_the_rest()
+    {
+        byte[] data = Pattern(2 * DiskImager.ChunkSize, 22);
+        var first = Image(new FaultySource(data, new long[] { 10, 11, 900 }), out string path);
+        Assert.Equal(3 * Sector, first.UnreadableBytes);
+
+        // הכונן "התאושש" חלקית: סקטורים 10 ו-11 נקראים עכשיו, 900 עדיין לא.
+        var second = new FaultySource(data, new long[] { 900 });
+        var retried = DiskImager.Resume(second, "disk", "בדיקה", path, retryUnreadable: true, null, CancellationToken.None);
+
+        Assert.Equal(Sector, retried.UnreadableBytes);
+        byte[] image = File.ReadAllBytes(path);
+        Assert.Equal(data.AsSpan(10 * Sector, 2 * Sector).ToArray(), image.AsSpan(10 * Sector, 2 * Sector).ToArray());
+        Assert.Equal(new ByteRange(900L * Sector, Sector), Assert.Single(ImageMap.TryLoad(ImageMap.PathFor(path))!.Unreadable));
+
+        // הניסיון החוזר קרא רק את הסקטורים הפגומים — לא את כל הכונן: 10–11 כבלוק אחד,
+        // ו-900 פעמיים (כבלוק, ואז סקטור בודד אחרי שהבלוק נכשל).
+        Assert.Equal(4 * Sector, second.Reads.Sum(r => (long)r.Length));
+        Assert.All(second.Reads, r => Assert.Contains(r.Offset / Sector, new long[] { 10, 900 }));
+    }
+
+    [Fact]
+    public void An_image_of_a_different_source_cannot_be_resumed()
+    {
+        byte[] data = Pattern(DiskImager.ChunkSize, 23);
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        Image(new FaultySource(data, Array.Empty<long>()), out string path, cancel.Token);
+
+        var other = DiskImager.Inspect(path, data.Length * 2L, "disk")!;
+        Assert.False(other.CanResume);
+        Assert.Contains("מקור אחר", other.Reason);
+
+        Assert.True(DiskImager.Inspect(path, data.Length, "disk")!.CanResume);
+        Assert.False(DiskImager.Inspect(path, data.Length, "partition")!.CanResume);
+        Assert.Null(DiskImager.Inspect(TempPath(), data.Length, "disk"));
+
+        Assert.Throws<InvalidOperationException>(() => DiskImager.Resume(
+            new FaultySource(Pattern(2 * DiskImager.ChunkSize, 1), Array.Empty<long>()),
+            "disk", "בדיקה", path, false, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public void Ranges_from_before_and_after_a_resume_are_merged_in_order()
+    {
+        var merged = DiskImager.Normalize(new[]
+        {
+            new ByteRange(5000, 100), new ByteRange(0, 512), new ByteRange(512, 512), new ByteRange(5050, 100),
+        });
+
+        Assert.Equal(new[] { new ByteRange(0, 1024), new ByteRange(5000, 150) }, merged);
+    }
 }

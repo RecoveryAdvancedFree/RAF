@@ -104,30 +104,101 @@ public static class DiskImager
                 $"ופנויים {Size(drive.AvailableFreeSpace)}.");
     }
 
-    /// <summary>יצירת תמונה של דיסק שלם או של מחיצה אחת.</summary>
+    /// <summary>יצירת תמונה של דיסק שלם או של מחיצה אחת — או המשך של תמונה קיימת.</summary>
     /// <param name="kind">"disk" או "partition" — נשמר במפה, כדי לדעת איך לפתוח את התמונה.</param>
+    /// <param name="resume">להמשיך את התמונה שבנתיב לפי המפה שלה, במקום להתחיל מחדש.</param>
+    /// <param name="retryUnreadable">בהמשך: לנסות שוב גם את הסקטורים שלא נקראו בפעם הקודמת.</param>
     public static Task<ImagingResult> CreateAsync(
         int diskNumber, long offset, long length, int sectorSize,
         string kind, string sourceDescription, string imagePath,
-        IProgress<ImagingProgress>? progress, CancellationToken token)
+        IProgress<ImagingProgress>? progress, CancellationToken token,
+        bool resume = false, bool retryUnreadable = false)
         => Task.Run(() =>
         {
             using var reader = VolumeReader.TryOpen(diskNumber, offset, length, sectorSize, sequential: true, applyOverlay: false)
                 ?? throw new IOException("לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
-            return Create(new VolumeSource(reader, length, sectorSize),
-                kind, sourceDescription, imagePath, progress, token);
+            var source = new VolumeSource(reader, length, sectorSize);
+            return resume
+                ? Resume(source, kind, sourceDescription, imagePath, retryUnreadable, progress, token)
+                : Create(source, kind, sourceDescription, imagePath, progress, token);
         });
 
     internal static ImagingResult Create(
         ISectorSource source, string kind, string sourceDescription, string imagePath,
+        IProgress<ImagingProgress>? progress, CancellationToken token)
+        => Copy(source, kind, sourceDescription, imagePath, CopyPlan.Fresh(source.Length), progress, token);
+
+    /// <summary>
+    /// המשך תמונה קיימת לפי המפה שלצדה: מעתיקים רק את מה שלא הועתק, ואם
+    /// התבקש — מנסים שוב את הסקטורים שלא נקראו. כל מה שכבר בתמונה נשאר כפי שהוא.
+    /// בכונן גוסס זה ההבדל בין עוד שעה של קריאה לבין עוד דקה.
+    /// </summary>
+    internal static ImagingResult Resume(
+        ISectorSource source, string kind, string sourceDescription, string imagePath, bool retryUnreadable,
+        IProgress<ImagingProgress>? progress, CancellationToken token)
+    {
+        var existing = Inspect(imagePath, source.Length, kind);
+        if (existing is not { CanResume: true })
+            throw new InvalidOperationException(existing?.Reason ?? "לא נמצאה תמונה קודמת להמשיך ממנה.");
+
+        var map = ImageMap.TryLoad(ImageMap.PathFor(imagePath))!;
+        var plan = new CopyPlan(
+            Pass1: map.NotCopied.OrderBy(r => r.Offset).ToList(),
+            Retry: retryUnreadable ? map.Unreadable.ToList() : new List<ByteRange>(),
+            KeptUnreadable: retryUnreadable ? new List<ByteRange>() : map.Unreadable.ToList(),
+            Existing: true);
+
+        return Copy(source, kind, sourceDescription, imagePath, plan, progress, token);
+    }
+
+    /// <summary>מה אפשר לעשות עם תמונה שכבר קיימת בנתיב שנבחר.</summary>
+    public sealed record ExistingImage(
+        bool CanResume, long NotCopiedBytes, long UnreadableBytes, bool Complete, string Source, string? Reason);
+
+    /// <summary>
+    /// בדיקת תמונה קיימת בנתיב. null — אין שם תמונה של התוכנה. תמונה ממקור
+    /// בגודל אחר, או שהקובץ שלה קוצר, אינה ניתנת להמשך — היא הייתה נדרסת.
+    /// המקור אינו מושווה לפי שם: מספר הדיסק ב-Windows משתנה בין חיבורים.
+    /// </summary>
+    public static ExistingImage? Inspect(string imagePath, long size, string kind)
+    {
+        if (!File.Exists(imagePath)) return null;
+        var map = ImageMap.TryLoad(ImageMap.PathFor(imagePath));
+        if (map is null) return null;
+
+        string? reason =
+            map.Size != size || map.Kind != kind
+                ? "בנתיב הזה יש תמונה של מקור אחר (בגודל שונה). התחלה מחדש תדרוס אותה."
+            : new FileInfo(imagePath).Length != size
+                ? "קובץ התמונה קצר מהצפוי — ייתכן שנקטע. אי אפשר להמשיך ממנו."
+            : map.NotCopied.Count == 0 && map.Unreadable.Count == 0
+                ? "התמונה הזו כבר שלמה, וכל הסקטורים בה נקראו."
+            : null;
+
+        return new ExistingImage(reason is null, map.NotCopiedBytes, map.UnreadableBytes, map.Complete, map.Source, reason);
+    }
+
+    /// <summary>
+    /// מה להעתיק: טווחים למעבר המהיר, טווחים ישר לניסיון החוזר, וסקטורים
+    /// פגומים מהעבר שנשארים כפי שהם.
+    /// </summary>
+    private sealed record CopyPlan(
+        List<ByteRange> Pass1, List<ByteRange> Retry, List<ByteRange> KeptUnreadable, bool Existing)
+    {
+        public static CopyPlan Fresh(long length)
+            => new(new List<ByteRange> { new(0, length) }, new(), new(), Existing: false);
+    }
+
+    private static ImagingResult Copy(
+        ISectorSource source, string kind, string sourceDescription, string imagePath, CopyPlan plan,
         IProgress<ImagingProgress>? progress, CancellationToken token)
     {
         var clock = Stopwatch.StartNew();
         long length = source.Length;
         int sector = source.SectorSize;
 
-        var pending = new List<ByteRange>();
+        var pending = new List<ByteRange>(plan.Retry);
         var unreadable = new List<ByteRange>();
         var notCopied = new List<ByteRange>();
 
@@ -143,8 +214,8 @@ public static class DiskImager
             Size = length,
             SectorSize = sector,
             Complete = complete,
-            Unreadable = unreadable.ToList(),
-            NotCopied = notCopied.ToList(),
+            Unreadable = Normalize(plan.KeptUnreadable.Concat(unreadable)),
+            NotCopied = Normalize(notCopied),
         };
 
         void Report(int pass, string stage, long done, long total, long problems, bool force = false)
@@ -166,10 +237,13 @@ public static class DiskImager
         }
 
         byte[] buffer = new byte[ChunkSize];
+        string stage1 = plan.Existing ? "מעבר 1 — השלמת מה שלא הועתק" : "מעבר 1 — העתקה מהירה";
 
-        using (var output = new FileStream(imagePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read, 1 << 20))
+        // תמונה קיימת נפתחת כפי שהיא: FileMode.Create היה מוחק את כל מה שכבר הועתק.
+        using (var output = new FileStream(imagePath, plan.Existing ? FileMode.Open : FileMode.Create,
+                                           FileAccess.ReadWrite, FileShare.Read, 1 << 20))
         {
-            output.SetLength(length);
+            if (!plan.Existing) output.SetLength(length);
 
             void Write(long at, int count)
             {
@@ -178,59 +252,76 @@ public static class DiskImager
             }
 
             // ---------------------------------------------------- מעבר 1
-            long pos = 0;
-            long skip = ChunkSize;
+            long pass1Total = plan.Pass1.Sum(r => r.Length);
+            long pass1Done = 0;
 
-            while (pos < length)
+            for (int ri = 0; ri < plan.Pass1.Count; ri++)
             {
-                if (token.IsCancellationRequested)
-                {
-                    notCopied.AddRange(pending);
-                    notCopied.Add(new ByteRange(pos, length - pos));
-                    pending.Clear();
-                    break;
-                }
+                var range = plan.Pass1[ri];
+                long pos = range.Offset;
+                long skip = ChunkSize;
 
-                int want = (int)Math.Min(ChunkSize, length - pos);
-                int read = source.Read(pos, buffer.AsSpan(0, want));
+                // מה שעוד לא טופל: שאר הטווח הנוכחי והטווחים שאחריו.
+                IEnumerable<ByteRange> Remaining()
+                    => (pos < range.End ? new[] { new ByteRange(pos, range.End - pos) } : Array.Empty<ByteRange>())
+                       .Concat(plan.Pass1.Skip(ri + 1));
 
-                if (read == want)
+                while (pos < range.End)
                 {
-                    Write(pos, want);
-                    pos += want;
-                    readOk += want;
-                    skip = ChunkSize;
-                }
-                else
-                {
-                    // מה שנקרא לפני הכישלון נשמר; הקריאה הבאה תתחיל ממקום הכישלון.
-                    int good = Math.Max(0, read) / sector * sector;
-                    if (good > 0)
+                    if (token.IsCancellationRequested)
                     {
-                        Write(pos, good);
-                        pos += good;
-                        readOk += good;
-                        continue;
+                        notCopied.AddRange(pending);
+                        notCopied.AddRange(Remaining());
+                        pending.Clear();
+                        goto finished;
                     }
 
-                    long jump = Math.Min(skip, length - pos);
-                    pending.Add(new ByteRange(pos, jump));
-                    pos += jump;
-                    skip = Math.Min(skip * 2, MaxSkip);
-                }
+                    int want = (int)Math.Min(ChunkSize, range.End - pos);
+                    int read = source.Read(pos, buffer.AsSpan(0, want));
 
-                Report(1, "מעבר 1 — העתקה מהירה", pos, length, pending.Sum(r => r.Length));
+                    if (read == want)
+                    {
+                        Write(pos, want);
+                        pos += want;
+                        pass1Done += want;
+                        readOk += want;
+                        skip = ChunkSize;
+                    }
+                    else
+                    {
+                        // מה שנקרא לפני הכישלון נשמר; הקריאה הבאה תתחיל ממקום הכישלון.
+                        int good = Math.Max(0, read) / sector * sector;
+                        if (good > 0)
+                        {
+                            Write(pos, good);
+                            pos += good;
+                            pass1Done += good;
+                            readOk += good;
+                            continue;
+                        }
 
-                if (clock.Elapsed - lastMapSave > TimeSpan.FromSeconds(10))
-                {
-                    lastMapSave = clock.Elapsed;
-                    SaveInterimMap(Map(false), pending, pos, length, mapPath);
+                        long jump = Math.Min(skip, range.End - pos);
+                        pending.Add(new ByteRange(pos, jump));
+                        pos += jump;
+                        pass1Done += jump;
+                        skip = Math.Min(skip * 2, MaxSkip);
+                    }
+
+                    Report(1, stage1, pass1Done, pass1Total, pending.Sum(r => r.Length));
+
+                    if (clock.Elapsed - lastMapSave > TimeSpan.FromSeconds(10))
+                    {
+                        lastMapSave = clock.Elapsed;
+                        SaveInterimMap(Map(false), pending.Concat(Remaining()), mapPath);
+                    }
                 }
             }
 
-            Report(1, "מעבר 1 — העתקה מהירה", pos, length, pending.Sum(r => r.Length), force: true);
+            Report(1, stage1, pass1Done, pass1Total, pending.Sum(r => r.Length), force: true);
 
             // ---------------------------------------------------- מעבר 2
+            // לפי הסדר על הדיסק: בכונן מכני קפיצות הלוך ושוב מאטות ושוחקות.
+            pending.Sort((a, b) => a.Offset.CompareTo(b.Offset));
             long retryTotal = pending.Sum(r => r.Length);
             long retryDone = 0;
 
@@ -301,17 +392,39 @@ public static class DiskImager
         };
     }
 
+    /// <summary>מיון ואיחוד טווחים חופפים או צמודים — מפה אחרי המשך מערבבת טווחים ישנים וחדשים.</summary>
+    internal static List<ByteRange> Normalize(IEnumerable<ByteRange> ranges)
+    {
+        var result = new List<ByteRange>();
+        foreach (var r in ranges.Where(r => r.Length > 0).OrderBy(r => r.Offset))
+        {
+            if (result.Count > 0 && r.Offset <= result[^1].End)
+            {
+                long end = Math.Max(result[^1].End, r.End);
+                result[^1] = new ByteRange(result[^1].Offset, end - result[^1].Offset);
+            }
+            else
+            {
+                result.Add(r);
+            }
+        }
+        return result;
+    }
+
     /// <summary>
     /// שמירת מפת ביניים: אם התוכנה או הכונן קורסים באמצע, נשארת מפה
-    /// שמתעדת במדויק מה כבר הועתק.
+    /// שמתעדת במדויק מה כבר הועתק — וממנה אפשר להמשיך.
     /// </summary>
-    private static void SaveInterimMap(ImageMap map, List<ByteRange> pending, long pos, long length, string path)
+    private static void SaveInterimMap(ImageMap map, IEnumerable<ByteRange> notYetCopied, string path)
     {
         try
         {
-            map.NotCopied.AddRange(pending);
-            if (pos < length) map.NotCopied.Add(new ByteRange(pos, length - pos));
-            map.Save(path);
+            new ImageMap
+            {
+                Source = map.Source, Kind = map.Kind, Size = map.Size, SectorSize = map.SectorSize,
+                Complete = false, Unreadable = map.Unreadable,
+                NotCopied = Normalize(map.NotCopied.Concat(notYetCopied)),
+            }.Save(path);
         }
         catch (IOException)
         {
@@ -331,9 +444,9 @@ public static class DiskImager
     private static string Describe(ImageMap map, bool cancelled, int sector)
     {
         if (cancelled)
-            return $"ההעתקה נעצרה. {Size(map.Size - map.NotCopiedBytes)} הועתקו, " +
-                   $"ו-{Size(map.NotCopiedBytes)} לא הועתקו. ניתן לסרוק את התמונה החלקית, " +
-                   "אך קבצים שישבו באזורים שלא הועתקו לא ישוחזרו.";
+            return $"ההעתקה נעצרה. הועתקו: {Size(map.Size - map.NotCopiedBytes)}; לא הועתקו: " +
+                   $"{Size(map.NotCopiedBytes)}. אפשר לסרוק את התמונה החלקית, או להמשיך אותה — " +
+                   "בחרו שוב את אותו קובץ ביצירת תמונה, ורק מה שחסר ייקרא מהכונן.";
 
         if (map.UnreadableBytes == 0)
             return "התמונה הושלמה. כל הסקטורים נקראו בהצלחה — התמונה זהה לכונן.";
@@ -344,13 +457,17 @@ public static class DiskImager
                "יחזרו פגומים חלקית; כל השאר ישוחזרו כרגיל.";
     }
 
+    /// <summary>
+    /// גודל לתצוגה בתוך משפט עברי. עטוף בבידוד כיווניות (LRI…PDI) — בלעדיו
+    /// "4.8 GB" במשפט עברי מתהפך ל-"GB 4.8".
+    /// </summary>
     internal static string Size(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };
         double value = bytes;
         int unit = 0;
         while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
-        return unit == 0 ? $"{bytes} B" : $"{value:0.#} {units[unit]}";
+        return "⁦" + (unit == 0 ? $"{bytes} B" : $"{value:0.#} {units[unit]}") + "⁩";
     }
 
     /// <summary>התאמת קורא מחיצה לממשק מקור הסקטורים.</summary>

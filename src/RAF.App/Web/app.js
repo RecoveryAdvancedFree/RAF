@@ -1236,14 +1236,59 @@ function openImagePanel(disk, part) {
     const v = await Bridge.call('image.validate', { ...request, path });
 
     el('btn-start-image').disabled = !v.valid;
-    el('image-status').innerHTML = v.valid
-      ? `<div class="notice ok-notice tiny-notice">${Icon.check}
-           <div>התמונה תתפוס ${formatSize(v.size)}. פנויים בכונן היעד ${formatSize(v.freeSpace)}.</div></div>`
-      : `<div class="notice danger tiny-notice">${Icon.alert}<div>${esc(v.error)}</div></div>`;
+    el('image-status').innerHTML = !v.valid
+      ? `<div class="notice danger tiny-notice">${Icon.alert}<div>${esc(v.error)}</div></div>`
+      : v.existing ? existingImageChoice(v.existing)
+      : `<div class="notice ok-notice tiny-notice">${Icon.check}
+           <div>התמונה תתפוס ${formatSize(v.size)}. פנויים בכונן היעד ${formatSize(v.freeSpace)}.</div></div>`;
   };
 
-  el('btn-start-image').onclick = () =>
-    startImaging(disk, part, { ...request, path: el('image-path').value });
+  el('btn-start-image').onclick = () => {
+    // בנתיב שיש בו תמונה קודמת — ההמשך הוא ברירת המחדל, כדי לא לקרוא שוב כונן גוסס.
+    const mode = document.querySelector('input[name="image-mode"]:checked')?.value || 'new';
+    startImaging(disk, part, {
+      ...request, path: el('image-path').value,
+      resume: mode !== 'new',
+      retryUnreadable: mode === 'retry' || !!el('opt-retry-unreadable')?.checked,
+    });
+  };
+}
+
+/// בחירה מה לעשות עם תמונה קודמת באותו נתיב: להמשיך ממנה, לנסות שוב את
+/// הסקטורים שלא נקראו, או להתחיל מחדש ולדרוס אותה.
+function existingImageChoice(e) {
+  if (!e.canResume) {
+    return notice('warn', Icon.alert, 'בנתיב הזה כבר יש תמונה', esc(e.reason), '', 'tiny-notice');
+  }
+
+  const option = (value, checked, title, text) => `
+    <label class="radio-opt">
+      <input type="radio" name="image-mode" value="${value}"${checked ? ' checked' : ''}>
+      <span><b>${title}</b><br><span class="faint">${text}</span></span>
+    </label>`;
+
+  // תמונה שהושלמה ונשארו בה רק סקטורים פגומים — אין מה "להמשיך", רק לנסות שוב.
+  const onlyRetry = e.notCopied === 0;
+
+  return `
+    ${notice('info', Icon.info, 'בנתיב הזה יש תמונה קודמת של אותו מקור',
+      onlyRetry
+        ? `התמונה הושלמה, אבל ${formatSize(e.unreadable)} לא נקראו בה.`
+        : `ההעתקה נעצרה לפני הסוף. עוד לא הועתקו: ${formatSize(e.notCopied)}.`,
+      `התמונה הקודמת נוצרה מ: <bdi>${esc(e.source)}</bdi>. ודאו שזה אותו כונן.`, 'tiny-notice')}
+    <div class="radio-group">
+      ${onlyRetry
+        ? option('retry', true, 'ניסיון חוזר בסקטורים שלא נקראו',
+            'רק הם נקראים שוב. לפעמים כונן מצליח לקרוא סקטור בניסיון מאוחר יותר.')
+        : option('resume', true, 'המשך מהנקודה שנעצרה',
+            'רק מה שלא הועתק נקרא מהכונן. מה שכבר בתמונה נשאר כפי שהוא.')}
+      ${option('new', false, 'התחלה מחדש', 'התמונה הקודמת תידרס, והכונן כולו ייקרא שוב.')}
+    </div>
+    ${!onlyRetry && e.unreadable > 0 ? `
+      <label class="switch" style="margin-top:8px">
+        <input type="checkbox" id="opt-retry-unreadable">
+        <span>לנסות שוב גם את ${formatSize(e.unreadable)} שלא נקראו בפעם הקודמת</span>
+      </label>` : ''}`;
 }
 
 async function startImaging(disk, part, request) {

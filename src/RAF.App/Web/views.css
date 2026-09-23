@@ -525,6 +525,20 @@
 .empty.small { padding: 50px 20px; }
 
 /* ---------- אזהרות ברמת הסריקה ---------- */
+/* ---------- בחירה בין אפשרויות (תמונה קודמת) ---------- */
+.radio-group { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.radio-opt {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 12px;
+  font-size: 12.5px; line-height: 1.55;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.radio-opt:has(input:checked) { border-color: var(--accent-line); background: var(--accent-soft); }
+.radio-opt input { margin-top: 3px; accent-color: var(--accent); cursor: pointer; }
+
 /* כפתור עם סמל בלבד, בגובה הכפתורים הרגילים */
 .btn.icon-only { padding: 8px 10px; }
 
