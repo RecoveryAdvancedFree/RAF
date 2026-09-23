@@ -60,7 +60,13 @@ internal static class FileLength
 
         long exact = ReadDeclaredLength(signature, head, volume, offset, ceiling);
         if (exact > 0 && exact <= ceiling)
+        {
+            // ב-RW2 הסוף שנקרא הוא תחילת תמונת ה-RAW, שנמשכת עד סוף הקובץ — בלי תקרה.
+            if (signature.Structure == "tif")
+                exact = ExtendOverUntaggedData(volume, offset, exact, ceiling,
+                    reach: signature.Extensions[0] == "rw2" ? ceiling : 8L * 1024 * 1024);
             return new ResolvedLength(exact, StructureCheck.ConfidenceOf(signature, volume, offset, exact));
+        }
 
         // בפורמטים שמבנם נקרא במלואו, כישלון בקריאה מעיד על נתונים פגומים
         // או על התאמת שווא. חיפוש חתימת סיום קצרה היה מוצא מופע אקראי שלה.
@@ -84,6 +90,50 @@ internal static class FileLength
         // וקטן מספיק שלא לבלוע את שכניו.
         long fallback = Math.Min(ceiling, 16L * 1024 * 1024);
         return new ResolvedLength(fallback, LengthConfidence.Guess);
+    }
+
+    /// <summary>
+    /// ב-TIFF וב-RAW, סוף הנתון הרחוק שהתגיות מכירות אינו תמיד סוף הקובץ: נבדק
+    /// על 10 קובצי RAW אמיתיים — ב-Leica M10 נותרו אחריו 651KB של נתונים שאף תגית
+    /// רגילה אינה מצביעה אליהם. לכן ממשיכים כל עוד הנתונים ממשיכים: עד סקטור
+    /// שכולו אפסים (הריפוד שמצלמות מוסיפות — ב-Sony A6000), עד תחילת קובץ אחר,
+    /// או עד 8MB. חלק עודף בסוף קובץ RAW אינו מזיק לו; חלק חסר — כן.
+    /// </summary>
+    private static long ExtendOverUntaggedData(IClusterVolume volume, long offset, long end, long ceiling, long reach)
+    {
+        const int sector = 512;
+        const int block = 1024 * 1024;                               // קריאה בבלוקים — 512 בתים בכל פעם היה איטי בכרטיס
+
+        long at = (end + sector - 1) / sector * sector;              // הגבול הבא, יחסית לתחילת הקובץ
+        long limit = Math.Min(ceiling, end + reach);
+        byte[] buffer = new byte[block];
+        long extended = end;
+
+        while (at + sector <= limit)
+        {
+            int want = (int)Math.Min(block, (limit - at) / sector * sector);
+            int read = volume.ReadRaw(offset + at, buffer.AsSpan(0, want));
+            if (read < sector) break;
+
+            for (int i = 0; i + sector <= read; i += sector)
+            {
+                var chunk = buffer.AsSpan(i, sector);
+                // תחילת קובץ אחר — רק כשגם המבנה שלה הגיוני: בתוך נתוני RAW דחוסים מופיעים
+                // במקרה "BM" או "MZ" בתחילת סקטור (נמצא ב-Panasonic G9).
+                if (!chunk.ContainsAnyExcept((byte)0) || StartsAnotherFile(chunk)) return extended;
+                extended = at + i + sector;
+            }
+
+            at += read / sector * sector;
+        }
+
+        return extended;
+    }
+
+    private static bool StartsAnotherFile(Span<byte> sector)
+    {
+        byte[] head = sector.ToArray();
+        return FileSignatures.Identify(head) is { } other && StructureCheck.IsPlausible(other, head);
     }
 
     /// <summary>

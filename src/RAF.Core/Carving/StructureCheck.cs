@@ -556,10 +556,11 @@ internal static class StructureCheck
             return v;
         }
 
-        // ORF מחליף את המספר 42 בחתימה משלו; המבנה שאחריה זהה. RW2 (0x55) מצביע
-        // לתמונת ה-RAW בתגית פרטית בלי אורך — עדיף לו הערכה על פני אורך קצר מדי.
+        // ORF ו-RW2 מחליפים את המספר 42 בחתימה משלהם; המבנה שאחריה זהה. RW2 מצביע
+        // לתמונת ה-RAW בתגית פרטית (0x118) בלי אורך: הסוף שמוחזר הוא תחילתה, והמשך
+        // הקובץ נמדד לפי הנתונים עצמם (FileLength.ExtendOverUntaggedData).
         long magic = U16(2);
-        if (magic is not (42 or 0x4F52 or 0x5352)) return 0;
+        if (magic is not (42 or 0x4F52 or 0x5352 or 0x55)) return 0;
 
         long end = 8;
         var pending = new Queue<long>();
@@ -590,6 +591,7 @@ internal static class StructureCheck
             // זוגות היסט/אורך: רצועות, אריחים ותמונה ממוזערת בפורמט JPEG.
             long[]? stripOffsets = null, stripCounts = null, tileOffsets = null, tileCounts = null;
             long jpegOffset = -1, jpegLength = -1;
+            long panasonicRaw = -1;
 
             for (long e = ifd + 2; e < ifd + 2 + count * 12; e += 12)
             {
@@ -616,6 +618,9 @@ internal static class StructureCheck
                     case 0x145: tileCounts = Values(); break;                    // TileByteCounts
                     case 0x201: jpegOffset = U32(e + 8); break;                  // JPEGInterchangeFormat
                     case 0x202: jpegLength = U32(e + 8); break;                  // ...Length
+                    case 0x118 when magic == 0x55:                               // RawDataOffset של Panasonic
+                        panasonicRaw = U32(e + 8);
+                        break;
                     case 0x14A or 0x8769 or 0x8825 or 0xA005:                    // SubIFDs, EXIF, GPS, Interop
                         foreach (long sub in Values()) pending.Enqueue(sub);
                         break;
@@ -628,6 +633,16 @@ internal static class StructureCheck
                 for (int i = 0; i < Math.Min(offsets.Length, counts.Length); i++)
                     if (offsets[i] >= 8 && counts[i] > 0 && offsets[i] + counts[i] <= r.Limit)
                         end = Math.Max(end, offsets[i] + counts[i]);
+            }
+
+            // RW2: תמונת ה-RAW מתחילה בהיסט של התגית הפרטית 0x118 (ב-StripOffsets
+            // יש ערך לא תקין), ואורכה ב-StripByteCounts הרגיל. נבדק על Panasonic G9.
+            if (panasonicRaw >= 8 && panasonicRaw < r.Limit)
+            {
+                end = Math.Max(end, panasonicRaw);
+                if (stripCounts is { Length: > 0 } && stripCounts[0] > 0 && panasonicRaw + stripCounts[0] <= r.Limit)
+                    end = Math.Max(end, panasonicRaw + stripCounts[0]);
+                stripOffsets = null;
             }
 
             Extend(stripOffsets, stripCounts);

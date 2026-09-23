@@ -194,9 +194,45 @@ public class TiffLengthTests : IDisposable
         Assert.False(issue.Fixable);
     }
 
+    /// <summary>
+    /// RW2 של Panasonic: ב-StripOffsets ערך לא תקין, תחילת תמונת ה-RAW בתגית הפרטית
+    /// 0x118, ואורכה ב-StripByteCounts. נבדק על קובץ G9 אמיתי של 131MB — אורך מדויק.
+    /// </summary>
     [Fact]
-    public void Panasonic_rw2_is_left_to_an_estimate()
-        => Assert.Equal(0, Length(CameraRaw(magic: 0x55)));
+    public void Panasonic_rw2_takes_its_start_from_the_private_tag_and_its_length_from_the_strip_count()
+    {
+        var b = new Builder(magic: 0x55);
+        int main = b.Ifd(new (ushort, ushort, uint, uint)[]
+        {
+            (0x111, 4, 1, 0xFFFFFFFF), (0x117, 4, 1, 40_000), (0x118, 4, 1, 0),
+        });
+        int raw = b.Blob(40_000, 0x33);
+        b.Patch(main + 2 + 2 * 12 + 8, (uint)raw);
+
+        byte[] file = b.Finish(main);
+        Assert.Equal(file.Length, Length(file));
+    }
+
+    /// <summary>
+    /// נתונים שאף תגית אינה מצביעה אליהם, אחרי סוף הנתון הידוע — כמו 651KB בסוף DNG
+    /// של Leica M10. הסריקה ממשיכה עליהם, ונעצרת בסקטור של אפסים (ריפוד).
+    /// </summary>
+    [Fact]
+    public void The_scan_keeps_untagged_data_after_the_known_end_and_stops_at_padding()
+    {
+        byte[] tagged = CameraRaw();
+        int known = (tagged.Length + Sector - 1) / Sector * Sector;
+        byte[] file = new byte[known + 4 * Sector + 8 * Sector];
+        tagged.CopyTo(file, 0);
+        file.AsSpan(known, 4 * Sector).Fill(0x7C);                       // נתונים בלי תגית; אחריהם אפסים
+
+        File.WriteAllBytes(_path, file);
+        _device = RawDevice.TryOpen(_path, Sector)!;
+        var volume = RawVolume.Open(VolumeReader.Wrap(_device, 0, file.Length), Sector);
+        var signature = RAF.Core.Signatures.FileSignatures.ForExtension("nef").First();
+
+        Assert.Equal(known + 4 * Sector, FileLength.Resolve(signature, volume, 0, file.Length).Bytes);
+    }
 
     [Fact]
     public void The_doctor_never_offers_to_cut_a_raw_file_shorter()

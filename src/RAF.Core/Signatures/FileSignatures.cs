@@ -142,7 +142,7 @@ public static class FileSignatures
         {
             Name = "תמונת RAW של Panasonic", Extensions = new[] { "rw2" },
             Header = Bytes(0x49, 0x49, 0x55, 0x00, 0x18, 0x00, 0x00, 0x00),
-            MaxSize = 128L * 1024 * 1024, Structure = "tif",
+            MaxSize = 256L * 1024 * 1024, Structure = "tif",                 // G9 במצב רזולוציה גבוהה: 131MB
         },
         new()
         {
