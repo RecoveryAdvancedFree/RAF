@@ -87,20 +87,20 @@ public sealed class FileCarver
     {
         bool main = from == 0 && to == size;
         var lastCheckpoint = TimeSpan.Zero;
-        byte[] block = new byte[BlockSize + Overlap];
 
         // ההיסט שממנו מותר להתחיל קובץ חדש. קובץ שאורכו נקבע
         // מדלג את הסורק קדימה, כדי שלא יזהה את תוכנו הפנימי כקבצים.
         long nextAllowedStart = from;
         long reported = from;
         long reportEvery = Math.Max(BlockSize, size / 200);
+        using var ahead = new ReadAhead(volume, size);
 
         for (long at = from / sectorSize * sectorSize; at < to; at += BlockSize)
         {
             if (token.IsCancellationRequested) break;
 
-            int want = (int)Math.Min(BlockSize + Overlap, size - at);
-            int read = volume.ReadRaw(at, block.AsSpan(0, want));
+            int read = ahead.Read(at, out byte[] block);
+            if (at + BlockSize < to) ahead.Prefetch(at + BlockSize);
 
             if (read <= 0)
             {
@@ -172,6 +172,57 @@ public sealed class FileCarver
                     $"נקודת ביניים: נשמרה אחרי {at * 100.0 / size:0.#}% מהמחיצה. קבצים שאחרי נקודה זו אינם ברשימה.",
                 }));
             }
+        }
+    }
+
+    /// <summary>
+    /// קריאה מוקדמת: הבלוק הבא נקרא ברקע בזמן שהנוכחי נסרק. בלי זה הכונן עומד
+    /// בכל זמן הבדיקה של הבלוק. על כונן USB: מהירות זהה או גבוהה יותר בכל מדידה, עם אותם קבצים.
+    /// שני מאגרים מתחלפים: אחד בידי הסורק, והשני מתמלא.
+    /// </summary>
+    private sealed class ReadAhead(RawVolume volume, long size) : IDisposable
+    {
+        private byte[] _current = new byte[BlockSize + Overlap];
+        private byte[] _next = new byte[BlockSize + Overlap];
+        private Task<int>? _pending;
+        private long _pendingAt = -1;
+
+        private int Want(long at) => (int)Math.Min(BlockSize + Overlap, size - at);
+
+        public int Read(long at, out byte[] block)
+        {
+            int read;
+            if (_pending is not null && _pendingAt == at)
+            {
+                read = _pending.GetAwaiter().GetResult();
+                (_current, _next) = (_next, _current);
+            }
+            else
+            {
+                _pending?.Wait();
+                read = volume.ReadRaw(at, _current.AsSpan(0, Want(at)));
+            }
+
+            _pending = null;
+            block = _current;
+            return read;
+        }
+
+        public void Prefetch(long at)
+        {
+            byte[] target = _next;
+            int want = Want(at);
+            _pendingAt = at;
+            // תהליכון משלו: כשפענוח ה-JPEG תופס את מאגר התהליכונים, הקריאה לא תמתין בתור.
+            _pending = Task.Factory.StartNew(
+                () => volume.ReadRaw(at, target.AsSpan(0, want)),
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }
+
+        /// <summary>המתנה לקריאה שעוד רצה — ההתקן נסגר מיד אחרי הסריקה.</summary>
+        public void Dispose()
+        {
+            try { _pending?.Wait(); } catch { }
         }
     }
 

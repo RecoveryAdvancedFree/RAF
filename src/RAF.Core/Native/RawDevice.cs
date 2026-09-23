@@ -11,6 +11,9 @@ internal sealed class RawDevice : IDisposable
     private IntPtr _handle;
     private long _position;
 
+    /// <summary>הזזת המצביע והקריאה הן שתי קריאות מערכת — ביחד, כדי שקריאה מוקדמת ברקע לא תתערב באחרת.</summary>
+    private readonly object _gate = new();
+
     /// <summary>גודל סקטור לוגי. כל קריאה גולמית חייבת להיות מיושרת אליו.</summary>
     public int SectorSize { get; }
 
@@ -67,11 +70,15 @@ internal sealed class RawDevice : IDisposable
         GCHandle pin = GCHandle.Alloc(buffer, GCHandleType.Pinned);
         try
         {
-            if (!Win32.SetFilePointerEx(_handle, alignedStart, out _position, 0 /* FILE_BEGIN */))
-                return 0;
+            uint read;
+            lock (_gate)
+            {
+                if (!IsValid || !Win32.SetFilePointerEx(_handle, alignedStart, out _position, 0 /* FILE_BEGIN */))
+                    return 0;
 
-            if (!Win32.ReadFile(_handle, pin.AddrOfPinnedObject(), (uint)alignedLength, out uint read, IntPtr.Zero))
-                return 0;
+                if (!Win32.ReadFile(_handle, pin.AddrOfPinnedObject(), (uint)alignedLength, out read, IntPtr.Zero))
+                    return 0;
+            }
 
             int usable = Math.Max(0, Math.Min(destination.Length, (int)read - skew));
             buffer.AsSpan(skew, usable).CopyTo(destination);
@@ -96,10 +103,13 @@ internal sealed class RawDevice : IDisposable
 
     public void Dispose()
     {
-        if (IsValid)
+        lock (_gate)
         {
-            Win32.CloseHandle(_handle);
-            _handle = Win32.INVALID_HANDLE_VALUE;
+            if (IsValid)
+            {
+                Win32.CloseHandle(_handle);
+                _handle = Win32.INVALID_HANDLE_VALUE;
+            }
         }
         GC.SuppressFinalize(this);
     }
