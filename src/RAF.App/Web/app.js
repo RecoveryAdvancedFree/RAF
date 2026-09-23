@@ -125,6 +125,8 @@ const Icon = {
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h2"/></svg>',
   open: '<svg viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v1"/><path d="M3 7.5v10A1.5 1.5 0 0 0 4.5 19h12.3a1.5 1.5 0 0 0 1.4-1l2.6-6.2a.8.8 0 0 0-.7-1.1H7.4a1.5 1.5 0 0 0-1.4 1L3 19"/></svg>',
   wrench: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L4 16.7V20h3.3l5.3-5.3a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6Z"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>',
+  grid: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
 };
 
 function diskIcon(media) {
@@ -219,8 +221,7 @@ const State = {
   scan: null,          // { disk, part, mode }
   summary: null,
   currentPath: '',
-  selected: new Set(), // מזהי הקבצים שסומנו לשחזור
-  selectedBytes: 0,
+  selection: { count: 0, bytes: 0 }, // סיכום הבחירה; הבחירה עצמה נשמרת במנוע
   showEvidence: false, // רשומות יומן מוסתרות כברירת מחדל
   openDisks: new Set(), // כוננים שהמחיצות שלהם פתוחות
   failed: [],           // התקנים ש-Windows לא הצליח להפעיל
@@ -1489,8 +1490,7 @@ async function showStrategy(disk, part, modeId) {
 async function startScan(disk, part, modeId, includeExisting) {
   closePanel();
   State.scan = { disk, part, mode: modeId };
-  State.selected.clear();
-  State.selectedBytes = 0;
+  State.selection = { count: 0, bytes: 0 };
 
   const mode = SCAN_MODES.find((m) => m.id === modeId);
 
@@ -1616,13 +1616,19 @@ async function renderResults() {
 
       <div class="results-grid">
         <aside class="tree" id="tree"></aside>
-        <div class="filelist-wrap">
+        <div class="filelist-wrap" id="filelist-wrap">
+          <div class="list-tools">
+            <label class="chk-all" title="סימון כל הקבצים ברשימה, גם אלה שלא נגללו"><input type="checkbox" id="chk-all"><span>הכל</span></label>
+            <div class="cat-chips" id="cat-chips"></div>
+            <label class="toggle small"><input type="checkbox" id="chk-recoverable"><span>רק ניתנים לשחזור</span></label>
+            <div class="view-switch" role="group" aria-label="אופן התצוגה">
+              <button class="icon-btn" data-view="list" title="רשימה" aria-label="רשימה">${Icon.list}</button>
+              <button class="icon-btn" data-view="grid" title="גלריה" aria-label="גלריה">${Icon.grid}</button>
+            </div>
+          </div>
           <div class="filelist-head">
-            <label class="chk-all"><input type="checkbox" id="chk-all"><span>הכל</span></label>
-            <span class="col-name">שם הקובץ</span>
-            <span class="col-size">גודל</span>
-            <span class="col-date">שונה</span>
-            <span class="col-quality">איכות</span>
+            <span></span>
+            ${SORT_COLUMNS.map((c) => `<button class="col-sort col-${c.id}" data-sort="${c.id}">${c.label}</button>`).join('')}
           </div>
           <div class="list-banner" id="list-banner" hidden></div>
           <div class="filelist" id="filelist"></div>
@@ -1640,8 +1646,8 @@ async function renderResults() {
 
   el('btn-home').onclick = loadDisks;
   el('btn-recover').onclick = openRecoverPanel;
-  el('chk-all').onchange = (e) => FileList.toggleAll(e.target.checked);
   FileList.attach();
+  updateRecoverBar();
 
   const evidenceToggle = el('chk-evidence');
   if (evidenceToggle) {
@@ -1699,6 +1705,24 @@ async function expandToPath(path) {
   }
 }
 
+/// מצב תיבות הסימון בעץ נקבע במנוע, שיודע כמה קבצים מסומנים תחת כל ענף.
+const Tree = {
+  async refreshStates() {
+    const items = [...document.querySelectorAll('#tree .tree-item')];
+    if (items.length === 0) return;
+
+    const states = await Bridge.call('scan.folderStates', { paths: items.map((i) => i.dataset.path) });
+    for (const item of items) {
+      const box = item.querySelector('.tree-chk');
+      const state = states[item.dataset.path];
+      // ‎-1: אין בענף קבצים ניתנים לשחזור — אין מה לסמן.
+      box.style.visibility = state === -1 ? 'hidden' : '';
+      box.checked = state === 2;
+      box.indeterminate = state === 1;
+    }
+  },
+};
+
 async function makeTreeNode(path, label, depth) {
   const node = document.createElement('div');
   node.className = 'tree-node';
@@ -1708,6 +1732,7 @@ async function makeTreeNode(path, label, depth) {
   item.style.paddingInlineStart = (8 + depth * 14) + 'px';
   item.dataset.path = path;
   item.innerHTML = `<span class="tree-caret">${Icon.chevron}</span>
+                    <input type="checkbox" class="tree-chk" title="סימון התיקייה וכל מה שבתוכה">
                     <span class="tree-icon">${Icon.folder}</span>
                     <span class="tree-label">${esc(label)}</span>`;
 
@@ -1729,6 +1754,7 @@ async function makeTreeNode(path, label, depth) {
         children.appendChild(await makeTreeNode(folder.path, folder.name, depth + 1));
       }
       if (data.folders.length === 0) item.classList.add('leaf');
+      Tree.refreshStates();
     }
 
     children.hidden = false;
@@ -1739,6 +1765,14 @@ async function makeTreeNode(path, label, depth) {
   };
 
   item.onclick = async (e) => {
+    // תיבת הסימון מסמנת את התיקייה כולה, כולל תיקיות משנה, בלי לפתוח אותה.
+    // אחרי הלחיצה הדפדפן כבר הפך את המצב: מסומנת חלקית או לא מסומנת ← מסומנת.
+    if (e.target.classList.contains('tree-chk')) {
+      e.stopPropagation();
+      await FileList.select({ folder: path, on: e.target.checked }, true);
+      return;
+    }
+
     // לחיצה על החץ מקפלת ומרחיבה בלבד; לחיצה על השם פותחת גם את התיקייה.
     if (e.target.closest('.tree-caret') && !children.hidden) {
       children.hidden = true;
@@ -1765,62 +1799,108 @@ async function runSearch(query) {
   await FileList.open({ path: '', query });
 }
 
-/// רשימת קבצים וירטואלית: רק השורות שעל המסך קיימות ב-DOM, והנתונים נמשכים
-/// מהמנוע בעמודים לפי הגלילה. כך תיקייה של מאות אלפי קבצים נפתחת מיד —
-/// סריקה מתקדמת שמה את כל קבצי ה-JPEG בתיקייה אחת.
-const FileList = (() => {
-  const ROW = 40;          // גובה שורה קבוע, תואם ל-.frow ב-views.css
-  const PAGE = 200;        // שורות בכל בקשה למנוע
-  const OVERSCAN = 8;      // שורות נוספות מעל ומתחת לאזור הנראה
+/// עמודות הרשימה שניתן למיין לפיהן. מיון ראשון לפי גודל, תאריך או איכות — מהגדול, החדש והטוב.
+const SORT_COLUMNS = [
+  { id: 'name', label: 'שם הקובץ', firstDesc: false },
+  { id: 'size', label: 'גודל', firstDesc: true },
+  { id: 'date', label: 'שונה', firstDesc: true },
+  { id: 'quality', label: 'איכות', firstDesc: false },
+];
 
-  let view = null;         // { path, query, evidence }
+/// שבבי הסינון, בסדר ההצגה. המזהים תואמים ל-FileCategories במנוע.
+const CATEGORIES = [
+  { id: 'all', label: 'כל הסוגים' },
+  { id: 'images', label: 'תמונות' },
+  { id: 'documents', label: 'מסמכים' },
+  { id: 'video', label: 'וידאו' },
+  { id: 'audio', label: 'שמע' },
+  { id: 'archives', label: 'ארכיונים' },
+  { id: 'other', label: 'אחר' },
+];
+
+/// רשימת קבצים וירטואלית, ברשימה או בגלריה: רק מה שעל המסך קיים ב-DOM,
+/// והנתונים נמשכים מהמנוע בעמודים לפי הגלילה. כך תיקייה של מאות אלפי
+/// קבצים נפתחת מיד — סריקה מתקדמת שמה את כל קבצי ה-JPEG בתיקייה אחת.
+///
+/// הסינון, המיון והבחירה נעשים במנוע; הממשק שולח את "התצוגה" בכל בקשה.
+const FileList = (() => {
+  const PAGE = 200;        // קבצים בכל בקשה למנוע
+  const OVERSCAN = 6;      // שורות נוספות מעל ומתחת לאזור הנראה
+
+  /// מידות הפריסה. ברשימה כל שורה היא קובץ; בגלריה כל שורה היא שורת אריחים.
+  /// הגבהים תואמים ל-.frow ול-.tile ב-views.css.
+  const LAYOUT = {
+    list: { rowHeight: 40, perRow: () => 1 },
+    grid: { rowHeight: 196, perRow: (width) => Math.max(1, Math.floor((width - 12) / 164)) },
+  };
+
+  // העדפות תצוגה — נשמרות בין תיקיות ובין סריקות.
+  const prefs = { category: 'all', recoverableOnly: false, sort: 'name', desc: false, mode: 'list' };
+  try { prefs.mode = localStorage.getItem('raf-view') === 'grid' ? 'grid' : 'list'; } catch (e) {}
+
+  let target = null;       // { path, query }
   let total = 0;
   let pages = new Map();   // מספר עמוד ← מערך קבצים
   let pending = new Set(); // עמודים שבקשתם בדרך
   let byId = new Map();    // קבצים שנטענו, לתצוגה מקדימה ולסימון
-  let selectable = null;   // { ids: [], sizes: [] } — כל מה שניתן לסמן בתצוגה
   let generation = 0;      // תשובה מתצוגה קודמת נזרקת
   let activeId = null;
-  let frame = 0;
 
-  const params = () => ({ path: view.path, query: view.query, evidence: view.evidence });
+  /// התצוגה כפי שהמנוע מכיר אותה (ViewQuery).
+  const view = () => ({
+    path: target.path, query: target.query, evidence: State.showEvidence,
+    category: prefs.category, recoverableOnly: prefs.recoverableOnly,
+    sort: prefs.sort, desc: prefs.desc,
+  });
 
-  async function open(target) {
+  async function open(next) {
+    if (next) target = next;
+    if (!target) return;
+
     const gen = ++generation;
-    view = { ...target, evidence: State.showEvidence };
     total = 0;
     pages = new Map();
     pending = new Set();
     byId = new Map();
-    selectable = null;
 
     const list = el('filelist');
     list.scrollTop = 0;
 
-    // העמוד הראשון והמזהים לסימון נמשכים במקביל.
-    const [first, sel] = await Promise.all([
-      Bridge.call('scan.list', { ...params(), offset: 0, count: PAGE }),
-      Bridge.call('scan.selectable', params()),
-    ]);
+    const first = await Bridge.call('scan.list', { view: view(), offset: 0, count: PAGE });
     if (gen !== generation) return;
 
     total = first.total;
     store(0, first.files);
-    selectable = sel;
+    applySelection(first.selection);
+    renderChips(first.counts);
+    renderHead();
 
+    list.classList.toggle('is-grid', prefs.mode === 'grid');
+    el('filelist-wrap').classList.toggle('is-grid', prefs.mode === 'grid');
     list.innerHTML = total === 0
-      ? `<div class="empty small"><h3>אין קבצים להצגה</h3>
-           <p>${view.query ? 'לא נמצאו תוצאות לחיפוש.' : 'התיקייה הזו ריקה.'}</p></div>`
-      : `<div class="vlist" style="height:${total * ROW}px"><div class="vlist-rows"></div></div>`;
+      ? `<div class="empty small"><h3>אין קבצים להצגה</h3><p>${emptyReason()}</p></div>`
+      : `<div class="vlist"><div class="vlist-rows"></div></div>`;
 
     const banner = el('list-banner');
-    banner.hidden = !view.query;
-    if (view.query) {
-      banner.textContent = `נמצאו ${total.toLocaleString('he-IL')} תוצאות עבור "${view.query}"`;
+    banner.hidden = !target.query;
+    if (target.query) {
+      banner.textContent = `נמצאו ${total.toLocaleString('he-IL')} תוצאות עבור "${target.query}"`;
     }
 
     render();
-    syncSelectAll();
+  }
+
+  function emptyReason() {
+    if (prefs.category !== 'all' || prefs.recoverableOnly) return 'אין קבצים שמתאימים לסינון.';
+    return target.query ? 'לא נמצאו תוצאות לחיפוש.' : 'התיקייה הזו ריקה.';
+  }
+
+  /// רענון הנתונים באותה תצוגה, בלי לאבד את מיקום הגלילה — אחרי סימון תיקייה או "הכל".
+  function refresh() {
+    pages = new Map();
+    pending = new Set();
+    generation++;
+    render();
   }
 
   function store(pageIndex, files) {
@@ -1833,7 +1913,7 @@ const FileList = (() => {
     pending.add(pageIndex);
     const gen = generation;
     try {
-      const data = await Bridge.call('scan.list', { ...params(), offset: pageIndex * PAGE, count: PAGE });
+      const data = await Bridge.call('scan.list', { view: view(), offset: pageIndex * PAGE, count: PAGE });
       if (gen !== generation) return;
       store(pageIndex, data.files);
       render();
@@ -1849,43 +1929,59 @@ const FileList = (() => {
 
   function render() {
     const list = el('filelist');
-    const rows = list && list.querySelector('.vlist-rows');
-    if (!rows) return;
+    const vlist = list && list.querySelector('.vlist');
+    if (!vlist) return;
 
-    const first = Math.max(0, Math.floor(list.scrollTop / ROW) - OVERSCAN);
-    const last = Math.min(total, Math.ceil((list.scrollTop + list.clientHeight) / ROW) + OVERSCAN);
+    const layout = LAYOUT[prefs.mode];
+    const perRow = layout.perRow(list.clientWidth);
+    const rowCount = Math.ceil(total / perRow);
+    vlist.style.height = rowCount * layout.rowHeight + 'px';
+
+    const firstRow = Math.max(0, Math.floor(list.scrollTop / layout.rowHeight) - OVERSCAN);
+    const lastRow = Math.min(rowCount, Math.ceil((list.scrollTop + list.clientHeight) / layout.rowHeight) + OVERSCAN);
+    const first = firstRow * perRow;
+    const last = Math.min(total, lastRow * perRow);
 
     let html = '';
     for (let i = first; i < last; i++) {
       const f = fileAt(i);
       if (f) {
-        html += rowHtml(f, i);
+        html += prefs.mode === 'grid' ? tileHtml(f, i) : rowHtml(f, i);
       } else {
-        html += `<div class="frow placeholder" data-index="${i}"></div>`;
+        html += `<div class="${prefs.mode === 'grid' ? 'tile' : 'frow'} placeholder" data-index="${i}"></div>`;
         fetchPage(Math.floor(i / PAGE));
       }
     }
 
-    rows.style.transform = `translateY(${first * ROW}px)`;
+    const rows = vlist.querySelector('.vlist-rows');
+    rows.style.transform = `translateY(${firstRow * layout.rowHeight}px)`;
+    rows.style.setProperty('--per-row', perRow);
     rows.innerHTML = html;
+
+    if (prefs.mode === 'grid') Thumbs.fill(rows);
   }
 
-  function rowHtml(f, index) {
+  function qualityChip(f) {
     const q = f.quality === 'Excellent' ? 'ok' : f.quality === 'Good' ? '' :
               f.quality === 'Poor' ? 'warn' : 'danger';
-    const checked = State.selected.has(f.id) ? ' checked' : '';
-    const disabled = f.recoverable ? '' : ' disabled';
 
     // קובץ שאומת כריק מקבל תווית מפורשת, ולא דירוג איכות שמרמז על אפשרות שחזור.
     // רשומה שמקורה ביומן היא עדות לקיום הקובץ בלבד, ללא מיקום תוכן.
     const label = f.evidence ? 'עדות בלבד'
       : f.emptyContent ? 'ריק — נמחק'
       : f.qualityLabel;
+    return `<span class="chip ${q} tiny" title="${esc(f.qualityReason || '')}">${esc(label)}</span>`;
+  }
 
+  function checkbox(f) {
+    return `<input type="checkbox"${f.selected ? ' checked' : ''}${f.recoverable ? '' : ' disabled'}>`;
+  }
+
+  function rowHtml(f, index) {
     return `
       <div class="frow${f.recoverable ? '' : ' unrecoverable'}${f.id === activeId ? ' active' : ''}"
            data-id="${f.id}" data-index="${index}">
-        <label class="frow-chk"><input type="checkbox"${checked}${disabled}></label>
+        <label class="frow-chk">${checkbox(f)}</label>
         <div class="frow-name">
           <span class="frow-icon">${Icon.file}</span>
           <span class="frow-text" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}"><bdi>${esc(f.name)}</bdi></span>
@@ -1899,79 +1995,189 @@ const FileList = (() => {
         </div>
         <div class="frow-size">${formatSize(f.size)}</div>
         <div class="frow-date">${esc(f.modified || '—')}</div>
-        <div class="frow-quality">
-          <span class="chip ${q} tiny" title="${esc(f.qualityReason || '')}">${esc(label)}</span>
-        </div>
+        <div class="frow-quality">${qualityChip(f)}</div>
       </div>`;
+  }
+
+  function tileHtml(f, index) {
+    const thumb = f.thumb && Thumbs.get(f.id);
+    const picture = thumb
+      ? `<img src="${thumb}" alt="">`
+      : `<span class="tile-icon${f.thumb && thumb !== false ? ' loading' : ''}">${f.thumb ? Icon.image : Icon.file}</span>`;
+
+    return `
+      <div class="tile${f.recoverable ? '' : ' unrecoverable'}${f.id === activeId ? ' active' : ''}"
+           data-id="${f.id}" data-index="${index}"${f.thumb && thumb === undefined ? ' data-thumb="1"' : ''}>
+        <label class="tile-chk">${checkbox(f)}</label>
+        <div class="tile-pic">${picture}</div>
+        <div class="tile-name" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}"><bdi>${esc(f.name)}</bdi></div>
+        <div class="tile-meta"><span>${formatSize(f.size)}</span>${qualityChip(f)}</div>
+      </div>`;
+  }
+
+  // ------------------------------------------------------------ כלי הרשימה
+
+  function renderChips(counts) {
+    if (!counts) return;
+    el('cat-chips').innerHTML = CATEGORIES
+      // קטגוריה ריקה אינה מוצגת — אלא אם היא הנבחרת, כדי שאפשר יהיה לצאת ממנה.
+      .filter((c) => c.id === 'all' || counts[c.id] > 0 || c.id === prefs.category)
+      .map((c) => `
+        <button class="cat-chip${c.id === prefs.category ? ' on' : ''}" data-category="${c.id}">
+          ${c.label}<span>${(counts[c.id] || 0).toLocaleString('he-IL')}</span>
+        </button>`).join('');
+  }
+
+  function renderHead() {
+    document.querySelectorAll('.col-sort').forEach((b) => {
+      const on = b.dataset.sort === prefs.sort;
+      b.classList.toggle('on', on);
+      b.classList.toggle('desc', on && prefs.desc);
+      b.setAttribute('aria-sort', on ? (prefs.desc ? 'descending' : 'ascending') : 'none');
+    });
+    document.querySelectorAll('.view-switch [data-view]').forEach((b) =>
+      b.classList.toggle('on', b.dataset.view === prefs.mode));
+    el('chk-recoverable').checked = prefs.recoverableOnly;
   }
 
   /// האזנה אחת לכל הרשימה: השורות נבנות מחדש בכל גלילה, ולכן אין טעם לחבר אירועים לכל שורה.
   function attach() {
     const list = el('filelist');
 
-    list.addEventListener('scroll', () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => { frame = 0; render(); });
-    });
+    // ב-Chromium אירוע גלילה נשלח לכל היותר פעם אחת בכל פריים, ולכן אין צורך בוויסות נוסף.
+    list.addEventListener('scroll', () => render());
 
     list.addEventListener('click', (e) => {
-      const row = e.target.closest('.frow[data-id]');
-      if (!row || e.target.closest('.frow-chk')) return;
-      activeId = +row.dataset.id;
-      list.querySelectorAll('.frow.active').forEach((r) => r.classList.remove('active'));
-      row.classList.add('active');
+      const item = e.target.closest('[data-id]');
+      if (!item || e.target.closest('.frow-chk, .tile-chk')) return;
+      activeId = +item.dataset.id;
+      list.querySelectorAll('.active').forEach((r) => r.classList.remove('active'));
+      item.classList.add('active');
       showPreview(activeId);
     });
 
-    list.addEventListener('change', (e) => {
-      const row = e.target.closest('.frow[data-id]');
-      if (!row) return;
-      const file = byId.get(+row.dataset.id);
+    list.addEventListener('change', async (e) => {
+      const item = e.target.closest('[data-id]');
+      const file = item && byId.get(+item.dataset.id);
       if (!file) return;
-      select(file.id, file.size, e.target.checked);
-      updateRecoverBar();
-      syncSelectAll();
+      file.selected = e.target.checked;
+      await select({ ids: [file.id], on: file.selected }, false);
+    });
+
+    el('chk-all').onchange = (e) => select({ all: true, on: e.target.checked }, true);
+
+    el('cat-chips').addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-category]');
+      if (!chip || chip.dataset.category === prefs.category) return;
+      prefs.category = chip.dataset.category;
+      open();
+    });
+
+    el('chk-recoverable').onchange = (e) => { prefs.recoverableOnly = e.target.checked; open(); };
+
+    document.querySelectorAll('.col-sort').forEach((b) => {
+      b.onclick = () => {
+        const col = SORT_COLUMNS.find((c) => c.id === b.dataset.sort);
+        prefs.desc = prefs.sort === col.id ? !prefs.desc : col.firstDesc;
+        prefs.sort = col.id;
+        open();
+      };
+    });
+
+    document.querySelectorAll('.view-switch [data-view]').forEach((b) => {
+      b.onclick = () => {
+        if (prefs.mode === b.dataset.view) return;
+        prefs.mode = b.dataset.view;
+        try { localStorage.setItem('raf-view', prefs.mode); } catch (e) {}
+        open();
+      };
     });
 
     new ResizeObserver(() => render()).observe(list);
   }
 
-  function select(id, size, on) {
-    if (on && !State.selected.has(id)) { State.selected.add(id); State.selectedBytes += size; }
-    if (!on && State.selected.has(id)) { State.selected.delete(id); State.selectedBytes -= size; }
+  // ------------------------------------------------------------------ בחירה
+
+  /// שליחת פעולת סימון למנוע. אחרי סימון של יותר מקובץ אחד (תיקייה או "הכל")
+  /// השורות הטעונות אינן מעודכנות, ולכן הן נטענות מחדש.
+  async function select(request, reload) {
+    const summary = await Bridge.call('scan.select', { ...request, view: target ? view() : null });
+    applySelection(summary);
+    if (reload) refresh();
+    Tree.refreshStates();
   }
 
-  /// "הכל" מסמן את כל הרשימה המוצגת — גם שורות שעוד לא נגללו אליהן.
-  function toggleAll(on) {
-    if (!selectable) return;
-    selectable.ids.forEach((id, i) => select(id, selectable.sizes[i], on));
-    render();
+  function applySelection(s) {
+    if (!s) return;
+    State.selection = { count: s.count, bytes: s.bytes };
     updateRecoverBar();
-    syncSelectAll();
-  }
 
-  function syncSelectAll() {
     const all = el('chk-all');
     if (!all) return;
-    const n = selectable ? selectable.ids.length : 0;
-    let marked = 0;
-    if (selectable) for (const id of selectable.ids) if (State.selected.has(id)) marked++;
-    all.checked = n > 0 && marked === n;
-    all.indeterminate = marked > 0 && marked < n;
-    all.disabled = n === 0;
+    all.checked = s.viewSelectable > 0 && s.viewSelected === s.viewSelectable;
+    all.indeterminate = s.viewSelected > 0 && s.viewSelected < s.viewSelectable;
+    all.disabled = s.viewSelectable === 0;
   }
 
   return {
-    open, attach, toggleAll, render,
+    open, attach, select,
     get: (id) => byId.get(id),
+    render,
   };
 })();
 
+/// תמונות ממוזערות לגלריה. המנוע מקטין כל תמונה, ולכן הבקשות מוגבלות
+/// לשלוש במקביל ורק לאריחים שעל המסך — גלילה מהירה לא תציף את הדיסק.
+const Thumbs = (() => {
+  const LIMIT = 3;
+  const MAX_CACHE = 600;
+  const cache = new Map();  // מזהה ← data URL, או false אם אין תמונה
+  let running = 0;
+
+  function get(id) { return cache.get(id); }
+
+  function remember(id, value) {
+    cache.set(id, value);
+    if (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value);
+  }
+
+  /// מילוי האריחים שעל המסך. אריח שנגלל החוצה עד שהגיע תורו — מדולג.
+  function fill(container) {
+    while (running < LIMIT) {
+      const tile = container.querySelector('.tile[data-thumb="1"]');
+      if (!tile) return;
+      tile.removeAttribute('data-thumb');
+      load(+tile.dataset.id, container);
+    }
+  }
+
+  async function load(id, container) {
+    running++;
+    try {
+      const r = await Bridge.call('scan.thumb', { id, size: 200 });
+      remember(id, r.ok ? 'data:image/jpeg;base64,' + r.data : false);
+    } catch {
+      remember(id, false);
+    } finally {
+      running--;
+    }
+
+    const tile = container.isConnected && container.querySelector(`.tile[data-id="${id}"] .tile-pic`);
+    if (tile) {
+      const src = cache.get(id);
+      tile.innerHTML = src ? `<img src="${src}" alt="">` : `<span class="tile-icon">${Icon.image}</span>`;
+    }
+    if (container.isConnected) fill(container);
+  }
+
+  return { get, fill };
+})();
+
 function updateRecoverBar() {
-  const count = State.selected.size;
+  const { count, bytes } = State.selection;
   el('recover-info').textContent = count === 0
     ? 'לא נבחרו קבצים'
-    : `נבחרו ${count.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, State.selectedBytes))}`;
+    : `נבחרו ${count.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, bytes))}`;
   el('btn-recover').disabled = count === 0;
 }
 
@@ -2037,7 +2243,7 @@ function openRecoverPanel() {
     <div class="panel-head">
       <div class="grow">
         <div class="panel-title">שחזור קבצים</div>
-        <div class="panel-sub">${State.selected.size.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, State.selectedBytes))}</div>
+        <div class="panel-sub">${State.selection.count.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, State.selection.bytes))}</div>
       </div>
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
     </div>
@@ -2081,7 +2287,7 @@ async function pickTarget() {
   const check = await Bridge.call('recover.validate', { target: path });
 
   if (check.valid) {
-    const enough = check.freeSpace >= State.selectedBytes;
+    const enough = check.freeSpace >= State.selection.bytes;
     status.innerHTML = `
       <div class="notice ${enough ? 'ok-notice' : 'warn'} tiny-notice">
         ${enough ? Icon.check : Icon.alert}
@@ -2118,7 +2324,7 @@ async function runRecovery() {
 
   try {
     const report = await Bridge.call('recover.start', {
-      ids: [...State.selected], target, preservePaths,
+      target, preservePaths,
     }, 0);
     showRecoveryReport(report);
   } catch (err) {

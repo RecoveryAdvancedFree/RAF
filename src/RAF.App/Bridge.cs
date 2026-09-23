@@ -103,8 +103,10 @@ internal sealed class Bridge
         "scan.cancel" => Cancel(_scanCancel),
         "scan.children" => Children(p),
         "scan.list" => ListView(p),
-        "scan.selectable" => Selectable(p),
+        "scan.select" => Select(p),
+        "scan.folderStates" => FolderStates(p),
         "scan.preview" => await Task.Run(() => Preview(p)),
+        "scan.thumb" => await Task.Run(() => Thumbnail(p)),
         "scan.summary" => Summary(),
 
         "recover.pickFolder" => PickFolder(),
@@ -385,18 +387,26 @@ internal sealed class Bridge
     /// <summary>מפריד הנתיבים של NTFS.</summary>
     private const string Separator = "\\";
 
-    private static ViewQuery ReadView(JsonObject? p) => new(
-        p?["path"]?.GetValue<string>() ?? "",
-        p?["query"]?.GetValue<string>(),
-        p?["evidence"]?.GetValue<bool>() ?? false);
+    /// <summary>התצוגה שהממשק מציג, כפי שהיא נשלחת בשדה view של הבקשה.</summary>
+    private static ViewQuery? ReadView(JsonNode? v) => v is not JsonObject o ? null : new(
+        o["path"]?.GetValue<string>() ?? "",
+        o["query"]?.GetValue<string>(),
+        o["evidence"]?.GetValue<bool>() ?? false,
+        o["category"]?.GetValue<string>() ?? FileCategories.All,
+        o["recoverableOnly"]?.GetValue<bool>() ?? false,
+        Enum.TryParse<ViewSort>(o["sort"]?.GetValue<string>(), true, out var sort) ? sort : ViewSort.Name,
+        o["desc"]?.GetValue<bool>() ?? false);
 
     /// <summary>
     /// טווח שורות מתוך הרשימה המוצגת. הממשק מבקש רק את מה שנראה על המסך,
-    /// כך שגם תיקייה של מאות אלפי קבצים נטענת מיד.
+    /// כך שגם תיקייה של מאות אלפי קבצים נטענת מיד. הבקשה הראשונה (offset 0)
+    /// מחזירה גם את הספירות לשבבי הסינון ואת מצב הבחירה.
     /// </summary>
     private object ListView(JsonObject? p)
     {
-        var view = RequireSession().View(ReadView(p));
+        var session = RequireSession();
+        var query = ReadView(p?["view"]) ?? throw new ArgumentException("חסרה תצוגה בבקשה.");
+        var view = session.View(query);
         int offset = Math.Clamp(p?["offset"]?.GetValue<int>() ?? 0, 0, view.Count);
         int count = Math.Clamp(p?["count"]?.GetValue<int>() ?? 200, 0, 1000);
 
@@ -404,24 +414,53 @@ internal sealed class Bridge
         {
             total = view.Count,
             offset,
-            files = view.Skip(offset).Take(count).Select(FileDto),
+            files = view.Skip(offset).Take(count).Select(f => FileDto(session, f)),
+            counts = offset == 0 ? session.CategoryCounts(query) : null,
+            selection = offset == 0 ? SelectionDto(session.Summary(query)) : null,
         };
     }
 
-    /// <summary>מזהי כל הקבצים הניתנים לשחזור ברשימה המוצגת, עם גודלם — עבור "סמן הכל".</summary>
-    private object Selectable(JsonObject? p)
+    /// <summary>
+    /// סימון או ביטול: קבצים בודדים (ids), תיקייה שלמה כולל תיקיות משנה (folder),
+    /// או כל הרשימה המוצגת (all) — גם שורות שהממשק עוד לא טען.
+    /// </summary>
+    private object Select(JsonObject? p)
     {
-        var selectable = RequireSession().View(ReadView(p)).Where(f => f.IsWorthRecovering).ToList();
-        return new
-        {
-            ids = selectable.Select(f => f.Id),
-            sizes = selectable.Select(f => f.Size),
-        };
+        var session = RequireSession();
+        bool on = p?["on"]?.GetValue<bool>() ?? true;
+        var view = ReadView(p?["view"]);
+
+        IEnumerable<RecoveredFile> files =
+            p?["ids"] is JsonArray ids ? ids.Select(n => session.ById(n!.GetValue<long>())).OfType<RecoveredFile>()
+            : p?["folder"] is JsonNode folder ? session.AllUnder(folder.GetValue<string>())
+            : p?["all"]?.GetValue<bool>() == true && view is not null ? session.View(view)
+            : Enumerable.Empty<RecoveredFile>();
+
+        session.Select(files, on);
+        return SelectionDto(session.Summary(view));
     }
 
-    private object FileDto(RecoveredFile f) => new
+    private static object SelectionDto(SelectionSummary s) => new
+    {
+        count = s.Count,
+        bytes = s.Bytes,
+        viewSelectable = s.ViewSelectable,
+        viewSelected = s.ViewSelected,
+    };
+
+    /// <summary>מצב הסימון של ענפי העץ הפתוחים.</summary>
+    private object FolderStates(JsonObject? p)
+    {
+        var session = RequireSession();
+        var paths = p?["paths"]?.AsArray().Select(n => n!.GetValue<string>()) ?? Enumerable.Empty<string>();
+        return paths.Distinct().ToDictionary(path => path, session.FolderState);
+    }
+
+    private static object FileDto(ScanSession session, RecoveredFile f) => new
     {
         id = f.Id,
+        selected = session.IsSelected(f.Id),
+        thumb = FileCategories.Thumbnailable.Contains(f.Extension) && f.IsWorthRecovering,
         name = f.Name,
         path = f.Path,
         size = f.Size,
@@ -453,6 +492,60 @@ internal sealed class Bridge
                    ?? throw new InvalidOperationException("הקובץ לא נמצא בתוצאות הסריקה.");
 
         const int maxPreview = 512 * 1024;
+        return PreviewOf(session, file, maxPreview);
+    }
+
+    /// <summary>
+    /// תמונה ממוזערת לתצוגת הגלריה. ההקטנה נעשית כאן ולא בממשק: תמונה של
+    /// 5MB הופכת ל-JPEG של כעשרה קילובייט, ורק הוא עובר בגשר.
+    /// </summary>
+    private object Thumbnail(JsonObject? p)
+    {
+        var session = RequireSession();
+        long id = p?["id"]?.GetValue<long>() ?? -1;
+        int box = Math.Clamp(p?["size"]?.GetValue<int>() ?? 200, 32, 400);
+
+        var file = session.ById(id);
+        if (file is null || !file.IsWorthRecovering || !FileCategories.Thumbnailable.Contains(file.Extension))
+            return new { ok = false };
+
+        // תמונה גדולה מזה נקראת חלקית; JPEG קטוע עדיין מפוענח ברוב המקרים,
+        // ומה שלא מפוענח מוצג כסמל — עדיף מלקרוא מאות מגה בשביל ריבוע קטן.
+        const int maxRead = 24 * 1024 * 1024;
+        byte[] data = FileContentReader.ReadHead(
+            session.FileSystem, session.DiskNumber, session.PartitionOffset,
+            session.PartitionSize, session.SectorSize, file, maxRead);
+        if (data.Length == 0) return new { ok = false };
+
+        try
+        {
+            using var input = new MemoryStream(data);
+            using var image = System.Drawing.Image.FromStream(input, false, false);
+
+            double scale = Math.Min(1.0, (double)box / Math.Max(image.Width, image.Height));
+            int w = Math.Max(1, (int)(image.Width * scale));
+            int h = Math.Max(1, (int)(image.Height * scale));
+
+            using var thumb = new System.Drawing.Bitmap(w, h);
+            using (var g = System.Drawing.Graphics.FromImage(thumb))
+            {
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                g.DrawImage(image, 0, 0, w, h);
+            }
+
+            using var output = new MemoryStream();
+            thumb.Save(output, System.Drawing.Imaging.ImageFormat.Jpeg);
+            return new { ok = true, data = Convert.ToBase64String(output.ToArray()) };
+        }
+        catch
+        {
+            // נתונים שאינם מפוענחים כתמונה — קובץ פגום או זיהוי שגוי.
+            return new { ok = false };
+        }
+    }
+
+    private object PreviewOf(ScanSession session, RecoveredFile file, int maxPreview)
+    {
         byte[] head = FileContentReader.ReadHead(
             session.FileSystem,
             session.DiskNumber, session.PartitionOffset, session.PartitionSize,
@@ -609,19 +702,9 @@ internal sealed class Bridge
 
         string target = p?["target"]?.GetValue<string>() ?? "";
         bool preservePaths = p?["preservePaths"]?.GetValue<bool>() ?? true;
-        string? folderPath = p?["folder"]?.GetValue<string>();
-
-        // הבחירה מגיעה כרשימת מזהים, או כנתיב תיקייה שלמה.
-        List<RecoveredFile> files;
-        if (folderPath is not null)
-        {
-            files = session.AllUnder(folderPath);
-        }
-        else
-        {
-            var ids = p?["ids"]?.AsArray()?.Select(n => n!.GetValue<long>()) ?? Enumerable.Empty<long>();
-            files = session.ByIds(ids).ToList();
-        }
+        // הבחירה נשמרת במנוע (scan.select), כך שגם תיקייה של מאות אלפי קבצים
+        // אינה עוברת בגשר כרשימת מזהים.
+        var files = session.SelectedFiles();
 
         if (files.Count == 0)
             throw new InvalidOperationException("לא נבחרו קבצים לשחזור.");
