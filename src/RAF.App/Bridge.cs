@@ -1232,7 +1232,14 @@ internal sealed partial class Bridge
     private object DoctorDiagnose(JsonObject? p)
     {
         var paths = p?["paths"]?.AsArray()?.Select(n => n!.GetValue<string>()) ?? Enumerable.Empty<string>();
-        return new { files = paths.Select(DiagnosisDto).ToList() };
+
+        // גרירה יכולה להביא גם תיקיות: הן נפרשות לקבצים שבהן, כמו "בדיקת תיקייה".
+        var files = paths.SelectMany(path => Directory.Exists(path)
+                ? Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+                : new[] { path })
+            .Take(5000);
+
+        return new { files = files.Select(DiagnosisDto).ToList() };
     }
 
     /// <summary>
@@ -1354,6 +1361,12 @@ internal sealed partial class Bridge
     {
         source?.Cancel();
         return null;
+    }
+
+    /// <summary>קבצים ותיקיות שנגררו אל החלון — נשלחים לממשק, שמחליט מה לעשות בהם.</summary>
+    internal void FilesDropped(List<string> paths)
+    {
+        if (paths.Count > 0) PushEvent("files.dropped", new { paths });
     }
 
     /// <summary>דחיפת אירוע לממשק ללא בקשה מוקדמת.</summary>

@@ -14,6 +14,12 @@ internal sealed class MainForm : Form
     private readonly Bridge _bridge;
     private bool _webViewReady;
 
+    // גרירה מבחוץ: אזור שחרור שמופיע מעל הממשק, ושעון שמזהה מתי להציג אותו.
+    private readonly DropZone _dropZone = new();
+    private readonly System.Windows.Forms.Timer _dragWatch = new() { Interval = 100 };
+    private bool _buttonWasDown;
+    private bool _pressedOutside;
+
     internal MainForm()
     {
         _bridge = new Bridge(this);
@@ -44,6 +50,10 @@ internal sealed class MainForm : Form
         Controls.Add(_webView);
         _webView.BringToFront();
 
+        Controls.Add(_dropZone);
+        _dropZone.Dropped += paths => _bridge.FilesDropped(paths);
+        _dragWatch.Tick += (_, _) => WatchDrag();
+
         Load += async (_, _) => await InitializeWebViewAsync();
     }
 
@@ -63,6 +73,7 @@ internal sealed class MainForm : Form
 
         BackColor = color;
         _webView.DefaultBackgroundColor = color;
+        _dropZone.SetTheme(dark);
         if (IsHandleCreated) NativeChrome.ApplyModernFrame(Handle, dark);
     }
 
@@ -124,6 +135,11 @@ internal sealed class MainForm : Form
 
         core.WebMessageReceived += OnWebMessageReceived;
         core.NewWindowRequested += (_, e) => e.Handled = true;
+
+        // גרירת קבצים מתקבלת באזור השחרור (ראו FileDrop). WebView2 מוותר על שלו,
+        // אחרת קובץ שנגרר היה נפתח בתוכו במקום הממשק.
+        _webView.AllowExternalDrop = false;
+        _dragWatch.Start();
 
         core.Navigate(WebAssets.BaseUrl + "index.html");
         _webViewReady = true;
@@ -294,6 +310,25 @@ internal sealed class MainForm : Form
         }
 
         base.WndProc(ref m);
+    }
+
+    /// <summary>
+    /// זיהוי גרירה מבחוץ: הכפתור נלחץ מחוץ לחלון, והסמן נמצא עכשיו מעליו.
+    /// לחיצה בתוך החלון עצמו — בחירה, גלילה, גרירת החלון — אינה מציגה דבר.
+    /// </summary>
+    private void WatchDrag()
+    {
+        bool down = FileDrop.PrimaryButtonDown();
+        var point = Cursor.Position;
+
+        if (down && !_buttonWasDown) _pressedOutside = !FileDrop.IsOver(Handle, point);
+        _buttonWasDown = down;
+
+        bool show = down && _pressedOutside && FileDrop.IsOver(Handle, point);
+        if (show == _dropZone.Visible) return;
+
+        _dropZone.Visible = show;
+        if (show) _dropZone.BringToFront();
     }
 
     private static void ShowFatalError(string message) =>

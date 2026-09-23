@@ -788,3 +788,5 @@
 .guide-steps li { margin-bottom: 6px; }
 .guide-parts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .guide-parts .btn { justify-content: flex-start; }
+
+.doc-hint { font-size: 12.5px; color: var(--text-dim); margin-top: 12px; text-align: center; }

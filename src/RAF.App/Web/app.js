@@ -1665,10 +1665,37 @@ async function openDoctorPanel(source) {
 
   if (source && source.folder) {
     await diagnoseInto(() => Bridge.call('doctor.diagnoseFolder', { folder: source.folder }, 0));
+  } else if (source && source.paths) {
+    await diagnoseInto(() => Bridge.call('doctor.diagnose', { paths: source.paths }, 0));
   } else {
     renderDoctorEmpty();
   }
 }
+
+/// קבצים או תיקיות שנגררו אל החלון נבדקים בתיקון הקבצים. כשהחלונית כבר
+/// פתוחה הם מצטרפים לרשימה; באמצע סריקה או שחזור — הגרירה אינה מפריעה.
+Bridge.on('files.dropped', async ({ paths }) => {
+  if (Steps.busy) {
+    setStatus('אי אפשר לבדוק קבצים באמצע פעולה. נסו שוב כשהיא תסתיים.');
+    return;
+  }
+
+  if (!el('doctor-body')) {
+    await openDoctorPanel({ paths });
+    return;
+  }
+
+  const before = Doctor.files;
+  await diagnoseInto(async () => {
+    const data = await Bridge.call('doctor.diagnose', { paths }, 0);
+    const known = new Set(before.map((f) => f.path));
+    return { files: before.concat((data.files || []).filter((f) => !known.has(f.path))) };
+  });
+});
+
+// קובץ שנגרר אל אזור הממשק לא ינווט אליו — הגרירה מטופלת בחלון (ראו FileDrop.cs).
+document.addEventListener('dragover', (e) => e.preventDefault());
+document.addEventListener('drop', (e) => e.preventDefault());
 
 function renderDoctorEmpty() {
   el('doctor-body').innerHTML = `
@@ -1681,7 +1708,8 @@ function renderDoctorEmpty() {
       תחילת קובץ שנמחקה או נפגעה · נתונים מיותרים בסוף הקובץ · סוף קובץ חסר ·
       סיומת שגויה (למשל תמונה שנשמרה בשם ‎.doc) ·
       מסמך Word, Excel או PowerPoint (או ZIP) שלא נפתח — תוכן העניינים שלו נבנה מחדש.</p>
-      <p>קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.</p></div>`;
+      <p>קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.</p></div>
+    <p class="doc-hint">אפשר גם לגרור קבצים או תיקייה אל החלון.</p>`;
 
   el('doctor-foot').innerHTML = `
     <button class="btn btn-primary" id="btn-doctor-pick">${Icon.file}<span>בחירת קבצים</span></button>
