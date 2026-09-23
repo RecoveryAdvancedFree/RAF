@@ -2804,7 +2804,11 @@ async function showPreview(id) {
        </div>` : '';
 
   let body;
-  if (p.kind === 'image') {
+  if (p.kind === 'media') {
+    // הנגן מבקש מהמנוע רק את הקטעים שמנגנים — גם בסרטון של כמה ג'יגה.
+    const tag = p.video ? 'video' : 'audio';
+    body = `<${tag} class="preview-media ${tag}" controls preload="metadata" src="${esc(p.url)}"></${tag}>`;
+  } else if (p.kind === 'image') {
     body = `<img class="preview-img" src="data:${esc(p.mime)};base64,${p.data}" alt="">`;
   } else if (p.kind === 'text') {
     body = `<pre class="preview-text">${esc(p.text)}</pre>`;
@@ -2834,6 +2838,17 @@ async function showPreview(id) {
         <summary>${Icon.hash}<span>התוכן הגולמי (HEX)</span></summary>
         <pre class="hex-dump">${esc(p.hex)}</pre>
       </details>` : ''}`;
+
+  // קובץ שהנגן אינו מצליח לפענח — פגום, או בקידוד שהנגן אינו מכיר — מקבל הסבר
+  // במקום מסך שחור. השחזור עצמו אינו תלוי בזה.
+  const player = panel.querySelector('.preview-media');
+  if (player) {
+    player.addEventListener('error', () => {
+      player.outerHTML = `<div class="preview-empty">${Icon.alert}
+        <p>הנגן לא מצליח לנגן את הקובץ. ייתכן שהוא פגום, או שהוא בפורמט שהנגן המובנה אינו מכיר
+        (למשל חלק מקובצי MKV ו-MOV). אפשר לשחזר אותו ולנסות לפתוח אותו בנגן אחר.</p></div>`;
+    }, { once: true });
+  }
 }
 
 /* =====================================================================

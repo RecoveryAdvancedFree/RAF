@@ -170,8 +170,16 @@ internal sealed class MainForm : Form
         string fileName = uri.AbsolutePath.TrimStart('/');
         if (string.IsNullOrEmpty(fileName)) fileName = "index.html";
 
-        byte[]? content = WebAssets.Read(fileName);
         var env = _webView.CoreWebView2.Environment;
+
+        // נגן התצוגה המקדימה: קטעים מקובץ שנמצא בסריקה, נקראים מהכונן לפי בקשה.
+        if (fileName.StartsWith("media/", StringComparison.Ordinal))
+        {
+            _bridge.ServeMedia(e, env, fileName["media/".Length..]);
+            return;
+        }
+
+        byte[]? content = WebAssets.Read(fileName);
 
         if (content is null)
         {

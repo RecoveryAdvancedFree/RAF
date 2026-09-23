@@ -619,6 +619,22 @@ internal sealed partial class Bridge
         var signature = FileSignatures.Identify(head);
         string hex = HexDump(head, 256);
 
+        // וידאו ושמע: הנגן שבממשק מבקש קטעים מהכתובת media/<מספר>, לפי מה שמנגנים.
+        // קובץ דחוס של NTFS אינו ניתן לקריאה מאמצע, ולכן אינו מוצע לנגן.
+        if (MediaType(file.Extension) is { } media && (!file.IsCompressed || file.ResidentData is not null))
+        {
+            return new
+            {
+                kind = "media",
+                name = file.Name,
+                video = media.Video,
+                url = WebAssets.BaseUrl + "media/" + file.Id,
+                signature = signature?.Name,
+                matchesExtension = signature?.MatchesExtension(file.Extension),
+                hex,
+            };
+        }
+
         // תמונה: נשלחת לממשק כ-data URL להצגה ישירה.
         if (signature is { IsImage: true } && head.Length <= maxPreview)
         {
