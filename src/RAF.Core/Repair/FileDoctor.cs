@@ -217,7 +217,13 @@ public static class FileDoctor
 
             if (declared > 0)
             {
-                if (declared < size)
+                // ב-TIFF וב-RAW האורך הוא סוף הנתון הרחוק שהתגיות מכירות. מצלמות שומרות
+                // לפעמים נתונים שתגית רגילה אינה מצביעה אליהם — קיצור היה הורס את התמונה.
+                // לכן בהם אורך קצר מהקובץ אינו "נתונים עודפים".
+                if (declared < size && format.Structure == "tif")
+                {
+                }
+                else if (declared < size)
                 {
                     correctLength = declared;
                     issues.Add(new FileIssue(FileIssueKind.TrailingData,

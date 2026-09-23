@@ -258,7 +258,7 @@ internal static class StructureCheck
         switch (Kind(signature))
         {
             // שדה גודל יחיד בכותרת: מדויק לקובץ אמיתי, אך אינו מוכיח שזה קובץ.
-            case "bmp" or "ico" or "wav" or "avi" or "webp" or "db" or "mkv":
+            case "bmp" or "ico" or "wav" or "avi" or "webp" or "db" or "mkv" or "tif":
                 return LengthConfidence.Declared;
 
             // JPEG שנקטע (קובץ מפוצל) לא הגיע לסמן הסיום, ולכן גבולו אינו ודאי.
@@ -525,6 +525,123 @@ internal static class StructureCheck
     /// אורך ZIP (וגם docx, xlsx ו-pptx): רשומת סוף הספרייה המרכזית,
     /// ואחריה אורך ההערה שבה.
     /// </summary>
+    /// <summary>
+    /// TIFF וקובצי RAW שנשמרים כמוהו (NEF, ARW, DNG, CR2, ORF, RW2, PEF…).
+    ///
+    /// ל-TIFF אין שדה "הקובץ נגמר כאן": הוא בנוי מרשימות תגיות (IFD), שמצביעות
+    /// לנתונים מפוזרים — רצועות או אריחים של התמונה, תמונה ממוזערת, פרטי צילום,
+    /// GPS. הקובץ נגמר בסוף הנתון הרחוק ביותר. לכן עוברים על כל הרשימות — גם על
+    /// תת-הרשימות (SubIFD, שבהן יושבת תמונת ה-RAW עצמה, ו-EXIF) — ולוקחים את המקסימום.
+    ///
+    /// אפס כשהמבנה אינו קריא. רשימה שמצביעה מעבר לגבול מדולגת: זה יכול להיות
+    /// קובץ קטוע, והחלק שכן קיים עדיין שווה חילוץ.
+    /// </summary>
+    internal static long ReadTiff(WindowReader r)
+    {
+        bool little;
+        if (r.Byte(0) == 'I' && r.Byte(1) == 'I') little = true;
+        else if (r.Byte(0) == 'M' && r.Byte(1) == 'M') little = false;
+        else return 0;
+
+        long U16(long p) { int a = r.Byte(p), b = r.Byte(p + 1); return a < 0 || b < 0 ? -1 : little ? a | (b << 8) : (a << 8) | b; }
+        long U32(long p)
+        {
+            long v = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                int b = r.Byte(p + (little ? 3 - i : i));
+                if (b < 0) return -1;
+                v = (v << 8) | (uint)b;
+            }
+            return v;
+        }
+
+        // ORF מחליף את המספר 42 בחתימה משלו; המבנה שאחריה זהה. RW2 (0x55) מצביע
+        // לתמונת ה-RAW בתגית פרטית בלי אורך — עדיף לו הערכה על פני אורך קצר מדי.
+        long magic = U16(2);
+        if (magic is not (42 or 0x4F52 or 0x5352)) return 0;
+
+        long end = 8;
+        var pending = new Queue<long>();
+        var seen = new HashSet<long>();
+        pending.Enqueue(U32(4));
+
+        // אורך כל סוג שדה בבתים, לפי התקן. 0 — סוג לא מוכר.
+        static int TypeSize(long type) => type switch
+        {
+            1 or 2 or 6 or 7 => 1,
+            3 or 8 => 2,
+            4 or 9 or 11 or 13 => 4,
+            5 or 10 or 12 => 8,
+            _ => 0,
+        };
+
+        while (pending.Count > 0 && seen.Count < 64)
+        {
+            long ifd = pending.Dequeue();
+            if (ifd < 8 || ifd + 2 > r.Limit || !seen.Add(ifd)) continue;
+
+            long count = U16(ifd);
+            if (count is <= 0 or > 1000) continue;
+            long ifdEnd = ifd + 2 + count * 12 + 4;
+            if (ifdEnd > r.Limit) continue;
+            end = Math.Max(end, ifdEnd);
+
+            // זוגות היסט/אורך: רצועות, אריחים ותמונה ממוזערת בפורמט JPEG.
+            long[]? stripOffsets = null, stripCounts = null, tileOffsets = null, tileCounts = null;
+            long jpegOffset = -1, jpegLength = -1;
+
+            for (long e = ifd + 2; e < ifd + 2 + count * 12; e += 12)
+            {
+                long tag = U16(e), type = U16(e + 2), n = U32(e + 4);
+                int size = TypeSize(type);
+                if (tag < 0 || size == 0 || n <= 0 || n > 1_000_000) continue;
+
+                long bytes = n * size;
+                long dataAt = bytes > 4 ? U32(e + 8) : e + 8;
+                if (bytes > 4 && dataAt >= 8 && dataAt + bytes <= r.Limit) end = Math.Max(end, dataAt + bytes);
+
+                long[] Values()
+                {
+                    var v = new long[Math.Min(n, 100_000)];
+                    for (int i = 0; i < v.Length; i++) v[i] = size == 2 ? U16(dataAt + i * 2) : U32(dataAt + i * 4);
+                    return v;
+                }
+
+                switch (tag)
+                {
+                    case 0x111: stripOffsets = Values(); break;                  // StripOffsets
+                    case 0x117: stripCounts = Values(); break;                   // StripByteCounts
+                    case 0x144: tileOffsets = Values(); break;                   // TileOffsets
+                    case 0x145: tileCounts = Values(); break;                    // TileByteCounts
+                    case 0x201: jpegOffset = U32(e + 8); break;                  // JPEGInterchangeFormat
+                    case 0x202: jpegLength = U32(e + 8); break;                  // ...Length
+                    case 0x14A or 0x8769 or 0x8825 or 0xA005:                    // SubIFDs, EXIF, GPS, Interop
+                        foreach (long sub in Values()) pending.Enqueue(sub);
+                        break;
+                }
+            }
+
+            void Extend(long[]? offsets, long[]? counts)
+            {
+                if (offsets is null || counts is null) return;
+                for (int i = 0; i < Math.Min(offsets.Length, counts.Length); i++)
+                    if (offsets[i] >= 8 && counts[i] > 0 && offsets[i] + counts[i] <= r.Limit)
+                        end = Math.Max(end, offsets[i] + counts[i]);
+            }
+
+            Extend(stripOffsets, stripCounts);
+            Extend(tileOffsets, tileCounts);
+            if (jpegOffset >= 8 && jpegLength > 0 && jpegOffset + jpegLength <= r.Limit)
+                end = Math.Max(end, jpegOffset + jpegLength);
+
+            long next = U32(ifdEnd - 4);
+            if (next > 0) pending.Enqueue(next);
+        }
+
+        return seen.Count > 0 ? end : 0;
+    }
+
     internal static long ReadZip(WindowReader r)
     {
         ReadOnlySpan<byte> endOfDirectory = [0x50, 0x4B, 0x05, 0x06];
