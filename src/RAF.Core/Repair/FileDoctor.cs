@@ -37,6 +37,9 @@ public enum FileIssueKind
 
     /// <summary>חלק שמסמך Office אינו נפתח בלעדיו חסר או פגום.</summary>
     ArchivePartMissing,
+
+    /// <summary>טבלת המיקומים של מסמך PDF חסרה או שבורה — היא תיבנה מחדש מהמסמך עצמו.</summary>
+    PdfStructureDamaged,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -177,6 +180,29 @@ public static class FileDoctor
             archiveDamaged = DiagnoseArchive(all, extension, issues);
         }
 
+        // ---------------------------------------------- מסמך PDF
+        // ב-PDF, "%%EOF" בסוף אינו מוכיח דבר: מה שפותח את המסמך הוא טבלת המיקומים
+        // שלפניו. טבלה שבורה נבנית מחדש מהאובייקטים — ראו PdfRebuilder.
+        if (format is not null && format.Extensions[0] == "pdf" && size <= MaxArchive)
+        {
+            byte[] all = File.ReadAllBytes(path);
+            if (detected is null) RestoreHeader(all, format);
+            var pdf = PdfRebuilder.Analyze(all);
+
+            if (!pdf.XrefValid)
+            {
+                archiveDamaged = true;
+                issues.Add(new FileIssue(FileIssueKind.PdfStructureDamaged,
+                    pdf.XrefProblem + (!pdf.CanRebuild
+                        ? " לא נמצאו במסמך החלק הראשי שלו ולא רשימת העמודים, ולכן אי אפשר לבנות את הטבלה מחדש."
+                        : pdf.CatalogMissing
+                            ? " גם החלק הראשי של המסמך אבד, אבל רשימת העמודים שרדה: ייבנו טבלה וחלק ראשי חדשים " +
+                              $"מתוך {pdf.Objects.Count:N0} החלקים שנמצאו. העמודים יוצגו; תוכן עניינים וסימניות עלולים לחסור."
+                            : $" נמצאו {pdf.Objects.Count:N0} חלקים שלמים במסמך, ואפשר לבנות ממנו טבלה חדשה."),
+                    pdf.CanRebuild));
+            }
+        }
+
         // ---------------------------------------------- אורך וחתימת סיום
         long? correctLength = null;
 
@@ -216,7 +242,10 @@ public static class FileDoctor
                         $"סוף הקובץ חסר (חתימת הסיום של {format.Name}) — ככל הנראה הקובץ נקטע. " +
                         "השלמת החתימה מאפשרת לרוב התוכנות לפתוח את החלק הקיים.", true));
                 }
-                else if (footerEnd < size && !volume.IsZeroRange(footerEnd, size))
+                // PDF מסתיים לרוב ב-"%%EOF" ושורה חדשה, והתקן מתיר זאת. בלי ההבחנה הזו
+                // כמעט כל PDF תקין דווח כבעל "בתים עודפים".
+                else if (footerEnd < size &&
+                         !volume.IsZeroRange(footerEnd, size, allowWhitespace: format.Extensions[0] == "pdf"))
                 {
                     correctLength = footerEnd;
                     issues.Add(new FileIssue(FileIssueKind.TrailingData,
@@ -407,9 +436,10 @@ public static class FileDoctor
             }
         }
 
-        // ארכיון נבנה מחדש בזיכרון — האבחון בודק ארכיונים רק עד MaxArchive.
+        // ארכיון ומסמך PDF נבנים מחדש בזיכרון — האבחון בודק אותם רק עד MaxArchive.
         bool rebuildArchive = diagnosis.Issues.Any(i => i.Fixable &&
             i.Kind is FileIssueKind.ArchiveDirectoryDamaged or FileIssueKind.ArchiveEntriesDamaged);
+        bool rebuildPdf = diagnosis.Issues.Any(i => i.Fixable && i.Kind == FileIssueKind.PdfStructureDamaged);
 
         // --- כתיבת העותק המתוקן ---
         string extension = diagnosis.SuggestedExtension ?? System.IO.Path.GetExtension(path).TrimStart('.');
@@ -427,6 +457,8 @@ public static class FileDoctor
         {
             if (rebuildArchive)
                 applied.Add(WriteRebuiltArchive(path, output, format, restoreHeader));
+            else if (rebuildPdf)
+                applied.Add(WriteRebuiltPdf(path, output, format, restoreHeader));
             else
                 WriteStreamed(path, output, format, restoreHeader, bodyLength, footer);
         }
@@ -498,6 +530,19 @@ public static class FileDoctor
     }
 
     /// <summary>בניית ארכיון מחדש, מהנתונים כפי שהם אחרי שחזור החתימה.</summary>
+    /// <summary>מסמך PDF עם טבלת מיקומים חדשה, מהנתונים כפי שהם אחרי שחזור החתימה.</summary>
+    private static string WriteRebuiltPdf(string path, string output, FileSignature? format, bool restoreHeader)
+    {
+        byte[] data = File.ReadAllBytes(path);
+        if (restoreHeader && format is not null) RestoreHeader(data, format);
+
+        var pdf = PdfRebuilder.Analyze(data);
+        using (var target = new FileStream(output, FileMode.CreateNew, FileAccess.Write))
+            target.Write(PdfRebuilder.Rebuild(data, pdf));
+
+        return $"נבנתה טבלת מיקומים חדשה ל-{pdf.Objects.Count:N0} חלקי המסמך";
+    }
+
     private static string WriteRebuiltArchive(string path, string output, FileSignature? format,
         bool restoreHeader)
     {
@@ -630,7 +675,8 @@ public static class FileDoctor
             return true;
         }
 
-        internal bool IsZeroRange(long from, long to)
+        /// <summary>האם הטווח ריק: אפסים, ואם allowWhitespace — גם רווחים ושורות חדשות.</summary>
+        internal bool IsZeroRange(long from, long to, bool allowWhitespace = false)
         {
             byte[] chunk = new byte[64 * 1024];
 
@@ -639,7 +685,8 @@ public static class FileDoctor
                 int want = (int)Math.Min(chunk.Length, to - at);
                 int read = ReadRaw(at, chunk.AsSpan(0, want));
                 for (int i = 0; i < read; i++)
-                    if (chunk[i] != 0) return false;
+                    if (chunk[i] != 0 && !(allowWhitespace && chunk[i] is (byte)' ' or (byte)'\r' or (byte)'\n' or (byte)'\t'))
+                        return false;
             }
 
             return true;
