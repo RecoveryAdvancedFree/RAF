@@ -145,6 +145,39 @@ internal sealed partial class Bridge
         return list;
     }
 
+    /// <summary>
+    /// הסרה מ"סריקות אחרונות": סריקה אחת לפי נתיב, או כולן בלי נתיב. נמחקים
+    /// רק קבצי סריקה מתיקיית השמירה האוטומטית — נתיב מבחוץ נדחה, גם אם הגיע מהממשק.
+    /// </summary>
+    private object ForgetScans(JsonObject? p)
+    {
+        string? path = p?["path"]?.GetValue<string>();
+        if (!Directory.Exists(AutosaveFolder)) return new { removed = 0 };
+
+        IEnumerable<string> targets;
+        if (string.IsNullOrEmpty(path))
+        {
+            targets = Directory.GetFiles(AutosaveFolder, "*" + ScanArchive.Extension);
+        }
+        else
+        {
+            string full = Path.GetFullPath(path);
+            bool inFolder = string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(AutosaveFolder).TrimEnd(Path.DirectorySeparatorChar),
+                                          StringComparison.OrdinalIgnoreCase);
+            if (!inFolder || !full.EndsWith(ScanArchive.Extension, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("אפשר להסיר רק סריקות מהרשימה של הסריקות האחרונות.");
+            targets = new[] { full };
+        }
+
+        int removed = 0;
+        foreach (string file in targets)
+        {
+            try { File.Delete(file); removed++; }
+            catch { /* קובץ שנעול או נמחק כבר — ממשיכים */ }
+        }
+        return new { removed };
+    }
+
     private PhysicalDiskInfo? MatchDisk(DiskIdentity identity)
         => _disks.FirstOrDefault(identity.Matches);
 

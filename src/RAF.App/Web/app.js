@@ -532,12 +532,19 @@ async function renderRecentScans() {
   let scans;
   try { scans = await Bridge.call('scan.recent'); } catch { return; }
   const box = el('recent-scans');
-  if (!box || !scans.length) return;
+  if (!box) return;
+  if (!scans.length) { box.innerHTML = ''; return; }
 
   box.innerHTML = `
-    <div class="section-label" style="margin:26px 0 10px;text-transform:none">סריקות אחרונות</div>
+    <div class="recent-head">
+      <div class="section-label">סריקות אחרונות</div>
+      <div class="recent-clear" id="recent-clear">
+        <button class="link-btn" data-clear="ask">ניקוי הרשימה</button>
+      </div>
+    </div>
     <div class="recent-list">
       ${scans.map((s) => `
+        <div class="recent-row">
         <button class="recent-scan" data-path="${esc(s.path)}">
           <div class="recent-icon">${Icon.history}</div>
           <div class="recent-body">
@@ -550,10 +557,38 @@ async function renderRecentScans() {
             ${s.connected ? '<span class="chip ok">הכונן מחובר</span>'
                           : '<span class="chip" title="אפשר לעיין ברשימה, אבל לא לשחזר">הכונן לא מחובר</span>'}
           </div>
-        </button>`).join('')}
+        </button>
+        <button class="recent-remove" data-forget="${esc(s.path)}" title="הסרה מהרשימה" aria-label="הסרה מהרשימה">${Icon.close}</button>
+        </div>`).join('')}
     </div>`;
 
   box.querySelectorAll('[data-path]').forEach((b) => { b.onclick = () => openSavedScan(b.dataset.path); });
+  box.querySelectorAll('[data-forget]').forEach((b) => { b.onclick = () => forgetScans(b.dataset.forget); });
+
+  // ניקוי הכול — אישור במקום, בלי חלון: שתי מילים ליד הקישור.
+  const clear = el('recent-clear');
+  clear.onclick = (e) => {
+    const action = e.target.closest('[data-clear]')?.dataset.clear;
+    if (action === 'ask') {
+      clear.innerHTML = `<span>למחוק את כל הסריקות השמורות?</span>
+        <button class="link-btn danger" data-clear="yes">מחיקה</button>
+        <button class="link-btn" data-clear="no">ביטול</button>`;
+    } else if (action === 'no') {
+      clear.innerHTML = '<button class="link-btn" data-clear="ask">ניקוי הרשימה</button>';
+    } else if (action === 'yes') {
+      forgetScans(null);
+    }
+  };
+}
+
+/// הסרת סריקה שמורה מהרשימה (או כולן) — מוחקת את קובץ הסריקה בלבד, לא את הכונן ולא קבצים ששוחזרו.
+async function forgetScans(path) {
+  let error = null;
+  try { await Bridge.call('scan.forget', path ? { path } : {}); }
+  catch (err) { error = err.message; }
+  await renderRecentScans();
+  if (error) el('recent-scans')?.insertAdjacentHTML('afterbegin',
+    notice('danger', Icon.alert, 'לא ניתן להסיר את הסריקה', esc(error)));
 }
 
 /// פתיחת סריקה שמורה — מהרשימה, או מקובץ שבוחרים. הבחירה שנשמרה איתה חוזרת.

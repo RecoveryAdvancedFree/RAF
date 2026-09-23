@@ -104,6 +104,7 @@ internal sealed partial class Bridge
         "scan.children" => Children(p),
         "scan.save" => await SaveScanAs(),
         "scan.recent" => RecentScans(),
+        "scan.forget" => ForgetScans(p),
         "scan.load" => await LoadScan(p),
         "scan.list" => ListView(p),
         "scan.select" => Select(p),

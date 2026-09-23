@@ -543,10 +543,38 @@
 .btn.icon-only { padding: 8px 10px; }
 
 /* ---------- סריקות אחרונות ---------- */
+.recent-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin: 26px 0 10px;
+}
+.recent-head .section-label { margin: 0; text-transform: none; }
+.recent-clear { display: flex; align-items: baseline; gap: 10px; font-size: 12px; color: var(--text-dim); }
+.link-btn {
+  padding: 0; border: 0; background: none;
+  font: inherit; font-size: 12px; color: var(--text-dim);
+  cursor: pointer;
+}
+.link-btn:hover { color: var(--accent); text-decoration: underline; }
+.link-btn.danger { color: var(--danger-text); font-weight: 600; }
+.link-btn.danger:hover { color: var(--danger); }
+
 .recent-list { display: flex; flex-direction: column; gap: 8px; }
+/* ✕ יושב בתוך הכרטיס אבל אינו חלק מהכפתור שפותח אותו — כפתור בתוך כפתור אינו חוקי */
+.recent-row { position: relative; }
+.recent-remove {
+  position: absolute; inset-inline-end: 10px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 7px;
+  background: none; color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.recent-remove svg { width: 14px; height: 14px; }
+.recent-remove:hover { color: var(--danger); background: var(--danger-soft); }
 .recent-scan {
   display: flex; align-items: center; gap: 14px;
-  width: 100%; padding: 12px 16px;
+  width: 100%; padding: 12px 16px; padding-inline-end: 48px;
   font-family: inherit; color: inherit; text-align: start;
   background: var(--surface-1);
   border: 1px solid var(--border);
