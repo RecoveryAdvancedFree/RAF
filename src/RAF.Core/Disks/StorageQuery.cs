@@ -151,7 +151,11 @@ internal static class StorageQuery
                 // התקן USB עלול להיות דיסק חיצוני מגנטי ולא רק DiskOnKey.
                 if (seekPenalty == true) return MediaKind.HardDisk;
                 // כרטיס בקורא כרטיסים מדווח על פס USB; רק שם ההתקן מסגיר אותו.
-                return IsCardReader(name) ? MediaKind.MemoryCard : MediaKind.UsbFlash;
+                if (IsCardReader(name)) return MediaKind.MemoryCard;
+                // SSD חיצוני: בלי עיכוב חיפוש, ואינו "מדיה נשלפת" — דיסק-און-קי כן.
+                // כך מבחין גם Windows (SanDisk Extreme 4TB מול דיסק-און-קי, נבדק על המחשב).
+                if (seekPenalty == false && !removable) return MediaKind.Ssd;
+                return MediaKind.UsbFlash;
             case Win32.StorageBusType.Atapi:
                 return MediaKind.Optical;
             case Win32.StorageBusType.Virtual:

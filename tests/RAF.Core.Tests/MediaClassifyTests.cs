@@ -32,6 +32,17 @@ public class MediaClassifyTests
         => Assert.Equal(MediaKind.UsbFlash,
             StorageQuery.Classify(Win32.StorageBusType.Usb, false, true, name));
 
+    /// <summary>SSD חיצוני — כמו SanDisk Extreme — אינו מדיה נשלפת ואין לו עיכוב חיפוש.</summary>
+    [Fact]
+    public void An_external_ssd_is_an_ssd_and_not_a_flash_drive()
+        => Assert.Equal(MediaKind.Ssd,
+            StorageQuery.Classify(Win32.StorageBusType.Usb, false, false, "SanDisk Extreme 55AE"));
+
+    [Fact]
+    public void A_fixed_usb_disk_that_does_not_report_seek_penalty_stays_a_flash_drive()
+        => Assert.Equal(MediaKind.UsbFlash,
+            StorageQuery.Classify(Win32.StorageBusType.Usb, null, false, "Generic External"));
+
     [Fact]
     public void A_usb_disk_with_seek_penalty_is_a_hard_disk_even_when_named_like_a_reader()
         => Assert.Equal(MediaKind.HardDisk,
