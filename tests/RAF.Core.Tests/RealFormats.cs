@@ -125,6 +125,23 @@ internal static class RealFormats
         return db;
     }
 
+    /// <summary>
+    /// MKV: כותרת EBML (עם DocType) ואחריה Segment שמצהיר על אורכו בשדה של 8 בתים,
+    /// כמו ש-ffmpeg כותב. unknownSize — אורך "לא ידוע", כמו בשידור חי.
+    /// </summary>
+    internal static byte[] Mkv(int mediaBytes, int seed, bool unknownSize = false)
+    {
+        byte[] docType = [0x42, 0x82, 0x88, .. "matroska"u8];          // DocType = "matroska"
+        byte[] header = [0x1A, 0x45, 0xDF, 0xA3, (byte)(0x80 | docType.Length), .. docType];
+
+        byte[] size = new byte[8];
+        size[0] = 0x01;                                                    // שדה של 8 בתים
+        BinaryPrimitives.WriteUInt64BigEndian(size, (ulong)mediaBytes | (1UL << 56));
+        if (unknownSize) { size[0] = 0x01; for (int i = 1; i < 8; i++) size[i] = 0xFF; }
+
+        return [.. header, 0x18, 0x53, 0x80, 0x67, .. size, .. Random(mediaBytes, seed)];
+    }
+
     /// <summary>MP4: תיבת ftyp עם מותג, תיבת moov ותיבת mdat.</summary>
     internal static byte[] Mp4(int mediaBytes, int seed, string brand = "isom")
     {

@@ -258,7 +258,7 @@ internal static class StructureCheck
         switch (Kind(signature))
         {
             // שדה גודל יחיד בכותרת: מדויק לקובץ אמיתי, אך אינו מוכיח שזה קובץ.
-            case "bmp" or "ico" or "wav" or "avi" or "webp" or "db":
+            case "bmp" or "ico" or "wav" or "avi" or "webp" or "db" or "mkv":
                 return LengthConfidence.Declared;
 
             // JPEG שנקטע (קובץ מפוצל) לא הגיע לסמן הסיום, ולכן גבולו אינו ודאי.

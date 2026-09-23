@@ -119,6 +119,13 @@ public class CarvingTests : IDisposable
         Assert.Equal(mp4.Length, Resolve(mp4, "mp4").Bytes);
     }
 
+    [Fact]
+    public void Mkv_length_is_where_its_segment_says_it_ends()
+    {
+        byte[] mkv = RealFormats.Mkv(5000, 9);
+        Assert.Equal(mkv.Length, Resolve(mkv, "mkv").Bytes);
+    }
+
     [Theory]
     [InlineData("heic", "heic")]
     [InlineData("3gp4", "3gp")]

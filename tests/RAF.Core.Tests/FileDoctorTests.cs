@@ -167,6 +167,27 @@ public class FileDoctorTests : IDisposable
         Assert.True(d.IsHealthy, string.Join(" ", d.Issues.Select(i => i.Description)));
     }
 
+    /// <summary>
+    /// MKV שנקטע: מאובחן ומוסבר, אבל לא "מתוקן". סימון האורך כ"לא ידוע" (כמו במשיב)
+    /// נבדק ב-Edge, ב-ffmpeg ובמנוע של Windows ולא שינה את הניגון באף אחד מהם.
+    /// </summary>
+    [Fact]
+    public void A_truncated_mkv_is_explained_but_not_offered_a_repair_that_changes_nothing()
+    {
+        byte[] full = RealFormats.Mkv(20_000, 4);
+        Assert.True(FileDoctor.Diagnose(Write("full.mkv", full)).IsHealthy);
+
+        var d = FileDoctor.Diagnose(Write("cut.mkv", full.AsSpan(0, 12_000).ToArray()));
+        var issue = Assert.Single(d.Issues);
+        Assert.Equal(FileIssueKind.Truncated, issue.Kind);
+        Assert.False(issue.Fixable);
+        Assert.Contains("%", issue.Description);
+    }
+
+    [Fact]
+    public void A_live_recording_mkv_with_unknown_length_is_healthy()
+        => Assert.True(FileDoctor.Diagnose(Write("live.mkv", RealFormats.Mkv(8000, 5, unknownSize: true))).IsHealthy);
+
     [Fact]
     public void Repairing_trailing_data_on_an_mp4_copies_the_body_exactly()
     {

@@ -224,6 +224,16 @@ public static class FileDoctor
                         $"מבנה הקובץ מצהיר על {declared:N0} בתים, אך הקובץ מכיל {size:N0}. " +
                         $"{size - declared:N0} הבתים העודפים אינם חלק מהקובץ וניתן להסיר אותם.", true));
                 }
+                // MKV שנקטע אינו דורש תיקון: נבדק ב-Edge, ב-ffmpeg (VLC) ובמנוע של Windows —
+                // שלושתם מנגנים אותו כמו שהוא עד המקום שבו נקטע. סימון האורך כ"לא ידוע"
+                // (כמו במשיב) לא שינה דבר באף אחד מהם, ולכן אינו מוצע כתיקון.
+                else if (declared > size && format.Extensions[0] == "mkv")
+                {
+                    issues.Add(new FileIssue(FileIssueKind.Truncated,
+                        $"הסרטון נקטע: הוא מצהיר על {declared:N0} בתים, ויש בו {size:N0} — כ-{size * 100.0 / declared:N0}% ממנו. " +
+                        "החלק שנשאר מתנגן כמו שהוא — ב-VLC, ב-Edge ובנגן של Windows — עד המקום שבו נקטע. " +
+                        "החלק החסר אינו נמצא בקובץ, ולכן אין מה לתקן בו.", false));
+                }
                 else if (declared > size)
                 {
                     issues.Add(new FileIssue(FileIssueKind.Truncated,

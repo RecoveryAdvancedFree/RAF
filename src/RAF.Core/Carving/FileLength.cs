@@ -107,6 +107,7 @@ internal static class FileLength
             "db" or "sqlite" or "sqlite3" => ReadSqlite(head),
             "mp4" or "m4v" or "m4a" or "mov" => ReadIsoBmff(volume, offset, ceiling),
             "zip" => StructureCheck.ReadZip(new WindowReader(volume, offset, ceiling)),
+            "mkv" => Matroska.ReadSegment(head)?.DeclaredFileLength ?? 0,
             _ => 0,
         };
     }
