@@ -88,6 +88,59 @@ function plural(n, one, many) {
   return n === 1 ? one : many;
 }
 
+/// זמן משוער שנותר, במילים. הקצב מוחלק (ממוצע נע), כדי שהמספר לא יקפוץ בכל
+/// דיווח — וכשאין עדיין מספיק נתונים, אומרים זאת במקום לנחש.
+const Eta = (() => {
+  const smoothed = new Map();
+
+  function words(seconds) {
+    if (seconds < 60) return 'פחות מדקה';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes === 1 ? 'כדקה' : `כ-${minutes} דקות`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    const h = hours === 1 ? 'כשעה' : hours === 2 ? 'כשעתיים' : `כ-${hours} שעות`;
+    return rest < 5 ? h : `${h} ו-${rest} דקות`;
+  }
+
+  /// key מזהה את הפעולה: ערך מוחלק אחד לכל מסך התקדמות. האחוז הוא של השלב
+  /// הנוכחי, והזמן שחלף — של הפעולה כולה; לכן הקצב נמדד מתחילת השלב: כשהאחוז
+  /// יורד (שלב חדש בסריקה עמוקה, ניסיון חוזר בתמונה) — המדידה מתחילה מחדש.
+  function text(key, percent, elapsed) {
+    if (percent === null || percent === undefined) {
+      smoothed.delete(key);
+      return 'מחשב…';
+    }
+    if (percent >= 100) return '—';
+
+    let s = smoothed.get(key);
+    // פעולה חדשה (הזמן חזר לאחור) או שלב חדש (האחוז ירד) — מדידה חדשה.
+    if (!s || elapsed < s.lastTime || percent < s.lastPercent - 1)
+      s = { baseTime: elapsed, basePercent: percent, value: undefined };
+    s.lastPercent = percent;
+    s.lastTime = elapsed;
+    smoothed.set(key, s);
+
+    const done = percent - s.basePercent;
+    const time = elapsed - s.baseTime;
+    if (done < 1 || time < 8) return 'מחשב…';
+
+    // החלקה לפי זמן (כ-10 שניות) ולא לפי מספר הדיווחים, שמשתנה בין פעולות.
+    // הערך הקודם "מתקדם" בזמן שעבר מאז, לפני שמשקללים אותו עם החדש.
+    const raw = time * (100 - percent) / done;
+    if (s.value === undefined) s.value = raw;
+    else {
+      const dt = Math.max(0, elapsed - s.valueAt);
+      const keep = Math.exp(-dt / 10);
+      s.value = Math.max(0, s.value - dt) * keep + raw * (1 - keep);
+    }
+    s.valueAt = elapsed;
+    return words(s.value);
+  }
+
+  return { text };
+})();
+
 function formatDuration(seconds) {
   if (!seconds || seconds < 0) return '—';
   const s = Math.floor(seconds % 60);
@@ -329,18 +382,46 @@ async function longCall(method, params) {
    מסך 1 — רשימת המחיצות
    ===================================================================== */
 
-async function loadDisks() {
+/// זהות כונן בין רענונים. מספר הדיסק ב-Windows משתנה כשמנתקים ומחברים, ולכן לא הוא.
+const diskKey = (d) => `${d.name}|${d.size}`;
+
+/// quiet — רענון במקום: הרשימה נשארת על המסך, רק סמל הרענון מסתובב, והכונן
+/// שנוסף מודגש לרגע. כך נראים חיבור כונן וכפתור "רענון"; מסך טעינה מלא —
+/// רק כשאין עדיין רשימה להציג.
+async function loadDisks(options = {}) {
+  const quiet = !!options.quiet && !!el('btn-refresh');
   Steps.set(1);
-  el('content').innerHTML =
+
+  if (quiet) el('btn-refresh').classList.add('is-busy');
+  else el('content').innerHTML =
     '<div class="loading"><div class="spinner"></div><p>סורק את אמצעי האחסון במערכת…</p></div>';
 
+  const before = new Set(State.disks.map(diskKey));
+
   try {
-    const data = await Bridge.call('disks.list');
+    // ברענון שקט הרשימה מגיעה לרוב תוך עשיריות שנייה — מהר מכדי לראות שמשהו
+    // קרה. סיבוב אחד מלא של הסמל (0.8 שניות) מראה שהרשימה אכן נבדקה מחדש.
+    const [data] = await Promise.all([
+      Bridge.call('disks.list'),
+      quiet ? new Promise((r) => setTimeout(r, 800)) : null,
+    ]);
     State.disks = data.disks || [];
     State.failed = data.failed || [];
     State.elevated = !!data.elevated;
+
+    const scroll = el('content').scrollTop;
     renderDisks();
+    if (!quiet) return;
+
+    el('content').scrollTop = scroll;
+    State.disks.filter((d) => !before.has(diskKey(d))).forEach((d) =>
+      document.querySelector(`.disk[data-disk-card="${d.number}"]`)?.classList.add('is-new'));
   } catch (err) {
+    if (quiet) {
+      el('btn-refresh')?.classList.remove('is-busy');
+      setStatus('לא ניתן לרענן את רשימת הכוננים — ' + err.message);
+      return;
+    }
     el('content').innerHTML =
       errorNotice('לא ניתן לקרוא את רשימת הכוננים', err);
     setStatus('שגיאה');
@@ -391,7 +472,7 @@ function renderDisks() {
 
   el('content').innerHTML = html;
 
-  el('btn-refresh').onclick = loadDisks;
+  el('btn-refresh').onclick = () => loadDisks({ quiet: true });
   el('btn-doctor').onclick = () => openDoctorPanel();
   document.querySelectorAll('[data-situation]').forEach((btn) => {
     btn.onclick = () => openSituation(btn.dataset.situation);
@@ -565,7 +646,7 @@ function openSituation(id) {
     renderDisks();
     document.querySelector('.disk')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  panel.querySelector('[data-guide-refresh]')?.addEventListener('click', () => { closePanel(); loadDisks(); });
+  panel.querySelector('[data-guide-refresh]')?.addEventListener('click', () => { closePanel(); loadDisks({ quiet: true }); });
   panel.querySelectorAll('[data-guide-part]').forEach((btn) => {
     btn.onclick = () => {
       const [d, p] = btn.dataset.guidePart.split(':').map(Number);
@@ -581,6 +662,13 @@ function openSituation(id) {
     };
   });
 }
+
+/// כונן חובר או נותק: רשימת הכוננים מתעדכנת מעצמה — אבל רק כשהיא מוצגת ואין
+/// חלונית פתוחה, כדי לא לקטוע סריקה, בחירת קבצים או הדרכה באמצע.
+Bridge.on('disks.changed', () => {
+  if (Steps.busy || !el('overlay').hidden || !el('btn-refresh')) return;
+  loadDisks({ quiet: true });
+});
 
 function toggleDisk(number) {
   if (State.openDisks.has(number)) State.openDisks.delete(number);
@@ -883,6 +971,7 @@ async function startHunt(disk) {
           <div><dt>מחיצות שנמצאו</dt><dd id="hunt-found">0</dd></div>
           <div><dt>נקרא מהכונן</dt><dd id="hunt-done">0 B</dd></div>
           <div><dt>זמן שחלף</dt><dd id="hunt-elapsed">0:00</dd></div>
+          <div><dt>זמן משוער שנותר</dt><dd id="hunt-eta">מחשב…</dd></div>
           <div><dt>מצב</dt><dd style="direction:rtl" id="hunt-state">פועל</dd></div>
         </div>
       </div>
@@ -949,6 +1038,7 @@ Bridge.on('hunt.progress', (p) => {
   el('hunt-found').textContent = (p.found || 0).toLocaleString('he-IL');
   el('hunt-done').textContent = `${formatSize(p.done)} מתוך ${formatSize(p.total)}`;
   el('hunt-elapsed').textContent = formatDuration(p.elapsed);
+  el('hunt-eta').textContent = Eta.text('hunt', p.percent, p.elapsed);
 });
 
 /* =====================================================================
@@ -1553,6 +1643,7 @@ async function startImaging(disk, part, request) {
           <div><dt>הועתק</dt><dd id="img-done">0 B</dd></div>
           <div><dt>טרם נקרא בהצלחה</dt><dd id="img-problems">0 B</dd></div>
           <div><dt>זמן שחלף</dt><dd id="img-elapsed">0:00</dd></div>
+          <div><dt>זמן משוער שנותר</dt><dd id="img-eta">מחשב…</dd></div>
           <div><dt>מצב</dt><dd style="direction:rtl" id="img-state">פועל</dd></div>
         </div>
       </div>
@@ -1606,6 +1697,7 @@ Bridge.on('image.progress', (p) => {
   el('img-problems').textContent = formatSize(p.problems);
   el('img-problems').classList.toggle('warn-text', p.problems > 0);
   el('img-elapsed').textContent = formatDuration(p.elapsed);
+  el('img-eta').textContent = Eta.text('img', p.percent, p.elapsed);
 });
 
 function showImageResult(title, r) {
@@ -1943,6 +2035,7 @@ async function startScan(disk, part, modeId, includeExisting) {
           <div><dt>קבצים שנמצאו</dt><dd id="scan-files">0</dd></div>
           <div><dt>נקרא מהדיסק</dt><dd id="scan-bytes">0 B</dd></div>
           <div><dt>זמן שחלף</dt><dd id="scan-elapsed">0:00</dd></div>
+          <div><dt>זמן משוער שנותר</dt><dd id="scan-eta">מחשב…</dd></div>
           <div><dt>מצב</dt><dd style="direction:rtl" id="scan-state">פועל</dd></div>
         </div>
       </div>
@@ -1998,6 +2091,7 @@ Bridge.on('scan.progress', (p) => {
   el('scan-files').textContent = (p.files || 0).toLocaleString('he-IL');
   el('scan-bytes').textContent = formatSize(p.bytes);
   el('scan-elapsed').textContent = formatDuration(p.elapsed);
+  el('scan-eta').textContent = Eta.text('scan', pct, p.elapsed);
 });
 
 /* =====================================================================

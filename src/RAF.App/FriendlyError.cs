@@ -1,5 +1,8 @@
 namespace RAF.App;
 
+/// <summary>פעולות ארוכות, שסגירת החלון באמצען מפסיקה אותן.</summary>
+internal enum LongOperation { Scan, Recovery, Hunt, Imaging }
+
 /// <summary>
 /// הודעת שגיאה במבנה אחיד: מה קרה, ומה לעשות עכשיו. ההודעה הטכנית
 /// המקורית נשמרת בנפרד ומוצגת מקופלת — היא חשובה לאבחון, אבל

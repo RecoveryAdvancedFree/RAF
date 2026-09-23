@@ -790,3 +790,10 @@
 .guide-parts .btn { justify-content: flex-start; }
 
 .doc-hint { font-size: 12.5px; color: var(--text-dim); margin-top: 12px; text-align: center; }
+
+/* ---------- רענון שקט של רשימת הכוננים ---------- */
+.btn.is-busy svg { animation: spin 0.8s linear infinite; }
+.disk.is-new { animation: disk-new 2.6s ease-out; }
+@keyframes disk-new {
+  0%, 35% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+}

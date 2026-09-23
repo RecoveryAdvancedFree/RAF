@@ -87,19 +87,19 @@ internal sealed partial class Bridge
         "doctor.diagnoseFolder" => await Task.Run(() => DoctorDiagnoseFolder(p)),
         "doctor.repair" => await Task.Run(() => DoctorRepair(p)),
 
-        "disk.hunt" => await Tracked(() => HuntAsync(p)),
+        "disk.hunt" => await Tracked(LongOperation.Hunt, () => HuntAsync(p)),
         "disk.huntCancel" => Cancel(_huntCancel),
         "partition.restorePlan" => await Task.Run(() => RestorePlanFor(p)),
         "partition.restore" => await Task.Run(() => RestorePartition(p)),
 
         "image.pickSave" => PickImageTarget(p),
         "image.validate" => ValidateImageTarget(p),
-        "image.create" => await Tracked(() => CreateImageAsync(p)),
+        "image.create" => await Tracked(LongOperation.Imaging, () => CreateImageAsync(p)),
         "image.cancel" => Cancel(_imageCancel),
         "image.open" => OpenImage(p),
         "image.close" => CloseImage(p),
 
-        "scan.start" => await Tracked(() => StartScanAsync(p)),
+        "scan.start" => await Tracked(LongOperation.Scan, () => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
         "scan.children" => Children(p),
         "scan.save" => await SaveScanAs(),
@@ -115,7 +115,7 @@ internal sealed partial class Bridge
 
         "recover.pickFolder" => PickFolder(),
         "recover.validate" => ValidateTarget(p),
-        "recover.start" => await Tracked(() => StartRecoveryAsync(p)),
+        "recover.start" => await Tracked(LongOperation.Recovery, () => StartRecoveryAsync(p)),
         "recover.cancel" => Cancel(_recoverCancel),
         "recover.openFolder" => OpenFolder(p),
 
@@ -133,8 +133,9 @@ internal sealed partial class Bridge
     /// פעולה ארוכה עם חיווי בשורת המשימות: פס בזמן הריצה, הבהוב בסיום,
     /// ופס אדום כשהיא נכשלת. ביטול אינו מסמן דבר.
     /// </summary>
-    private async Task<T> Tracked<T>(Func<Task<T>> operation)
+    private async Task<T> Tracked<T>(LongOperation kind, Func<Task<T>> operation)
     {
+        RunningOperation = kind;
         _form.Taskbar.Start();
         try
         {
@@ -152,7 +153,14 @@ internal sealed partial class Bridge
             _form.Taskbar.Finish(failed: true);
             throw;
         }
+        finally
+        {
+            RunningOperation = null;
+        }
     }
+
+    /// <summary>הפעולה הארוכה שרצה עכשיו, אם יש — כדי להזהיר לפני סגירת החלון.</summary>
+    internal LongOperation? RunningOperation { get; private set; }
 
     // ------------------------------------------------------------ מערכת ודיסקים
 
@@ -1397,6 +1405,9 @@ internal sealed partial class Bridge
     {
         if (paths.Count > 0) PushEvent("files.dropped", new { paths });
     }
+
+    /// <summary>כונן חובר או נותק. הממשק מחליט אם לרענן — לא באמצע פעולה.</summary>
+    internal void DisksChanged() => PushEvent("disks.changed", new { });
 
     /// <summary>דחיפת אירוע לממשק ללא בקשה מוקדמת.</summary>
     private void PushEvent(string name, object data)

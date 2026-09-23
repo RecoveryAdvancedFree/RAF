@@ -20,6 +20,9 @@ internal sealed class MainForm : Form
     private bool _buttonWasDown;
     private bool _pressedOutside;
 
+    // חיבור כונן מייצר כמה הודעות ברצף (דיסק, מחיצות, אמצעי אחסון). ממתינים שיירגע, ומרעננים פעם אחת.
+    private readonly System.Windows.Forms.Timer _devicesSettled = new() { Interval = 1500 };
+
     /// <summary>התקדמות פעולות ארוכות בסמל שבשורת המשימות.</summary>
     internal TaskbarProgress Taskbar { get; }
 
@@ -58,6 +61,12 @@ internal sealed class MainForm : Form
         _dropZone.Dropped += paths => _bridge.FilesDropped(paths);
         _dragWatch.Tick += (_, _) => WatchDrag();
 
+        _devicesSettled.Tick += (_, _) =>
+        {
+            _devicesSettled.Stop();
+            _bridge.DisksChanged();
+        };
+
         Load += async (_, _) => await InitializeWebViewAsync();
     }
 
@@ -67,6 +76,7 @@ internal sealed class MainForm : Form
     {
         base.OnHandleCreated(e);
         NativeChrome.ApplyModernFrame(Handle, _dark);
+        DeviceWatch.Register(Handle);
     }
 
     /// <summary>התאמת צבעי החלון עצמו לערכת הנושא של הממשק.</summary>
@@ -313,6 +323,12 @@ internal sealed class MainForm : Form
             return;
         }
 
+        if (DeviceWatch.IsDiskChange(m))
+        {
+            _devicesSettled.Stop();
+            _devicesSettled.Start();
+        }
+
         base.WndProc(ref m);
     }
 
@@ -333,6 +349,39 @@ internal sealed class MainForm : Form
 
         _dropZone.Visible = show;
         if (show) _dropZone.BringToFront();
+    }
+
+    /// <summary>סגירה באמצע פעולה ארוכה מפסיקה אותה — ולכן שואלים קודם.</summary>
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (e.CloseReason == CloseReason.UserClosing && _bridge.RunningOperation is { } running)
+        {
+            string message = running switch
+            {
+                LongOperation.Scan =>
+                    "סריקה פועלת כעת. אם תסגרו את התוכנה, הסריקה תיעצר באמצע והתוצאות שלה יאבדו.\n\n" +
+                    "בסריקה מתקדמת נשמרת נקודת ביניים כל 5 דקות, ואפשר לפתוח אותה אחר כך מ\"סריקות אחרונות\".",
+                LongOperation.Recovery =>
+                    "שחזור פועל כעת. אם תסגרו את התוכנה, השחזור ייעצר וחלק מהקבצים לא ישוחזרו.",
+                LongOperation.Hunt =>
+                    "סריקת כונן פועלת כעת. אם תסגרו את התוכנה, היא תיעצר ולא יוצגו המחיצות שנמצאו.",
+                _ =>
+                    "יצירת תמונת דיסק פועלת כעת. אם תסגרו את התוכנה, היא תיעצר. " +
+                    "מה שכבר הועתק נשמר, ואפשר להמשיך מאותה נקודה בפעם הבאה.",
+            };
+
+            var answer = MessageBox.Show(this, message + "\n\nלסגור בכל זאת?", "שחזור מתקדם חינם",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2,
+                MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
+
+            if (answer != DialogResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
+        base.OnFormClosing(e);
     }
 
     private static void ShowFatalError(string message) =>
