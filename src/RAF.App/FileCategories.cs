@@ -13,11 +13,11 @@ internal static class FileCategories
     /// <summary>הקטגוריות בסדר ההצגה, עם הסיומות של כל אחת.</summary>
     internal static readonly (string Id, string[] Extensions)[] Ordered =
     {
-        ("images", new[] { "jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff", "webp", "heic", "heif",
+        ("images", new[] { "jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff", "webp", "heic", "heif", "avif",
                            "ico", "svg", "psd", "raw", "cr2", "cr3", "nef", "arw", "dng", "orf", "rw2" }),
         ("documents", new[] { "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
                               "rtf", "txt", "csv", "md", "xml", "html", "htm", "json", "epub" }),
-        ("video", new[] { "mp4", "mov", "avi", "mkv", "wmv", "flv", "webm", "m4v", "3gp", "mpg", "mpeg",
+        ("video", new[] { "mp4", "mov", "avi", "mkv", "wmv", "flv", "webm", "m4v", "3gp", "3g2", "mpg", "mpeg",
                           "mts", "m2ts" }),
         ("audio", new[] { "mp3", "wav", "flac", "aac", "m4a", "ogg", "wma", "opus", "amr", "mid", "midi" }),
         ("archives", new[] { "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso", "cab" }),

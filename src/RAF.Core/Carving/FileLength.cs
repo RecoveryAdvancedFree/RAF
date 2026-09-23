@@ -93,7 +93,7 @@ internal static class FileLength
     internal static long ReadDeclaredLength(
         FileSignature signature, byte[] head, IClusterVolume volume, long offset, long ceiling)
     {
-        string first = signature.Extensions.Length > 0 ? signature.Extensions[0] : "";
+        string first = signature.Structure;
 
         return first switch
         {

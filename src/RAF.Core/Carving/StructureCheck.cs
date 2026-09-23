@@ -123,8 +123,7 @@ internal sealed class WindowReader
 /// </summary>
 internal static class StructureCheck
 {
-    private static string Kind(FileSignature signature)
-        => signature.Extensions.Length > 0 ? signature.Extensions[0] : "";
+    private static string Kind(FileSignature signature) => signature.Structure;
 
     /// <summary>
     /// פורמטים שמבנם נקרא במלואו. כישלון בקריאתם מעיד על התאמת שווא

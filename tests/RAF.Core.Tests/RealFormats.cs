@@ -126,7 +126,7 @@ internal static class RealFormats
     }
 
     /// <summary>MP4: תיבת ftyp עם מותג, תיבת moov ותיבת mdat.</summary>
-    internal static byte[] Mp4(int mediaBytes, int seed)
+    internal static byte[] Mp4(int mediaBytes, int seed, string brand = "isom")
     {
         using var s = new MemoryStream();
 
@@ -139,7 +139,7 @@ internal static class RealFormats
             s.Write(payload);
         }
 
-        Box("ftyp", [.. "isom"u8, 0, 0, 2, 0, .. "isomiso2"u8]);
+        Box("ftyp", [.. Encoding.ASCII.GetBytes(brand), 0, 0, 2, 0, .. "isomiso2"u8]);
         Box("moov", Random(512, seed));
         Box("mdat", Random(mediaBytes, seed + 1));
         return s.ToArray();

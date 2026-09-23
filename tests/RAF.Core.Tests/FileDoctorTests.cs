@@ -121,6 +121,65 @@ public class FileDoctorTests : IDisposable
         Assert.Equal("png", d.SuggestedExtension);
     }
 
+    /// <summary>
+    /// ניקון, סוני ו-DNG כותבים TIFF רגיל. בעבר הרופא דיווח עליהם "סיומת
+    /// שגויה" והציע לשנות את שם תמונת ה-RAW ל-.tif.
+    /// </summary>
+    [Theory]
+    [InlineData("photo.nef")]
+    [InlineData("photo.arw")]
+    [InlineData("photo.dng")]
+    [InlineData("photo.tif")]
+    public void Camera_raw_files_stored_as_tiff_keep_their_extension(string name)
+    {
+        byte[] raw = Body(4000, 3);
+        byte[] header = [0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00];
+        header.CopyTo(raw, 0);
+
+        var d = FileDoctor.Diagnose(Write(name, raw));
+
+        Assert.DoesNotContain(d.Issues, i => i.Kind == FileIssueKind.ExtensionMismatch);
+    }
+
+    [Fact]
+    public void A_canon_raw_is_identified_as_such_and_not_as_tiff()
+    {
+        byte[] cr2 = Body(4000, 4);
+        byte[] header = [0x49, 0x49, 0x2A, 0x00, 0x10, 0x00, 0x00, 0x00, 0x43, 0x52];
+        header.CopyTo(cr2, 0);
+
+        var d = FileDoctor.Diagnose(Write("photo.cr2", cr2));
+
+        Assert.True(d.IsHealthy);
+        Assert.Equal("תמונת RAW של Canon", d.DetectedFormat);
+    }
+
+    [Theory]
+    [InlineData("3gp4", "clip.3gp")]
+    [InlineData("crx ", "photo.cr3")]
+    [InlineData("avif", "photo.avif")]
+    [InlineData("heix", "photo.heic")]
+    [InlineData("mif1", "photo.avif")]
+    public void Formats_built_like_mp4_are_not_renamed_to_mp4(string brand, string name)
+    {
+        var d = FileDoctor.Diagnose(Write(name, RealFormats.Mp4(3000, 5, brand)));
+
+        Assert.True(d.IsHealthy, string.Join(" ", d.Issues.Select(i => i.Description)));
+    }
+
+    [Fact]
+    public void Repairing_trailing_data_on_an_mp4_copies_the_body_exactly()
+    {
+        // גוף גדול מהמאגר של ההעתקה בזרימה, כדי שיעבור בכמה סבבים.
+        byte[] mp4 = RealFormats.Mp4(3 * 1024 * 1024 + 123, 11);
+        byte[] padded = [.. mp4, .. Body(5000, 12)];
+
+        var result = FileDoctor.Repair(Write("clip.mp4", padded), _output);
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(mp4, File.ReadAllBytes(result.OutputPath!));
+    }
+
     [Fact]
     public void Data_after_the_declared_end_is_detected()
     {

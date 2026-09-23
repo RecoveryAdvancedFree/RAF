@@ -28,6 +28,19 @@ public sealed class FileSignature
 
     public bool IsImage { get; init; }
 
+    /// <summary>
+    /// המבנה שלפיו נקרא הקובץ לאימות ולקביעת אורך. פורמטים שונים חולקים
+    /// מבנה: HEIC, CR3 ו-3GP בנויים כמו MP4, ורוב קובצי ה-RAW בנויים כמו TIFF.
+    /// ברירת המחדל היא הסיומת הראשונה.
+    /// </summary>
+    public string Structure
+    {
+        get => _structure ?? (Extensions.Length > 0 ? Extensions[0] : "");
+        init => _structure = value;
+    }
+
+    private readonly string? _structure;
+
     /// <summary>האם הסיומת שנשמרה בשם הקובץ תואמת לתוכן שזוהה בפועל.</summary>
     public bool MatchesExtension(string extension)
         => string.IsNullOrEmpty(extension) ||
@@ -57,6 +70,17 @@ public static class FileSignatures
 
     private static byte?[] Bytes(params int[] values)
         => values.Select(v => v < 0 ? (byte?)null : (byte)v).ToArray();
+
+    /// <summary>חתימת ISO-BMFF: ארבעה בתי גודל חופשיים, "ftyp" והמותג.</summary>
+    private static byte?[] Ftyp(string brand)
+        => [null, null, null, null, .. Ascii("ftyp" + brand)];
+
+    /// <summary>TIFF והפורמטים שנשמרים כ-TIFF רגיל, בלי חתימה משלהם.</summary>
+    private static readonly string[] TiffFamily =
+    {
+        "tif", "tiff", "nef", "nrw", "arw", "srf", "sr2", "dng", "pef", "srw",
+        "erf", "3fr", "kdc", "dcr", "mef", "mos", "iiq",
+    };
 
     /// <summary>כל החתימות המוכרות, מסודרות מהספציפית לכללית.</summary>
     public static readonly IReadOnlyList<FileSignature> All = new List<FileSignature>
@@ -101,26 +125,77 @@ public static class FileSignatures
             Header = Bytes(0x52, 0x49, 0x46, 0x46, -1, -1, -1, -1, 0x57, 0x45, 0x42, 0x50),
             MaxSize = 64L * 1024 * 1024,
         },
+        // RAW של מצלמות: לפני TIFF, שחתימתו הכללית תואמת גם אותם.
         new()
         {
-            Name = "תמונת TIFF", Extensions = new[] { "tif", "tiff" },
+            Name = "תמונת RAW של Canon", Extensions = new[] { "cr2" },
+            Header = Bytes(0x49, 0x49, 0x2A, 0x00, 0x10, 0x00, 0x00, 0x00, 0x43, 0x52),
+            MaxSize = 128L * 1024 * 1024, Structure = "tif",
+        },
+        new()
+        {
+            Name = "תמונת RAW של Olympus", Extensions = new[] { "orf" },
+            Header = Bytes(0x49, 0x49, 0x52, 0x4F, 0x08, 0x00, 0x00, 0x00),
+            MaxSize = 128L * 1024 * 1024, Structure = "tif",
+        },
+        new()
+        {
+            Name = "תמונת RAW של Panasonic", Extensions = new[] { "rw2" },
+            Header = Bytes(0x49, 0x49, 0x55, 0x00, 0x18, 0x00, 0x00, 0x00),
+            MaxSize = 128L * 1024 * 1024, Structure = "tif",
+        },
+        new()
+        {
+            // ניקון, סוני, DNG, פנטקס, סמסונג ואחרים כותבים TIFF רגיל, ואין
+            // בכותרת דבר שמבדיל ביניהם — לכן הם חלק מהמשפחה ולא "סיומת שגויה".
+            Name = "תמונת TIFF", Extensions = TiffFamily,
             MimeType = "image/tiff", IsImage = true,
             Header = Bytes(0x49, 0x49, 0x2A, 0x00),
             MaxSize = 512L * 1024 * 1024,
         },
         new()
         {
-            Name = "תמונת TIFF", Extensions = new[] { "tif", "tiff" },
+            Name = "תמונת TIFF", Extensions = TiffFamily,
             MimeType = "image/tiff", IsImage = true,
             Header = Bytes(0x4D, 0x4D, 0x00, 0x2A),
             MaxSize = 512L * 1024 * 1024,
+        },
+
+        // מבנה ISO-BMFF: "ftyp" בהיסט 4 ואחריו המותג. לפני MP4, שמזהה כל מותג.
+        new()
+        {
+            Name = "תמונת RAW של Canon", Extensions = new[] { "cr3" },
+            Header = Ftyp("crx "),
+            MaxSize = 256L * 1024 * 1024, Structure = "mp4",
         },
         new()
         {
             Name = "תמונת HEIC", Extensions = new[] { "heic", "heif" },
             MimeType = "image/heic", IsImage = true,
-            Header = Bytes(-1, -1, -1, -1, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63),
-            MaxSize = 64L * 1024 * 1024,
+            Header = Ftyp("heic"),
+            MaxSize = 64L * 1024 * 1024, Structure = "mp4",
+        },
+        new()
+        {
+            Name = "תמונת HEIC", Extensions = new[] { "heic", "heif" },
+            MimeType = "image/heic", IsImage = true,
+            Header = Ftyp("heix"),
+            MaxSize = 64L * 1024 * 1024, Structure = "mp4",
+        },
+        new()
+        {
+            Name = "תמונת AVIF", Extensions = new[] { "avif" },
+            MimeType = "image/avif", IsImage = true,
+            Header = Ftyp("avi"), // avif לתמונה, avis לרצף תמונות
+            MaxSize = 64L * 1024 * 1024, Structure = "mp4",
+        },
+        new()
+        {
+            // המותג הכללי של HEIF, שמשמש גם HEIC וגם AVIF.
+            Name = "תמונת HEIF", Extensions = new[] { "heif", "heic", "avif" },
+            MimeType = "image/heif", IsImage = true,
+            Header = Ftyp("mif1"),
+            MaxSize = 64L * 1024 * 1024, Structure = "mp4",
         },
         new()
         {
@@ -135,12 +210,6 @@ public static class FileSignatures
             MimeType = "image/vnd.adobe.photoshop",
             Header = Ascii("8BPS"),
             MaxSize = 2L * 1024 * 1024 * 1024,
-        },
-        new()
-        {
-            Name = "תמונת RAW של Canon", Extensions = new[] { "cr2" },
-            Header = Bytes(0x49, 0x49, 0x2A, 0x00, 0x10, 0x00, 0x00, 0x00, 0x43, 0x52),
-            MaxSize = 128L * 1024 * 1024,
         },
 
         // ---------- מסמכים ----------
@@ -207,6 +276,14 @@ public static class FileSignatures
         },
 
         // ---------- וידאו ואודיו ----------
+        new()
+        {
+            // וידאו של טלפונים ישנים: המותג 3gp4 עד 3gp6, או 3g2a.
+            Name = "וידאו 3GP", Extensions = new[] { "3gp", "3g2" },
+            MimeType = "video/3gpp",
+            Header = Ftyp("3g"),
+            MaxSize = 4L * 1024 * 1024 * 1024, Structure = "mp4",
+        },
         new()
         {
             // MP4 ומשפחתו: "ftyp" בהיסט 4.

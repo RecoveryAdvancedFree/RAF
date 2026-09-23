@@ -373,31 +373,32 @@ public static class FileDoctor
                           string.Join(" ", diagnosis.Issues.Select(i => i.Description)),
             };
 
-        byte[] data = File.ReadAllBytes(path);
+        // התיקונים נוגעים רק בתחילת הקובץ ובסופו, ולכן הקובץ אינו נקרא כולו
+        // לזיכרון: סרטון של כמה ג'יגה-בתים מועתק בזרימה, והתיקונים מוחלים בדרך.
         var applied = new List<string>();
         var format = diagnosis.Format;
 
-        bool headerRestored = false;
+        bool restoreHeader = false;
+        long bodyLength = diagnosis.Size;
+        byte[] footer = [];
 
         foreach (var issue in diagnosis.Issues.Where(i => i.Fixable))
         {
             switch (issue.Kind)
             {
                 // חתימה וסמן נפגעים לרוב יחד; השחזור מטפל בשניהם בפעם אחת.
-                case FileIssueKind.HeaderDamaged when format is not null && !headerRestored:
-                    RestoreHeader(data, format);
-                    FixSizeFields(data, format);
+                case FileIssueKind.HeaderDamaged when format is not null && !restoreHeader:
                     applied.Add($"שוחזרה חתימת הפתיחה של {format.Name}");
-                    headerRestored = true;
+                    restoreHeader = true;
                     break;
 
                 case FileIssueKind.TrailingData when diagnosis.CorrectLength is > 0:
-                    data = data.AsSpan(0, (int)diagnosis.CorrectLength.Value).ToArray();
-                    applied.Add($"הוסרו נתונים עודפים — הקובץ קוצר ל-{data.Length:N0} בתים");
+                    bodyLength = diagnosis.CorrectLength.Value;
+                    applied.Add($"הוסרו נתונים עודפים — הקובץ קוצר ל-{bodyLength:N0} בתים");
                     break;
 
                 case FileIssueKind.FooterMissing when format?.Footer is { Length: > 0 }:
-                    data = [.. data, .. format.Footer];
+                    footer = format.Footer;
                     applied.Add($"הושלמה חתימת הסיום של {format.Name}");
                     break;
 
@@ -407,16 +408,9 @@ public static class FileDoctor
             }
         }
 
-        // ארכיון נבנה מחדש אחרי שאר התיקונים — מהנתונים כפי שהם אחרי שחזור החתימה.
-        if (diagnosis.Issues.Any(i => i.Fixable && i.Kind is FileIssueKind.ArchiveDirectoryDamaged
-                                                           or FileIssueKind.ArchiveEntriesDamaged))
-        {
-            var archive = ZipRebuilder.Analyze(data);
-            data = ZipRebuilder.Rebuild(data, archive);
-            int dropped = archive.Damaged.Count();
-            applied.Add($"נבנה תוכן עניינים חדש מ-{archive.Intact.Count():N0} קבצים פנימיים שלמים" +
-                        (dropped > 0 ? $"; {dropped:N0} קבצים פגומים הושמטו" : ""));
-        }
+        // ארכיון נבנה מחדש בזיכרון — האבחון בודק ארכיונים רק עד MaxArchive.
+        bool rebuildArchive = diagnosis.Issues.Any(i => i.Fixable &&
+            i.Kind is FileIssueKind.ArchiveDirectoryDamaged or FileIssueKind.ArchiveEntriesDamaged);
 
         // --- כתיבת העותק המתוקן ---
         string extension = diagnosis.SuggestedExtension ?? System.IO.Path.GetExtension(path).TrimStart('.');
@@ -430,7 +424,19 @@ public static class FileDoctor
                 StringComparison.OrdinalIgnoreCase))
             return new FileRepairResult { Message = "נתיב היעד זהה לקובץ המקורי. התיקון בוטל." };
 
-        File.WriteAllBytes(output, data);
+        try
+        {
+            if (rebuildArchive)
+                applied.Add(WriteRebuiltArchive(path, output, format, restoreHeader));
+            else
+                WriteStreamed(path, output, format, restoreHeader, bodyLength, footer);
+        }
+        catch
+        {
+            // עותק חלקי הוא הטעיה — עדיף שלא יהיה עותק כלל.
+            try { File.Delete(output); } catch { }
+            throw;
+        }
 
         // --- אבחון חוזר: ההוכחה שהתיקון עבד ---
         var after = Diagnose(output);
@@ -449,6 +455,63 @@ public static class FileDoctor
                       string.Join(" ", after.Issues.Select(i => i.Description))
                 : "התיקון נכתב, אך הבדיקה החוזרת עדיין מוצאת בעיות הניתנות לתיקון.",
         };
+    }
+
+    /// <summary>
+    /// בתים מתחילת הקובץ שהתיקון עשוי לשנות: החתימה, סמן ה-JPEG ומזהה המקטע
+    /// שאחריו, ושדות הגודל של BMP ו-RIFF. כל השאר מועתק כמו שהוא.
+    /// </summary>
+    private const int PatchedHead = 64;
+
+    /// <summary>
+    /// כתיבת העותק בזרימה: תחילת הקובץ עם החתימה המשוחזרת, גוף הקובץ עד
+    /// האורך הנכון, וחתימת הסיום כשהיא חסרה. עובד בכל גודל קובץ.
+    /// </summary>
+    private static void WriteStreamed(string path, string output, FileSignature? format,
+        bool restoreHeader, long bodyLength, byte[] footer)
+    {
+        using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            1024 * 1024, FileOptions.SequentialScan);
+        using var target = new FileStream(output, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+            1024 * 1024, FileOptions.SequentialScan);
+
+        byte[] head = new byte[(int)Math.Min(PatchedHead, bodyLength)];
+        source.ReadExactly(head);
+
+        if (restoreHeader && format is not null)
+        {
+            RestoreHeader(head, format);
+            FixSizeFields(head, format, bodyLength + footer.Length);
+        }
+
+        target.Write(head);
+
+        byte[] buffer = new byte[1024 * 1024];
+        for (long left = bodyLength - head.Length; left > 0;)
+        {
+            int read = source.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
+            if (read <= 0) throw new EndOfStreamException("הקובץ המקורי התקצר בזמן התיקון.");
+            target.Write(buffer, 0, read);
+            left -= read;
+        }
+
+        target.Write(footer);
+    }
+
+    /// <summary>בניית ארכיון מחדש, מהנתונים כפי שהם אחרי שחזור החתימה.</summary>
+    private static string WriteRebuiltArchive(string path, string output, FileSignature? format,
+        bool restoreHeader)
+    {
+        byte[] data = File.ReadAllBytes(path);
+        if (restoreHeader && format is not null) RestoreHeader(data, format);
+
+        var archive = ZipRebuilder.Analyze(data);
+        using (var target = new FileStream(output, FileMode.CreateNew, FileAccess.Write))
+            target.Write(ZipRebuilder.Rebuild(data, archive));
+
+        int dropped = archive.Damaged.Count();
+        return $"נבנה תוכן עניינים חדש מ-{archive.Intact.Count():N0} קבצים פנימיים שלמים" +
+               (dropped > 0 ? $"; {dropped:N0} קבצים פגומים הושמטו" : "");
     }
 
     /// <summary>כתיבת בתי החתימה המוגדרים. בתים חופשיים בחתימה אינם משתנים.</summary>
@@ -473,19 +536,19 @@ public static class FileDoctor
 
     /// <summary>
     /// בפורמטים שבהם שדה הגודל צמוד לחתימה, שדה שאופס יחד איתה
-    /// משוחזר לפי גודל הקובץ בפועל.
+    /// משוחזר לפי גודל העותק המתוקן.
     /// </summary>
-    private static void FixSizeFields(byte[] data, FileSignature format)
+    private static void FixSizeFields(byte[] head, FileSignature format, long totalLength)
     {
         string ext = format.Extensions[0];
 
-        if (ext == "bmp" && data.Length >= 6 &&
-            BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(2)) == 0)
-            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(2), (uint)data.Length);
+        if (ext == "bmp" && head.Length >= 6 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(head.AsSpan(2)) == 0)
+            BinaryPrimitives.WriteUInt32LittleEndian(head.AsSpan(2), (uint)totalLength);
 
-        if (ext is "wav" or "avi" or "webp" && data.Length >= 8 &&
-            BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4)) == 0)
-            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), (uint)(data.Length - 8));
+        if (ext is "wav" or "avi" or "webp" && head.Length >= 8 &&
+            BinaryPrimitives.ReadUInt32LittleEndian(head.AsSpan(4)) == 0)
+            BinaryPrimitives.WriteUInt32LittleEndian(head.AsSpan(4), (uint)(totalLength - 8));
     }
 
     /// <summary>ראש הקובץ כשהחתימה התקינה במקומה, לצורך קריאת מבנה.</summary>

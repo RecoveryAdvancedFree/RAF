@@ -119,6 +119,19 @@ public class CarvingTests : IDisposable
         Assert.Equal(mp4.Length, Resolve(mp4, "mp4").Bytes);
     }
 
+    [Theory]
+    [InlineData("heic", "heic")]
+    [InlineData("3gp4", "3gp")]
+    [InlineData("crx ", "cr3")]
+    [InlineData("avif", "avif")]
+    public void Formats_built_like_mp4_get_their_own_type_and_an_exact_length(string brand, string extension)
+    {
+        byte[] file = RealFormats.Mp4(3000, 8, brand);
+
+        Assert.Equal(extension, FileSignatures.Identify(file)!.Extensions[0]);
+        Assert.Equal(file.Length, Resolve(file, extension).Bytes);
+    }
+
     [Fact]
     public void Exe_length_is_the_end_of_its_last_section()
     {
