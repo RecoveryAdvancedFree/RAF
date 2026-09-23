@@ -165,6 +165,83 @@ public class CarvingTests : IDisposable
         Assert.Equal(pdf.Length, Resolve(pdf, "pdf").Bytes);
     }
 
+    /// <summary>PDF קטן: כותרת, גוף, ו-%%EOF — ואפשר להוסיף באמצע עוד תוכן (למשל עדכון מצטבר).</summary>
+    private static byte[] Pdf(int body, string? update = null)
+    {
+        // בלי שורה חדשה אחרי הסימן האחרון: האורך נמדד עד סוף "%%EOF".
+        string text = "%PDF-1.4\n" + new string('A', body) + "\n%%EOF" +
+                      (update is null ? "" : "\n" + update + "\n%%EOF");
+        return Encoding.ASCII.GetBytes(text);
+    }
+
+    /// <summary>עוטף מחיצה וסופר כמה בתים נקראו ממנה — כדי למדוד, ולא רק לנחש, את עלות החיפוש.</summary>
+    private sealed class CountingVolume(RawVolume inner) : RAF.Core.FileSystems.IClusterVolume
+    {
+        public long BytesRead { get; private set; }
+        public int BytesPerCluster => inner.BytesPerCluster;
+        public long ClusterToOffset(long cluster) => inner.ClusterToOffset(cluster);
+        public bool? IsClusterAllocated(long cluster) => inner.IsClusterAllocated(cluster);
+        public void Dispose() { }
+        public int ReadRaw(long offset, Span<byte> destination)
+        {
+            int n = inner.ReadRaw(offset, destination);
+            BytesRead += Math.Max(0, n);
+            return n;
+        }
+    }
+
+    [Fact]
+    public void A_small_pdf_does_not_make_the_scan_read_hundreds_of_megabytes()
+    {
+        // הבאג מהבדיקה על כונן F: PDF של 0.1MB, ואחריו רק נתונים שאינם PDF —
+        // החיפוש אחר סימן סיום נוסף קרא 256MB. עכשיו: עד 16MB אחרי הסימן האחרון.
+        byte[] pdf = Pdf(100_000);
+        long offset = Place(pdf);
+        _image.Write(new byte[40 * 1024 * 1024]);
+
+        var counting = new CountingVolume(Open());
+        var signature = FileSignatures.ForExtension("pdf").First();
+        var r = FileLength.Resolve(signature, counting, offset, _image.Length - offset);
+
+        Assert.Equal(pdf.Length, r.Bytes);
+        Assert.True(counting.BytesRead < 20 * 1024 * 1024, $"read {counting.BytesRead / 1048576}MB");
+    }
+
+    [Fact]
+    public void An_incremental_pdf_ends_at_its_last_end_marker()
+    {
+        byte[] pdf = Pdf(3000, update: "1 0 obj << /Updated true >> endobj");
+        Assert.Equal(pdf.Length, Resolve(pdf, "pdf").Bytes);
+    }
+
+    [Fact]
+    public void A_pdf_stops_where_another_file_begins_after_its_end_marker()
+    {
+        // אחרי ה-PDF יושבת תמונה, ואחריה — במקרה — עוד "%%EOF" בנתונים אחרים.
+        // הסורק אינו רשאי לבלוע את התמונה בדרך לסימן הזה.
+        byte[] pdf = Pdf(3000);
+        long offset = Place(pdf);
+        Place(RealFormats.Png(2000, 41));
+        Place(Encoding.ASCII.GetBytes("zzz\n%%EOF\n"));
+
+        var volume = Open();
+        var r = FileLength.Resolve(FileSignatures.ForExtension("pdf").First(), volume, offset, _image.Length - offset);
+        Assert.Equal(pdf.Length, r.Bytes);
+    }
+
+    [Fact]
+    public void A_jpeg_inside_a_pdf_before_its_end_marker_does_not_cut_it()
+    {
+        // PDF עם תמונת JPEG שלמה בתוכו, שנופלת בדיוק על גבול סקטור — לפני ה-%%EOF.
+        byte[] jpeg = JpegEncoder.Encode(64, 64, 42);
+        byte[] head = Encoding.ASCII.GetBytes("%PDF-1.4\n");
+        byte[] pad = new byte[SectorSize - head.Length];
+        pad.AsSpan().Fill((byte)'A');
+        byte[] pdf = [.. head, .. pad, .. jpeg, .. Encoding.ASCII.GetBytes("\nendstream\n%%EOF")];
+
+        Assert.Equal(pdf.Length, Resolve(pdf, "pdf").Bytes);
+    }
+
     // ==================================================== JPEG
 
     [Fact]

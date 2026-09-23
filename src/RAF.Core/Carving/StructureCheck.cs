@@ -10,6 +10,13 @@ namespace RAF.Core.Carving;
 /// </summary>
 internal sealed class WindowReader
 {
+    /// <summary>
+    /// גודל החלון מסתגל: קפיצה למקום אחר בקובץ טוענת חלון קטן — בקובץ הרצה
+    /// נקראים כמה שדות מפוזרים, וקריאה של 1MB לכל אחד עלתה 58ms לקובץ על כונן
+    /// USB. קריאה שממשיכה בדיוק מסוף החלון מכפילה אותו, כך שמעבר רציף (נתוני
+    /// JPEG, שרשרת PNG) נשאר בחלונות גדולים.
+    /// </summary>
+    private const int MinWindow = 64 * 1024;
     private const int WindowSize = 1 << 20;
 
     private readonly IClusterVolume _volume;
@@ -17,6 +24,7 @@ internal sealed class WindowReader
     private readonly byte[] _buffer = new byte[WindowSize];
     private long _bufferStart = -1;
     private int _bufferLength;
+    private int _window = MinWindow;
 
     /// <summary>הגבול העליון: מעבר לו אין לקרוא.</summary>
     internal long Limit { get; }
@@ -35,8 +43,11 @@ internal sealed class WindowReader
 
         if (pos < _bufferStart || pos >= _bufferStart + _bufferLength)
         {
+            bool continues = _bufferStart >= 0 && pos == _bufferStart + _bufferLength;
+            _window = continues ? Math.Min(_window * 2, WindowSize) : MinWindow;
+
             _bufferStart = pos;
-            int want = (int)Math.Min(WindowSize, Limit - pos);
+            int want = (int)Math.Min(_window, Limit - pos);
             _bufferLength = Math.Max(0, _volume.ReadRaw(_start + pos, _buffer.AsSpan(0, want)));
             if (_bufferLength == 0) return -1;
         }

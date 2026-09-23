@@ -260,13 +260,21 @@ internal static class FileLength
 
         while (at < limit)
         {
+            // אחרי סימן סיום, עדכון מצטבר נוסף מגיע מיד אחריו. מרחק גדול בלי
+            // סימן חדש פירושו שהקובץ נגמר — בלי הגבול הזה, PDF של 0.1MB גרם
+            // לקריאת 256MB (כמעט 5 שניות על כונן USB).
+            if (lastMatch > 0 && at - lastMatch > MaxTailAfterFooter) break;
+
             int want = (int)Math.Min(Window, limit - at);
             byte[] block = Read(volume, offset + at, want + overlap, limit - at + overlap);
             if (block.Length < footer.Length) break;
 
+            int scanEnd = Math.Min(block.Length, want);
+            int firstBoundary = (int)((sector - at % sector) % sector);
+
             // תחילת קובץ חדש מאותו סוג בגבול סקטור, שאינה הקובץ הנוכחי.
             int nextFile = -1;
-            for (int s = (int)((sector - at % sector) % sector); s + 8 <= Math.Min(block.Length, want); s += sector)
+            for (int s = firstBoundary; s + 8 <= scanEnd; s += sector)
             {
                 if (at + s == 0) continue;
                 if (signature.Matches(block.AsSpan(s))) { nextFile = s; break; }
@@ -280,15 +288,39 @@ internal static class FileLength
                 int found = IndexOf(block, footer, from);
                 if (found < 0 || found + footer.Length > searchEnd) break;
 
+                // אחרי סימן סיום, קובץ מכל סוג שמתחיל בגבול סקטור מסיים את ה-PDF.
+                // לפני הסימן הראשון אין עוצרים כך: PDF מכיל תמונות JPEG שלמות,
+                // ואחת מהן עשויה ליפול במקרה על גבול סקטור.
+                if (lastMatch > 0 && OtherFileStarts(block, at, lastMatch, at + found, sector, firstBoundary))
+                    return lastMatch;
+
                 lastMatch = at + found + footer.Length;
                 from = found + 1;
             }
 
             if (nextFile >= 0) break;
+            if (lastMatch > 0 && OtherFileStarts(block, at, lastMatch, at + scanEnd, sector, firstBoundary)) break;
             at += want;
         }
 
         return lastMatch;
+    }
+
+    /// <summary>מרחק מרבי אחרי סימן הסיום האחרון, שבו עוד מחפשים עדכון מצטבר.</summary>
+    private const long MaxTailAfterFooter = 16L * 1024 * 1024;
+
+    /// <summary>האם קובץ מוכר כלשהו מתחיל בגבול סקטור בטווח [from, to) — יחסית לתחילת ה-PDF.</summary>
+    private static bool OtherFileStarts(byte[] block, long at, long from, long to, int sector, int firstBoundary)
+    {
+        for (int s = firstBoundary; s + 16 <= block.Length && at + s < to; s += sector)
+        {
+            if (at + s < from) continue;
+            var other = FileSignatures.Identify(block.AsSpan(s, Math.Min(64, block.Length - s)));
+            if (other is not null &&
+                StructureCheck.IsPlausible(other, block.AsSpan(s, Math.Min(8192, block.Length - s)).ToArray()))
+                return true;
+        }
+        return false;
     }
 
     private static int IndexOf(byte[] haystack, byte[] needle, int start)
