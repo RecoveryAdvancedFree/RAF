@@ -104,7 +104,7 @@ public sealed class ExFatScanner
                 if (!_volume.IsValidCluster(entry.FirstCluster)) continue;
                 if (!_visitedDirectories.Add(entry.FirstCluster)) continue;
 
-                var extents = ExtentsFor(entry, Math.Max(entry.Size, _volume.BytesPerCluster));
+                var (extents, _) = ExtentsFor(entry, Math.Max(entry.Size, _volume.BytesPerCluster));
                 byte[] child = _volume.ReadChain(extents, 4 * 1024 * 1024);
                 _bytesRead += child.Length;
 
@@ -194,17 +194,44 @@ public sealed class ExFatScanner
 
     // ------------------------------------------------------------ המרה
 
+    /// <summary>מאיפה ידוע מיקום התוכן — קובע כמה אפשר לסמוך עליו.</summary>
+    private enum Placement
+    {
+        /// <summary>הרשומה מציינת שהקובץ רציף — המיקום ודאי.</summary>
+        Contiguous,
+
+        /// <summary>קובץ קיים — שרשרת ה-FAT שלו בתוקף.</summary>
+        LiveChain,
+
+        /// <summary>קובץ שנמחק, ושרשרת ה-FAT שלו שרדה שלמה.</summary>
+        SurvivingChain,
+
+        /// <summary>קובץ שנמחק, שלא היה רציף, ושרשרתו אינה שלמה — הרצף הוא הנחה בלבד.</summary>
+        AssumedContiguous,
+    }
+
     /// <summary>
-    /// בניית מקטעי הקובץ. קובץ שסומן כרציף, וכן כל קובץ שנמחק,
-    /// מתוארים כמקטע אחד — בקובץ מחוק שרשרת ה-FAT כבר שוחררה.
+    /// בניית מקטעי הקובץ. קובץ רציף — מקטע אחד לפי הרשומה. קובץ שנמחק ולא היה
+    /// רציף — לפי שרשרת ה-FAT, אם שרדה; Windows אינו מאפס אותה במחיקה, ולכן
+    /// גם קובץ מפוצל חוזר מדויק. רק כשהשרשרת אינה שלמה עוד — הנחת רצף.
     /// </summary>
-    private List<DataExtent> ExtentsFor(ExFatEntry entry, long size)
-        => entry.NoFatChain || entry.IsDeleted
-            ? _volume.ContiguousExtent(entry.FirstCluster, size)
-            : _volume.FollowChain(entry.FirstCluster);
+    private (List<DataExtent> Extents, Placement Placement) ExtentsFor(ExFatEntry entry, long size)
+    {
+        if (entry.NoFatChain)
+            return (_volume.ContiguousExtent(entry.FirstCluster, size), Placement.Contiguous);
+
+        if (!entry.IsDeleted)
+            return (_volume.FollowChain(entry.FirstCluster), Placement.LiveChain);
+
+        var chain = _volume.IntactChain(entry.FirstCluster, size);
+        return chain is not null
+            ? (chain, Placement.SurvivingChain)
+            : (_volume.ContiguousExtent(entry.FirstCluster, size), Placement.AssumedContiguous);
+    }
 
     private RecoveredFile Materialize(ExFatEntry entry, string path, DiscoverySource source)
     {
+        var (extents, placement) = ExtentsFor(entry, entry.Size);
         var file = new RecoveredFile
         {
             Id = _syntheticId++,
@@ -218,14 +245,14 @@ public sealed class ExFatScanner
             Modified = entry.Modified,
             Accessed = entry.Accessed,
             Source = source,
-            Extents = ExtentsFor(entry, entry.Size),
+            Extents = extents,
         };
 
-        AssessQuality(file, entry);
+        AssessQuality(file, entry, placement);
         return file;
     }
 
-    private void AssessQuality(RecoveredFile file, ExFatEntry entry)
+    private void AssessQuality(RecoveredFile file, ExFatEntry entry, Placement placement)
     {
         if (file.Size == 0)
         {
@@ -282,11 +309,17 @@ public sealed class ExFatScanner
             }
         }
 
-        // קובץ שהיה רציף מלכתחילה משוחזר בוודאות גבוהה יותר,
-        // כי ההנחה על רציפות אינה ניחוש אלא נתון שנשמר ברשומה.
-        string basis = entry.NoFatChain
-            ? "הרשומה מציינת שהקובץ היה רציף על הכונן, ולכן מיקומו ידוע בוודאות."
-            : "השחזור מניח שהקובץ היה רציף על הכונן.";
+        // הדירוג תלוי גם בשאלה מאיפה ידוע המיקום: רשומה שמציינת רצף, או שרשרת
+        // FAT שלמה, הן נתון; הנחת רצף לקובץ שלא היה רציף היא ניחוש.
+        string basis = placement switch
+        {
+            Placement.Contiguous => "הרשומה מציינת שהקובץ היה רציף על הכונן, ולכן מיקומו ידוע בוודאות.",
+            Placement.SurvivingChain when file.Extents.Count > 1 =>
+                $"הקובץ היה מפוצל ל-{file.Extents.Count} חלקים, ושרשרת האשכולות שלו שרדה במלואה — מיקום כל חלק ידוע.",
+            Placement.SurvivingChain => "שרשרת האשכולות של הקובץ שרדה במלואה, ולכן מיקומו ידוע.",
+            _ => "הקובץ לא נשמר ברצף, ושרשרת האשכולות שלו אינה שלמה עוד. השחזור מניח רצף — " +
+                 "ייתכן שחלק מהתוכן יהיה של קובץ אחר.",
+        };
 
         double ratio = total == 0 ? 0 : (double)taken / total;
 
@@ -297,6 +330,13 @@ public sealed class ExFatScanner
             < 0.85 => (RecoveryQuality.Poor, $"כ-{ratio:P0} מהאשכולות הוקצו לקבצים אחרים. הקובץ ישוחזר פגום."),
             _ => (RecoveryQuality.Unrecoverable, "כמעט כל האשכולות שהקובץ תפס הוקצו מחדש."),
         };
+
+        // הנחת רצף לא תקבל יותר מ"חלש": אשכולות פנויים אינם מוכיחים שהם של הקובץ הזה.
+        if (placement == Placement.AssumedContiguous && file.Quality < RecoveryQuality.Poor)
+        {
+            file.Quality = RecoveryQuality.Poor;
+            file.QualityReason = $"נמצאו נתונים, אבל {basis}";
+        }
     }
 
     private ContentCheck VerifyContent(RecoveredFile file)

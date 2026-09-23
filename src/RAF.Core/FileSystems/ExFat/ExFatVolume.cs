@@ -159,6 +159,54 @@ internal sealed class ExFatVolume : IClusterVolume
         return extents;
     }
 
+    /// <summary>
+    /// שרשרת האשכולות של קובץ שנמחק — רק אם היא עדיין שלמה.
+    ///
+    /// Windows אינו מאפס את טבלת ה-FAT כשהוא מוחק קובץ ב-exFAT: הוא מכבה את
+    /// ביטי ההקצאה ואת רשומת הספרייה, והשרשרת נשארת במקומה. כך קובץ מפוצל
+    /// שנמחק ניתן לשחזור מדויק. אבל אשכולות ששוחררו עשויים לשמש קובץ חדש,
+    /// והשרשרת שלו דורסת את הישנה — לכן היא מתקבלת רק כשהיא עקבית לגמרי:
+    /// בדיוק מספר האשכולות שהגודל מחייב, בלי לולאה, ובסופה סימן סוף שרשרת.
+    /// null — השרשרת אינה שלמה עוד.
+    /// </summary>
+    internal List<DataExtent>? IntactChain(long startCluster, long sizeBytes)
+    {
+        long needed = (sizeBytes + BytesPerCluster - 1) / BytesPerCluster;
+        if (!IsValidCluster(startCluster) || needed <= 0 || needed > 1 << 22) return null;
+
+        var extents = new List<DataExtent>();
+        var visited = new HashSet<long>();
+        long runStart = startCluster, runLength = 0, current = startCluster;
+
+        for (long count = 1; ; count++)
+        {
+            if (!IsValidCluster(current) || !visited.Add(current)) return null;
+
+            if (runLength > 0 && current != runStart + runLength)
+            {
+                extents.Add(new DataExtent(runStart, runLength, false));
+                runStart = current;
+                runLength = 0;
+            }
+            runLength++;
+
+            long? next = ReadFatEntry(current);
+            if (next is null) return null;
+
+            if (count == needed)
+            {
+                if (!IsEndOfChain(next.Value)) return null;
+                break;
+            }
+
+            if (next.Value == 0 || IsEndOfChain(next.Value)) return null;
+            current = next.Value;
+        }
+
+        extents.Add(new DataExtent(runStart, runLength, false));
+        return extents;
+    }
+
     /// <summary>מקטע רציף, לקובץ שסומן כלא-מפוצל או לקובץ שנמחק.</summary>
     internal List<DataExtent> ContiguousExtent(long startCluster, long sizeBytes)
     {
