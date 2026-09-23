@@ -2807,7 +2807,11 @@ async function showPreview(id) {
   if (p.kind === 'media') {
     // הנגן מבקש מהמנוע רק את הקטעים שמנגנים — גם בסרטון של כמה ג'יגה.
     const tag = p.video ? 'video' : 'audio';
-    body = `<${tag} class="preview-media ${tag}" controls preload="metadata" src="${esc(p.url)}"></${tag}>`;
+    // בלי תפריט שלוש הנקודות של הדפדפן ("הורדה", מהירות, תמונה בתוך תמונה):
+    // שמירת קובץ נעשית בשחזור — שבודק אותו ומתעד אותו בדוח — ולא בהורדה מהנגן.
+    body = `<${tag} class="preview-media ${tag}" controls preload="metadata"
+              controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture
+              disableremoteplayback src="${esc(p.url)}"></${tag}>`;
   } else if (p.kind === 'image') {
     body = `<img class="preview-img" src="data:${esc(p.mime)};base64,${p.data}" alt="">`;
   } else if (p.kind === 'text') {
