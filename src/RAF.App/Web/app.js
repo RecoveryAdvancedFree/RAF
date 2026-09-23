@@ -2533,6 +2533,9 @@ const FileList = (() => {
             // קובץ שנדרס מכיל נתונים — אבל של קובץ אחר. "אומת" ליד "לא ניתן לשחזור" היה סותר.
             ? '<span class="chip ok tiny" title="נדגם תוכן אמיתי מהדיסק">אומת</span>' : ''}
           ${f.evidence ? `<span class="chip tiny" title="${esc(f.source)}">${esc(f.source)}</span>` : ''}
+          ${f.recycledAt ? `<span class="chip accent tiny"
+            title="נמחק דרך סל המחזור ב-${esc(f.recycledAt)}. השם והתיקייה המקוריים הוחזרו מתוך הסל."
+            >מסל המחזור</span>` : ''}
           ${f.namePartial ? `<span class="chip warn tiny"
             title="ב-FAT מחיקה דורסת את האות הראשונה של שם קצר. התוכן שלם, השם חסר אות אחת."
             >שם חלקי</span>` : ''}

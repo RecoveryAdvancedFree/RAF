@@ -541,6 +541,7 @@ internal sealed partial class Bridge
         recoverable = f.IsWorthRecovering,
         compressed = f.IsCompressed,
         namePartial = f.NameIsPartial,
+        recycledAt = f.RecycledAt?.ToString("dd/MM/yyyy HH:mm"),
     };
 
     // ------------------------------------------------------- תצוגה מקדימה

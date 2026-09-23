@@ -4,6 +4,7 @@ using RAF.Core.FileSystems.Fat;
 using RAF.Core.FileSystems.Ntfs;
 using RAF.Core.Model;
 using RAF.Core.Native;
+using RAF.Core.Recovery;
 
 namespace RAF.Core.FileSystems;
 
@@ -41,17 +42,25 @@ public static class VolumeScanner
             return FileCarver.ScanAsync(
                 diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint);
 
-        return WithOverlapCheck(ScanMetadataAsync(
-            kind, diskNumber, partitionOffset, partitionSize, sectorSize, mode, includeExisting, trim, progress, token));
+        return AfterMetadataScan(ScanMetadataAsync(
+            kind, diskNumber, partitionOffset, partitionSize, sectorSize, mode, includeExisting, trim, progress, token),
+            file => FileContentReader.ReadHead(kind, diskNumber, partitionOffset, partitionSize, sectorSize, file, 4096));
     }
 
     /// <summary>
-    /// אחרי סריקת מטא-דאטה: קבצים מחוקים שקובץ מחוק מאוחר יותר תפס את אשכולותיהם
-    /// מדורגים מחדש. מפת ההקצאה לבדה אינה רואה זאת — ראו OverlapCheck.
+    /// אחרי סריקת מטא-דאטה: קבצים מסל המחזור מקבלים את שמם המקורי (ראו RecycleBinNames),
+    /// ואז קבצים מחוקים שקובץ מחוק מאוחר יותר תפס את אשכולותיהם מדורגים מחדש —
+    /// מפת ההקצאה לבדה אינה רואה זאת (ראו OverlapCheck). השמות קודם, כדי שגם
+    /// ההסבר על דריסה יציג את השם האמיתי של הקובץ שדרס.
     /// </summary>
-    private static async Task<ScanResult> WithOverlapCheck(Task<ScanResult> scan)
+    private static async Task<ScanResult> AfterMetadataScan(Task<ScanResult> scan, Func<RecoveredFile, byte[]> read)
     {
         var result = await scan.ConfigureAwait(false);
+
+        int named = RecycleBinNames.Apply(result.Files, read);
+        if (named > 0)
+            result.Warnings.Add($"{named:N0} קבצים ותיקיות שנמחקו דרך סל המחזור קיבלו בחזרה את השם והתיקייה המקוריים.");
+
         int changed = OverlapCheck.Apply(result.Files);
         if (changed > 0)
             result.Warnings.Add($"{changed:N0} קבצים מחוקים דורגו מחדש: קובץ מחוק אחר, שנכתב אחריהם, " +

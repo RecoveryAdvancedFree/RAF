@@ -80,6 +80,12 @@ public sealed class RecoveredFile
     public DateTime? Modified { get; init; }
     public DateTime? Accessed { get; init; }
 
+    /// <summary>
+    /// מתי הקובץ נשלח לסל המחזור, כשהשם המקורי הוחזר מתוך הסל (ראו RecycleBinNames).
+    /// null — הקובץ לא נמחק דרך הסל, או שהפרטים לא שרדו.
+    /// </summary>
+    public DateTime? RecycledAt { get; set; }
+
     public DiscoverySource Source { get; init; }
     public RecoveryQuality Quality { get; set; } = RecoveryQuality.Good;
 
