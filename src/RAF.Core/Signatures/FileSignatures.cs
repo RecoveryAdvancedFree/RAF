@@ -156,7 +156,13 @@ public static class FileSignatures
         {
             // מסמכי Office משנת 2007 ואילך הם למעשה ארכיוני ZIP.
             Name = "מסמך Office או ארכיון ZIP",
-            Extensions = new[] { "zip", "docx", "xlsx", "pptx", "odt", "ods", "epub", "jar", "apk" },
+            // כולל תבניות ומסמכים עם פקודות מאקרו — אחרת קובץ ‎.dotx תקין דווח כ"סיומת שגויה"
+            // ותוקן ל-‎.zip.
+            Extensions = new[]
+            {
+                "zip", "docx", "xlsx", "pptx", "docm", "xlsm", "pptm", "dotx", "xltx", "potx",
+                "dotm", "xltm", "potm", "ppsx", "vsdx", "odt", "ods", "odp", "epub", "jar", "apk",
+            },
             MimeType = "application/zip",
             Header = Bytes(0x50, 0x4B, 0x03, 0x04),
             MaxSize = 4L * 1024 * 1024 * 1024,

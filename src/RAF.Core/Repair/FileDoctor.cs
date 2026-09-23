@@ -28,6 +28,15 @@ public enum FileIssueKind
 
     /// <summary>חתימת הסיום של הפורמט חסרה.</summary>
     FooterMissing,
+
+    /// <summary>תוכן העניינים של ארכיון ZIP (ומסמך Office) חסר או פגום.</summary>
+    ArchiveDirectoryDamaged,
+
+    /// <summary>קבצים פנימיים בארכיון פגומים — הם יושמטו מהעותק המתוקן.</summary>
+    ArchiveEntriesDamaged,
+
+    /// <summary>חלק שמסמך Office אינו נפתח בלעדיו חסר או פגום.</summary>
+    ArchivePartMissing,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -158,10 +167,21 @@ public static class FileDoctor
             }
         }
 
+        // ---------------------------------------------- ארכיון ZIP / Office
+        // ב-ZIP "חתימת סיום" היא תוכן עניינים שלם. השלמת ארבעה בתים לא הייתה
+        // פותחת אותו — לכן ארכיון פגום נבדק לעומק, קובץ פנימי אחר קובץ פנימי.
+        bool archiveDamaged = false;
+        if (format is not null && format.Extensions[0] == "zip" && size <= MaxArchive)
+        {
+            byte[] all = File.ReadAllBytes(path);
+            if (detected is null) RestoreHeader(all, format);
+            archiveDamaged = DiagnoseArchive(all, extension, issues);
+        }
+
         // ---------------------------------------------- אורך וחתימת סיום
         long? correctLength = null;
 
-        if (format is not null)
+        if (format is not null && !archiveDamaged)
         {
             // בקובץ שחתימתו נפגעה, קריאת המבנה צריכה לראות את החתימה התקינה.
             byte[] effectiveHead = head;
@@ -218,6 +238,59 @@ public static class FileDoctor
             Format = format,
             CorrectLength = correctLength,
         };
+    }
+
+    /// <summary>ארכיון גדול מזה אינו נבדק לעומק — הוא נקרא כולו לזיכרון.</summary>
+    private const long MaxArchive = 512L * 1024 * 1024;
+
+    /// <summary>סיומות Office שבלי [Content_Types].xml התוכנה מסרבת לפתוח.</summary>
+    private static readonly string[] OpenXml = { "docx", "xlsx", "pptx" };
+
+    /// <summary>
+    /// אבחון ארכיון: האם תוכן העניינים שלם, ואילו קבצים פנימיים פגומים.
+    /// מחזיר true כשנמצאה בעיה — ואז בדיקת האורך הכללית אינה רלוונטית.
+    /// </summary>
+    private static bool DiagnoseArchive(byte[] data, string extension, List<FileIssue> issues)
+    {
+        var a = ZipRebuilder.Analyze(data);
+
+        if (a.Unsupported)
+        {
+            issues.Add(new FileIssue(FileIssueKind.Unrecognized, a.UnsupportedReason!, false));
+            return true;
+        }
+
+        var damaged = a.Damaged.ToList();
+        if (a.DirectoryIntact && damaged.Count == 0) return false;
+
+        int intact = a.Intact.Count();
+        if (intact == 0)
+        {
+            issues.Add(new FileIssue(FileIssueKind.ArchiveDirectoryDamaged,
+                "הארכיון פגום, ולא נמצא בו אף קובץ פנימי שלם שאפשר להציל.", false));
+            return true;
+        }
+
+        if (!a.DirectoryIntact)
+            issues.Add(new FileIssue(FileIssueKind.ArchiveDirectoryDamaged,
+                $"תוכן העניינים שבסוף הקובץ חסר או פגום, ולכן התוכנה שיצרה את הקובץ לא תפתח אותו. " +
+                $"{intact:N0} קבצים פנימיים שלמים נמצאו בגוף הקובץ ונבדקו בסכום ביקורת — " +
+                "אפשר לבנות מהם תוכן עניינים חדש.", true));
+
+        if (damaged.Count > 0)
+            issues.Add(new FileIssue(FileIssueKind.ArchiveEntriesDamaged,
+                $"{damaged.Count:N0} קבצים פנימיים פגומים ויושמטו מהעותק המתוקן: " +
+                string.Join(", ", damaged.Take(5).Select(e => $"{e.Name} ({e.Problem})")) +
+                (damaged.Count > 5 ? " ועוד." : "."), true));
+
+        // מסמך Office שחלק החובה שלו אבד לא ייפתח גם אחרי הבנייה מחדש — עדיף לומר זאת.
+        if (OpenXml.Contains(extension) &&
+            !a.Intact.Any(e => e.Name.Equals("[Content_Types].xml", StringComparison.OrdinalIgnoreCase)))
+            issues.Add(new FileIssue(FileIssueKind.ArchivePartMissing,
+                "החלק [Content_Types].xml של המסמך חסר או פגום. בלעדיו Office לא יפתח את הקובץ גם " +
+                "אחרי התיקון — אבל התוכן (למשל word/document.xml) יישאר נגיש בפתיחה כ-ZIP.", false));
+
+        return true;
     }
 
     /// <summary>
@@ -332,6 +405,17 @@ public static class FileDoctor
                     applied.Add($"הסיומת תוקנה ל-.{diagnosis.SuggestedExtension}");
                     break;
             }
+        }
+
+        // ארכיון נבנה מחדש אחרי שאר התיקונים — מהנתונים כפי שהם אחרי שחזור החתימה.
+        if (diagnosis.Issues.Any(i => i.Fixable && i.Kind is FileIssueKind.ArchiveDirectoryDamaged
+                                                           or FileIssueKind.ArchiveEntriesDamaged))
+        {
+            var archive = ZipRebuilder.Analyze(data);
+            data = ZipRebuilder.Rebuild(data, archive);
+            int dropped = archive.Damaged.Count();
+            applied.Add($"נבנה תוכן עניינים חדש מ-{archive.Intact.Count():N0} קבצים פנימיים שלמים" +
+                        (dropped > 0 ? $"; {dropped:N0} קבצים פגומים הושמטו" : ""));
         }
 
         // --- כתיבת העותק המתוקן ---
