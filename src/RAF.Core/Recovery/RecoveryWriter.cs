@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using RAF.Core.Disks;
 using RAF.Core.FileSystems;
 using RAF.Core.FileSystems.Ntfs;
@@ -49,7 +52,24 @@ public sealed class RecoveryReport
 
     /// <summary>קבצים שתוכנם כבר אינו קיים על הדיסק ולכן לא נכתבו.</summary>
     public int EmptyFiles { get; init; }
+
+    /// <summary>שורה לכל קובץ — גם לאלה שנכשלו או דולגו. נכתבת גם לקובץ הדוח.</summary>
+    public List<RecoveryEntry> Entries { get; init; } = new();
+
+    /// <summary>קובץ הדוח (CSV) בתיקיית היעד, או null אם לא נכתב.</summary>
+    public string? ReportPath { get; init; }
+
+    /// <summary>התיקייה שאליה הועברו הקבצים ששוחזרו חלקית, אם היו כאלה.</summary>
+    public string? PartialFolder { get; init; }
 }
+
+/// <summary>מה עלה בגורלו של קובץ אחד בשחזור.</summary>
+public enum RecoveryStatus { Recovered, Partial, Empty, Failed, Skipped }
+
+/// <summary>שורה בדוח השחזור.</summary>
+public sealed record RecoveryEntry(
+    string OriginalPath, string? Destination, long Size, RecoveryQuality Quality,
+    RecoveryStatus Status, string Reason, string? Sha256);
 
 /// <summary>
 /// כתיבת הקבצים המשוחזרים לתיקיית היעד.
@@ -112,10 +132,12 @@ public static class RecoveryWriter
         var clock = Stopwatch.StartNew();
         var failures = new List<RecoveryFailure>();
         var partial = new List<string>();
+        var entries = new List<RecoveryEntry>();
         var usedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         int succeeded = 0, skipped = 0, done = 0, empty = 0;
         long bytesWritten = 0;
+        string partialFolder = Path.Combine(options.TargetFolder, PartialFolderName);
 
         // המחיצה נפתחת פעם אחת לכל פעולת השחזור, בגישה אקראית:
         // הקבצים מפוזרים על הדיסק ואין יתרון לקריאה רציפה.
@@ -147,27 +169,41 @@ public static class RecoveryWriter
 
             if (file.IsDirectory) { skipped++; continue; }
 
+            string original = string.IsNullOrEmpty(file.Path) ? file.Name : file.Path + "\\" + file.Name;
+            void Log(RecoveryStatus status, string reason, string? destination = null, string? sha = null)
+                => entries.Add(new RecoveryEntry(original, destination, file.Size, file.Quality, status, reason, sha));
+
             if (!file.HasContent)
             {
                 skipped++;
-                failures.Add(new RecoveryFailure(file.Name,
-                    "לא נמצא מידע על מיקום תוכן הקובץ — רשומת המטא-דאטה שלו נדרסה."));
+                const string reason = "לא נמצא מידע על מיקום תוכן הקובץ — רשומת המטא-דאטה שלו נדרסה.";
+                failures.Add(new RecoveryFailure(file.Name, reason));
+                Log(RecoveryStatus.Skipped, reason);
                 continue;
             }
 
             if (options.SkipUnrecoverable && !file.IsWorthRecovering)
             {
                 skipped++;
-                if (file.Content == ContentCheck.Empty) empty++;
+                if (file.Content == ContentCheck.Empty)
+                {
+                    empty++;
+                    Log(RecoveryStatus.Empty, "התוכן נבדק בזמן הסריקה ונמצא ריק — הקובץ לא נכתב.");
+                }
+                else
+                {
+                    Log(RecoveryStatus.Skipped, "הקובץ סומן כבלתי ניתן לשחזור.");
+                }
                 continue;
             }
 
+            string? destination = null;
             try
             {
-                string destination = ResolveDestination(file, options, usedPaths);
+                destination = ResolveDestination(file, options, usedPaths);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
 
-                var outcome = WriteFile(volume, file, destination, token);
+                var (outcome, sha) = WriteFile(volume, file, destination, token);
 
                 // קובץ שכל תוכנו אפסים אינו שחזור אלא אשליה: הגודל נכון,
                 // התוכן אינו קיים. עדיף למחוק אותו ולומר זאת מפורשות.
@@ -175,15 +211,31 @@ public static class RecoveryWriter
                 {
                     TryDelete(destination);
                     empty++;
-                    failures.Add(new RecoveryFailure(file.Name,
-                        "תוכן הקובץ כבר אינו קיים על הדיסק — אזור הנתונים שלו מכיל אפסים בלבד."));
+                    const string reason = "תוכן הקובץ כבר אינו קיים על הדיסק — אזור הנתונים שלו מכיל אפסים בלבד.";
+                    failures.Add(new RecoveryFailure(file.Name, reason));
+                    Log(RecoveryStatus.Empty, reason);
                     continue;
                 }
 
                 bytesWritten += outcome.BytesWritten;
 
-                if (outcome.UnreadableBytes > 0 || outcome.BytesWritten < file.Size)
+                // קובץ חלקי עובר לתיקייה נפרדת, כדי שאפשר יהיה לדעת לפי המיקום
+                // בלבד על אילו קבצים לסמוך — בלי לפתוח את הדוח.
+                bool isPartial = outcome.UnreadableBytes > 0 || outcome.BytesWritten < file.Size;
+                if (isPartial)
+                {
+                    destination = MoveUnder(destination, options.TargetFolder, partialFolder);
                     partial.Add(file.Name);
+                    Log(RecoveryStatus.Partial,
+                        outcome.UnreadableBytes > 0
+                            ? $"{outcome.UnreadableBytes:N0} בתים לא נקראו מהדיסק ונכתבו כאפסים."
+                            : $"נכתבו {outcome.BytesWritten:N0} מתוך {file.Size:N0} בתים.",
+                        destination, sha);
+                }
+                else
+                {
+                    Log(RecoveryStatus.Recovered, "", destination, sha);
+                }
 
                 ApplyTimestamps(destination, file);
                 succeeded++;
@@ -191,7 +243,19 @@ public static class RecoveryWriter
             catch (Exception ex)
             {
                 failures.Add(new RecoveryFailure(file.Name, ex.Message));
+                Log(RecoveryStatus.Failed, ex.Message, destination);
             }
+        }
+
+        // הדוח נכתב גם כשהשחזור נעצר באמצע — דווקא אז חשוב לדעת מה כבר נכתב.
+        string? reportPath = null;
+        try
+        {
+            reportPath = WriteReport(options.TargetFolder, entries);
+        }
+        catch
+        {
+            // הדוח הוא תוספת; כישלון בכתיבתו אינו מבטל שחזור שהצליח.
         }
 
         return new RecoveryReport
@@ -204,31 +268,118 @@ public static class RecoveryWriter
             Failures = failures,
             PartialFiles = partial,
             EmptyFiles = empty,
+            Entries = entries,
+            ReportPath = reportPath,
+            PartialFolder = partial.Count > 0 ? partialFolder : null,
         };
     }
 
-    private static CopyOutcome WriteFile(
-        IClusterVolume volume, RecoveredFile file, string destination, CancellationToken token)
+    /// <summary>שם התיקייה לקבצים ששוחזרו חלקית, בתוך תיקיית היעד.</summary>
+    public const string PartialFolderName = "_חלקיים";
+
+    /// <summary>
+    /// העברת קובץ מתחת לתיקייה אחרת, עם אותו מבנה תיקיות יחסי —
+    /// "יעד\תמונות\א.jpg" הופך ל"יעד\_חלקיים\תמונות\א.jpg".
+    /// </summary>
+    private static string MoveUnder(string file, string root, string newRoot)
     {
-        using var output = new FileStream(
-            destination, FileMode.Create, FileAccess.Write, FileShare.None,
-            bufferSize: 1 << 20, FileOptions.SequentialScan);
+        string relative = Path.GetRelativePath(root, file);
+        string target = Path.Combine(newRoot, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
 
-        if (file.ResidentData is not null)
+        string stem = Path.Combine(Path.GetDirectoryName(target)!, Path.GetFileNameWithoutExtension(target));
+        string extension = Path.GetExtension(target);
+        for (int i = 2; File.Exists(target); i++) target = $"{stem} ({i}){extension}";
+
+        File.Move(file, target);
+        return target;
+    }
+
+    /// <summary>
+    /// דוח CSV בתיקיית היעד. UTF-8 עם BOM — בלעדיו Excel מציג עברית כג'יבריש.
+    /// כל דוח בשם משלו, כדי ששחזור שני לאותה תיקייה לא ימחק את הדוח הראשון.
+    /// </summary>
+    private static string WriteReport(string folder, List<RecoveryEntry> entries)
+    {
+        string path = Path.Combine(folder, $"RAF-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+        for (int i = 2; File.Exists(path); i++)
+            path = Path.Combine(folder, $"RAF-report-{DateTime.Now:yyyyMMdd-HHmmss}-{i}.csv");
+
+        var csv = new StringBuilder();
+        csv.AppendLine("נתיב מקורי,נכתב אל,גודל (בתים),איכות,תוצאה,פירוט,SHA-256");
+        foreach (var e in entries)
         {
-            // תוכן קטן ששמור בתוך רשומת ה-MFT עצמה.
-            int length = (int)Math.Min(file.ResidentData.Length, file.Size);
-            output.Write(file.ResidentData, 0, length);
-
-            bool hasContent = file.ResidentData.Take(length).Any(b => b != 0);
-            return new CopyOutcome(length, 0, hasContent);
+            csv.AppendLine(string.Join(",",
+                Csv(e.OriginalPath), Csv(e.Destination is null ? "" : Path.GetRelativePath(folder, e.Destination)),
+                e.Size.ToString(CultureInfo.InvariantCulture), Csv(QualityLabel(e.Quality)),
+                Csv(StatusLabel(e.Status)), Csv(e.Reason), e.Sha256 ?? ""));
         }
 
-        var stream = new ClusterStream(
-            volume, file.Extents, file.Size,
-            file.IsCompressed ? file.CompressionUnitClusters : 0);
+        File.WriteAllText(path, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        return path;
+    }
 
-        return stream.CopyTo(output, token);
+    /// <summary>
+    /// שדה CSV: במירכאות כשיש בו פסיק, מירכאות או שורה חדשה. שדה שמתחיל בתו
+    /// שאקסל מפרש כנוסחה (=, +, -, @) מקבל גרש לפניו — שם קובץ אינו נוסחה.
+    /// </summary>
+    private static string Csv(string value)
+    {
+        if (value.Length > 0 && "=+-@".Contains(value[0])) value = "'" + value;
+        return value.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0
+            ? "\"" + value.Replace("\"", "\"\"") + "\""
+            : value;
+    }
+
+    private static string StatusLabel(RecoveryStatus s) => s switch
+    {
+        RecoveryStatus.Recovered => "שוחזר",
+        RecoveryStatus.Partial => "שוחזר חלקית",
+        RecoveryStatus.Empty => "לא נכתב — ריק",
+        RecoveryStatus.Skipped => "דולג",
+        _ => "נכשל",
+    };
+
+    private static string QualityLabel(RecoveryQuality q) => q switch
+    {
+        RecoveryQuality.Excellent => "מצוין",
+        RecoveryQuality.Good => "טוב",
+        RecoveryQuality.Poor => "חלש",
+        _ => "לא ניתן לשחזור",
+    };
+
+    /// <summary>כתיבת הקובץ, וחישוב SHA-256 של מה שנכתב — באותו מעבר, בלי לקרוא את הקובץ שוב.</summary>
+    private static (CopyOutcome Outcome, string Sha256) WriteFile(
+        IClusterVolume volume, RecoveredFile file, string destination, CancellationToken token)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        CopyOutcome outcome;
+
+        using (var sink = new FileStream(
+            destination, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 1 << 20, FileOptions.SequentialScan))
+        using (var output = new HashingStream(sink, hash))
+        {
+            if (file.ResidentData is not null)
+            {
+                // תוכן קטן ששמור בתוך רשומת ה-MFT עצמה.
+                int length = (int)Math.Min(file.ResidentData.Length, file.Size);
+                output.Write(file.ResidentData, 0, length);
+
+                bool hasContent = file.ResidentData.Take(length).Any(b => b != 0);
+                outcome = new CopyOutcome(length, 0, hasContent);
+            }
+            else
+            {
+                var stream = new ClusterStream(
+                    volume, file.Extents, file.Size,
+                    file.IsCompressed ? file.CompressionUnitClusters : 0);
+
+                outcome = stream.CopyTo(output, token);
+            }
+        }
+
+        return (outcome, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
     }
 
     private static void TryDelete(string path)

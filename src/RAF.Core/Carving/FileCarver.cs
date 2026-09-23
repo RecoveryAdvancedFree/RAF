@@ -33,13 +33,15 @@ public sealed class FileCarver
     /// <summary>סריקה מתקדמת של מחיצה.</summary>
     public static Task<ScanResult> ScanAsync(
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
-        IProgress<ScanProgress>? progress, CancellationToken token)
+        IProgress<ScanProgress>? progress, CancellationToken token,
+        Action<ScanResult>? checkpoint = null)
         => Task.Run(() => new FileCarver().Run(
-            diskNumber, partitionOffset, partitionSize, sectorSize, progress, token), token);
+            diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint), token);
 
     private ScanResult Run(
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
-        IProgress<ScanProgress>? progress, CancellationToken token)
+        IProgress<ScanProgress>? progress, CancellationToken token,
+        Action<ScanResult>? checkpoint)
     {
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: true)
@@ -47,7 +49,7 @@ public sealed class FileCarver
                 "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         long length = partitionSize > 0 ? partitionSize : reader.Length;
-        return Sweep(RawVolume.Open(reader, sectorSize), length, sectorSize, progress, token);
+        return Sweep(RawVolume.Open(reader, sectorSize), length, sectorSize, progress, token, checkpoint);
     }
 
     /// <summary>
@@ -56,9 +58,11 @@ public sealed class FileCarver
     /// </summary>
     internal ScanResult Sweep(
         RawVolume volume, long size, int sectorSize,
-        IProgress<ScanProgress>? progress, CancellationToken token)
+        IProgress<ScanProgress>? progress, CancellationToken token,
+        Action<ScanResult>? checkpoint = null)
     {
         var clock = Stopwatch.StartNew();
+        var lastCheckpoint = TimeSpan.Zero;
         var files = new List<RecoveredFile>();
         byte[] block = new byte[BlockSize + Overlap];
 
@@ -125,22 +129,37 @@ public sealed class FileCarver
                     BytesPerSecond = clock.Elapsed.TotalSeconds > 0 ? _bytesRead / clock.Elapsed.TotalSeconds : 0,
                 });
             }
+
+            // נקודת ביניים: סריקה של שעות לא תאבד בקריסה. עותק של הרשימה, כי הסריקה ממשיכה להוסיף לה.
+            if (checkpoint is not null && clock.Elapsed - lastCheckpoint >= CheckpointEvery && files.Count > 0)
+            {
+                lastCheckpoint = clock.Elapsed;
+                checkpoint(Result(files.ToList(), clock, cancelled: true, new List<string>
+                {
+                    $"נקודת ביניים: נשמרה אחרי {at * 100.0 / size:0.#}% מהמחיצה. קבצים שאחרי נקודה זו אינם ברשימה.",
+                }));
+            }
         }
 
         BuildWarnings(files);
+        return Result(files, clock, token.IsCancellationRequested, _warnings);
+    }
 
-        return new ScanResult
+    /// <summary>מרווח בין נקודות ביניים בסריקה ארוכה.</summary>
+    internal static TimeSpan CheckpointEvery { get; set; } = TimeSpan.FromMinutes(5);
+
+    private ScanResult Result(List<RecoveredFile> files, Stopwatch clock, bool cancelled, List<string> warnings)
+        => new()
         {
             Files = files,
             Mode = ScanMode.Advanced,
             Duration = clock.Elapsed,
-            Cancelled = token.IsCancellationRequested,
+            Cancelled = cancelled,
             FileSystem = "סריקת חתימות",
             RecordsExamined = _candidates,
             BytesRead = _bytesRead,
-            Warnings = _warnings,
+            Warnings = warnings,
         };
-    }
 
     /// <summary>בניית רשומת קובץ מתוך חתימה שזוהתה.</summary>
     private static RecoveredFile Materialize(

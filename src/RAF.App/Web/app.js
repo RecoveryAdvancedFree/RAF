@@ -125,6 +125,8 @@ const Icon = {
   copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h2"/></svg>',
   open: '<svg viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v1"/><path d="M3 7.5v10A1.5 1.5 0 0 0 4.5 19h12.3a1.5 1.5 0 0 0 1.4-1l2.6-6.2a.8.8 0 0 0-.7-1.1H7.4a1.5 1.5 0 0 0-1.4 1L3 19"/></svg>',
   wrench: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.1L4 16.7V20h3.3l5.3-5.3a4 4 0 0 0 5.1-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6Z"/></svg>',
+  history: '<svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4.5h4.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  disk: '<svg viewBox="0 0 24 24"><path d="M5 3.5h11l3.5 3.5v12a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5Z"/><path d="M8 3.5v5h7v-5"/><rect x="7.5" y="13" width="9" height="7.5" rx="1"/></svg>',
   list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>',
   grid: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
 };
@@ -320,6 +322,7 @@ function renderDisks() {
         <div class="page-desc">לחצו על כונן כדי לראות את המחיצות שבו</div>
       </div>
       <div class="head-actions">
+        <button class="btn" id="btn-open-scan">${Icon.history}<span>פתיחת סריקה שמורה</span></button>
         <button class="btn" id="btn-open-image">${Icon.open}<span>פתיחת תמונת דיסק</span></button>
         <button class="btn" id="btn-doctor">${Icon.wrench}<span>תיקון קבצים פגומים</span></button>
         <button class="btn" id="btn-refresh">${Icon.refresh}<span>רענון</span></button>
@@ -346,12 +349,15 @@ function renderDisks() {
   }
 
   html += renderFailedDevices();
+  html += '<div id="recent-scans"></div>';
 
   el('content').innerHTML = html;
 
   el('btn-refresh').onclick = loadDisks;
   el('btn-doctor').onclick = () => openDoctorPanel();
   el('btn-open-image').onclick = () => openImageFile();
+  el('btn-open-scan').onclick = () => openSavedScan();
+  renderRecentScans();
 
   // לחיצה על שורת כונן פותחת או סוגרת את המחיצות שלו.
   document.querySelectorAll('[data-toggle-disk]').forEach((head) => {
@@ -509,6 +515,52 @@ function renderPartition(disk, p) {
       <div class="part-size">${formatSize(p.size)}<small>${esc(p.typeName)}</small></div>
       <div class="part-arrow">${Icon.chevron}</div>
     </div>`;
+}
+
+/// סריקות שנשמרו אוטומטית. נטענות אחרי רשימת הכוננים, כי "מחובר" נקבע לפיה.
+async function renderRecentScans() {
+  let scans;
+  try { scans = await Bridge.call('scan.recent'); } catch { return; }
+  const box = el('recent-scans');
+  if (!box || !scans.length) return;
+
+  box.innerHTML = `
+    <div class="section-label" style="margin:26px 0 10px;text-transform:none">סריקות אחרונות</div>
+    <div class="recent-list">
+      ${scans.map((s) => `
+        <button class="recent-scan" data-path="${esc(s.path)}">
+          <div class="recent-icon">${Icon.history}</div>
+          <div class="recent-body">
+            <div class="recent-title">${esc(s.title)} · ${esc(s.mode)}</div>
+            <div class="recent-sub">${esc(s.savedAt)} · ${s.files.toLocaleString('he-IL')} קבצים,
+              ${s.recoverable.toLocaleString('he-IL')} ניתנים לשחזור${s.diskName ? ` · <bdi>${esc(s.diskName)}</bdi>` : ''}</div>
+          </div>
+          <div class="chips">
+            ${s.partial ? '<span class="chip warn" title="נשמרה באמצע סריקה — לא כל המחיצה נסרקה">חלקית</span>' : ''}
+            ${s.connected ? '<span class="chip ok">הכונן מחובר</span>'
+                          : '<span class="chip" title="אפשר לעיין ברשימה, אבל לא לשחזר">הכונן לא מחובר</span>'}
+          </div>
+        </button>`).join('')}
+    </div>`;
+
+  box.querySelectorAll('[data-path]').forEach((b) => { b.onclick = () => openSavedScan(b.dataset.path); });
+}
+
+/// פתיחת סריקה שמורה — מהרשימה, או מקובץ שבוחרים. הבחירה שנשמרה איתה חוזרת.
+async function openSavedScan(path) {
+  el('content').innerHTML =
+    '<div class="loading"><div class="spinner"></div><p>פותח את הסריקה השמורה…</p></div>';
+
+  try {
+    const summary = await longCall('scan.load', path ? { path } : {});
+    if (summary.cancelled) { renderDisks(); return; }
+    State.summary = summary;
+    State.selection = { count: summary.selection.count, bytes: summary.selection.bytes };
+    await renderResults();
+  } catch (err) {
+    State.flash = notice('danger', Icon.alert, 'לא ניתן לפתוח את הסריקה', esc(err.message));
+    renderDisks();
+  }
 }
 
 /// התקנים ש-Windows מרגיש שהם מחוברים אך לא הצליח להפעיל — ולכן אינם כוננים ברשימה.
@@ -1646,7 +1698,7 @@ async function renderResults() {
   const s = State.summary;
 
   el('content').innerHTML = `
-    <div class="results${(s.warnings || []).length ? ' has-warning' : ''}">
+    <div class="results">
       <div class="results-bar">
         <button class="btn" id="btn-home">${Icon.back}<span>מחיצות</span></button>
 
@@ -1670,14 +1722,17 @@ async function renderResults() {
             <span>הצג ${s.evidence.toLocaleString('he-IL')} רשומות יומן</span>
           </label>` : ''}
 
+        <button class="btn icon-only" id="btn-save-scan" title="שמירת הסריקה לקובץ — כדי לחזור אליה בלי לסרוק שוב"
+                aria-label="שמירת הסריקה">${Icon.disk}</button>
+
         <div class="search-box">
           ${Icon.search}
           <input type="text" id="search-input" placeholder="חיפוש בשם קובץ…" autocomplete="off">
         </div>
       </div>
 
-      ${(s.warnings || []).map((w) =>
-        `<div class="results-warning">${Icon.alert}<div>${esc(w)}</div></div>`).join('')}
+      ${(s.warnings || []).length ? `<div class="results-warnings">${s.warnings.map((w) =>
+        `<div class="results-warning">${Icon.alert}<div>${esc(w)}</div></div>`).join('')}</div>` : ''}
 
       <div class="results-grid">
         <aside class="tree" id="tree"></aside>
@@ -1711,6 +1766,7 @@ async function renderResults() {
 
   el('btn-home').onclick = loadDisks;
   el('btn-recover').onclick = openRecoverPanel;
+  el('btn-save-scan').onclick = saveScanAs;
   FileList.attach();
   updateRecoverBar();
 
@@ -2238,12 +2294,43 @@ const Thumbs = (() => {
   return { get, fill };
 })();
 
+/// "שמור בשם": הסריקה עם הבחירה הנוכחית, לכל כונן שאינו הכונן שנסרק.
+async function saveScanAs() {
+  try {
+    const r = await Bridge.call('scan.save', {}, 0);
+    if (r.path) setStatus('הסריקה נשמרה: ' + r.path);
+  } catch (err) {
+    showResultsNotice(notice('danger', Icon.alert, 'הסריקה לא נשמרה', esc(err.message)));
+  }
+}
+
+/// הודעה בראש מסך התוצאות, מתחת לשורת הכלים — מחליפה הודעה קודמת מאותו סוג.
+function showResultsNotice(html) {
+  const bar = document.querySelector('.results-bar');
+  if (!bar) return;
+  document.querySelector('.results-flash')?.remove();
+  bar.insertAdjacentHTML('afterend', `<div class="results-flash">${html}</div>`);
+}
+
+// השמירה האוטומטית רצה ברקע אחרי הסריקה, ומודיעה כשהסתיימה — או למה לא נשמרה.
+Bridge.on('scan.saved', (s) => {
+  if (s.path) {
+    setStatus(s.partial ? 'נקודת ביניים של הסריקה נשמרה' : 'הסריקה נשמרה אוטומטית');
+  } else if (!s.partial) {
+    showResultsNotice(notice('warn', Icon.info, 'הסריקה לא נשמרה אוטומטית',
+      'כדי לחזור אליה בלי לסרוק שוב — שמרו אותה בכפתור השמירה, לכונן אחר.', esc(s.skipped)));
+  }
+});
+
 function updateRecoverBar() {
   const { count, bytes } = State.selection;
   el('recover-info').textContent = count === 0
     ? 'לא נבחרו קבצים'
     : `נבחרו ${count.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, bytes))}`;
-  el('btn-recover').disabled = count === 0;
+  // סריקה שנפתחה מקובץ בלי שהכונן שלה מחובר — אפשר לסמן, אבל לא לשחזר.
+  const offline = !!(State.summary && State.summary.offline);
+  el('btn-recover').disabled = count === 0 || offline;
+  el('btn-recover').title = offline ? 'הכונן שנסרק אינו מחובר' : '';
 }
 
 /* ---------- תצוגה מקדימה ---------- */
@@ -2415,8 +2502,15 @@ function showRecoveryReport(r) {
 
   const partial = r.partial && r.partial.length
     ? notice('warn', Icon.alert, `${r.partial.length} קבצים שוחזרו חלקית`,
-        'הם נשמרו, אבל ייתכן שלא ייפתחו כראוי.',
-        'חלק מהנתונים שלהם כבר נדרס, או שלא ניתן היה לקרוא אותם מהדיסק.')
+        'הם הועברו לתיקייה <b>_חלקיים</b>, כדי שיהיה ברור על אילו קבצים לא לסמוך.',
+        'חלק מהנתונים שלהם כבר נדרס, או שלא ניתן היה לקרוא אותם מהדיסק. ייתכן שלא ייפתחו כראוי.')
+    : '';
+
+  // הדוח מפרט כל קובץ — גם מה שנכשל — עם גיבוב SHA-256 של מה שנכתב.
+  const reportNote = r.reportPath
+    ? notice('info', Icon.file, 'נשמר דוח שחזור',
+        `<span class="ltr-inline">${esc(r.reportPath.split('\\').pop())}</span> בתיקיית היעד — נפתח ב-Excel.`,
+        'שורה לכל קובץ: הנתיב המקורי, לאן נכתב, איכות, תוצאה, וגיבוב SHA-256 של מה שנכתב — כדי לוודא בעתיד שהקובץ לא השתנה.')
     : '';
 
   el('panel').innerHTML = `
@@ -2433,6 +2527,7 @@ function showRecoveryReport(r) {
         <span style="direction:ltr;display:inline-block">${esc(r.target)}</span></div>
       </div>
       ${partial}
+      ${reportNote}
       ${r.empty > 0 ? notice('danger', Icon.alert, `${r.empty} קבצים לא נכתבו`,
         'התוכן שלהם כבר לא קיים על הדיסק.',
         'אזור הנתונים שלהם מכיל אפסים בלבד. לא נוצר עבורם קובץ, כדי שלא יתקבלו קבצים ריקים שנראים תקינים.') : ''}
@@ -2442,11 +2537,18 @@ function showRecoveryReport(r) {
     </div>
     <div class="panel-foot">
       <button class="btn btn-primary" id="btn-done">סיום</button>
+      ${r.succeeded > 0 ? `<button class="btn" id="btn-open-target">${Icon.open}<span>פתיחת תיקיית היעד</span></button>` : ''}
       ${r.succeeded > 0 ? `<button class="btn" id="btn-check-recovered">${Icon.wrench}<span>בדיקת הקבצים ששוחזרו</span></button>` : ''}
     </div>`;
 
   el('panel-close').onclick = closePanel;
   el('btn-done').onclick = closePanel;
+
+  const openTarget = el('btn-open-target');
+  if (openTarget) {
+    openTarget.onclick = () => Bridge.call('recover.openFolder', { path: r.target })
+      .catch((err) => setStatus(err.message));
+  }
 
   const check = el('btn-check-recovered');
   if (check) check.onclick = () => openDoctorPanel({ folder: r.target });

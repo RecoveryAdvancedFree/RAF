@@ -17,7 +17,7 @@ namespace RAF.App;
 /// הממשק שולח בקשה עם מזהה ושם שיטה ומקבל תשובה עם אותו מזהה.
 /// בנוסף, הגשר דוחף אירועי התקדמות ביוזמתו במהלך סריקה ושחזור.
 /// </summary>
-internal sealed class Bridge
+internal sealed partial class Bridge
 {
     private readonly MainForm _form;
     private List<PhysicalDiskInfo> _disks = new();
@@ -102,6 +102,9 @@ internal sealed class Bridge
         "scan.start" => await StartScanAsync(p),
         "scan.cancel" => Cancel(_scanCancel),
         "scan.children" => Children(p),
+        "scan.save" => await SaveScanAs(),
+        "scan.recent" => RecentScans(),
+        "scan.load" => await LoadScan(p),
         "scan.list" => ListView(p),
         "scan.select" => Select(p),
         "scan.folderStates" => FolderStates(p),
@@ -113,6 +116,7 @@ internal sealed class Bridge
         "recover.validate" => ValidateTarget(p),
         "recover.start" => await StartRecoveryAsync(p),
         "recover.cancel" => Cancel(_recoverCancel),
+        "recover.openFolder" => OpenFolder(p),
 
         "window.theme" => _form.InvokeOnUi(() => _form.ApplyTheme(p?["dark"]?.GetValue<bool>() ?? true)),
         "window.minimize" => _form.InvokeOnUi(() => _form.WindowState = FormWindowState.Minimized),
@@ -322,11 +326,6 @@ internal sealed class Bridge
             });
         });
 
-        var result = await VolumeScanner.ScanAsync(
-            part.FileSystem,
-            disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize,
-            mode, includeExisting, disk.Trim, progress, token);
-
         string title = !string.IsNullOrEmpty(part.Label) ? part.Label
             : !string.IsNullOrEmpty(part.DriveLetter) ? "כונן " + part.DriveLetter
             : "מחיצה " + part.Index;
@@ -334,10 +333,24 @@ internal sealed class Bridge
         // תוצאות הסריקה המתקדמת מתוארות ביחידות סקטור ולא באשכולות,
         // ולכן החילוץ שלהן חייב לעבור דרך מחיצה גולמית.
         var extractAs = mode == ScanMode.Advanced ? FileSystemKind.Raw : part.FileSystem;
+        var identity = DiskIdentity.Of(disk);
+        bool readThrough = _readThrough.ContainsKey((disk.DiskNumber, part.OffsetBytes));
+        string autosavePath = NewAutosavePath(title);
 
-        _session = new ScanSession(
-            result, disk.DiskNumber, part.OffsetBytes, part.SizeBytes,
-            disk.LogicalSectorSize, title, extractAs);
+        ScanSession Session(ScanResult r) => new(
+            r, disk.DiskNumber, part.OffsetBytes, part.SizeBytes,
+            disk.LogicalSectorSize, title, extractAs, identity, readThrough) { SavedPath = autosavePath };
+
+        // נקודות ביניים נשמרות לאותו קובץ שהתוצאה הסופית תדרוס בסוף.
+        var result = await VolumeScanner.ScanAsync(
+            part.FileSystem,
+            disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize,
+            mode, includeExisting, disk.Trim, progress, token,
+            checkpoint: snapshot => Autosave(Session(snapshot), partial: true));
+
+        _session = Session(result);
+        var session = _session;
+        _ = Task.Run(() => Autosave(session, partial: false));
 
         return Summary();
     }
@@ -362,8 +375,22 @@ internal sealed class Bridge
             emptied = result.Files.Count(f => f.Content == ContentCheck.Empty),
             evidence = result.Files.Count(f =>
                 f.Source is DiscoverySource.UsnJournal or DiscoverySource.LogFile),
-            warnings = result.Warnings,
+            warnings = SessionWarnings(session).Concat(result.Warnings),
+            offline = session.Offline,
+            partial = session.Partial,
+            selection = SelectionDto(session.Summary(null)),
         };
+    }
+
+    /// <summary>אזהרות על מצב הסריקה עצמה — מוצגות לפני אזהרות הסורק.</summary>
+    private static IEnumerable<string> SessionWarnings(ScanSession session)
+    {
+        if (session.Offline)
+            yield return "הכונן שנסרק אינו מחובר, ולכן אפשר רק לעיין ברשימה — בלי תצוגה מקדימה ובלי שחזור. " +
+                         "חברו את הכונן, חזרו לרשימת הכוננים ופתחו את הסריקה שוב.";
+        if (session.Partial)
+            yield return "זו נקודת ביניים שנשמרה באמצע סריקה, ולא כל המחיצה נסרקה. " +
+                         "הקבצים שברשימה ניתנים לשחזור; כדי למצוא את השאר — הריצו את הסריקה שוב.";
     }
 
     /// <summary>רמה אחת בעץ התוצאות: תיקיות המשנה שבנתיב. הקבצים נמשכים דרך scan.list.</summary>
@@ -485,7 +512,7 @@ internal sealed class Bridge
 
     private object Preview(JsonObject? p)
     {
-        var session = RequireSession();
+        var session = RequireOnlineSession();
         long id = p?["id"]?.GetValue<long>() ?? -1;
 
         var file = session.ById(id)
@@ -501,7 +528,7 @@ internal sealed class Bridge
     /// </summary>
     private object Thumbnail(JsonObject? p)
     {
-        var session = RequireSession();
+        var session = RequireOnlineSession();
         long id = p?["id"]?.GetValue<long>() ?? -1;
         int box = Math.Clamp(p?["size"]?.GetValue<int>() ?? 200, 32, 400);
 
@@ -681,7 +708,7 @@ internal sealed class Bridge
 
     private object ValidateTarget(JsonObject? p)
     {
-        var session = RequireSession();
+        var session = RequireOnlineSession();
         string target = p?["target"]?.GetValue<string>() ?? "";
 
         try
@@ -698,7 +725,7 @@ internal sealed class Bridge
 
     private async Task<object> StartRecoveryAsync(JsonObject? p)
     {
-        var session = RequireSession();
+        var session = RequireOnlineSession();
 
         string target = p?["target"]?.GetValue<string>() ?? "";
         bool preservePaths = p?["preservePaths"]?.GetValue<bool>() ?? true;
@@ -747,7 +774,24 @@ internal sealed class Bridge
             partial = report.PartialFiles.Take(50),
             failures = report.Failures.Take(50).Select(f => new { file = f.FileName, reason = f.Reason }),
             target,
+            reportPath = report.ReportPath,
+            partialFolder = report.PartialFolder,
         };
+    }
+
+    /// <summary>
+    /// פתיחת תיקייה בסייר הקבצים. רק תיקייה קיימת — הנתיב מגיע מהממשק, ולכן
+    /// הוא מועבר כארגומנט יחיד ל-explorer ולא כפקודה.
+    /// </summary>
+    private static object? OpenFolder(JsonObject? p)
+    {
+        string path = p?["path"]?.GetValue<string>() ?? "";
+        if (!Directory.Exists(path)) throw new InvalidOperationException("התיקייה לא נמצאה.");
+
+        var start = new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+        start.ArgumentList.Add(Path.GetFullPath(path));
+        System.Diagnostics.Process.Start(start);
+        return null;
     }
 
     // ------------------------------------------------------------ סריקת כונן

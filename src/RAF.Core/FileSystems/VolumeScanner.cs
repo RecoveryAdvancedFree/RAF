@@ -24,18 +24,22 @@ public static class VolumeScanner
         or FileSystemKind.Fat16
         or FileSystemKind.Fat12;
 
-    /// <summary>סריקת מחיצה במנוע המתאים לה.</summary>
+    /// <summary>
+    /// סריקת מחיצה במנוע המתאים לה. checkpoint מקבל נקודות ביניים — כרגע רק
+    /// מהסריקה המתקדמת, שהיא היחידה שנמשכת שעות.
+    /// </summary>
     public static Task<ScanResult> ScanAsync(
         FileSystemKind kind,
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
         ScanMode mode, bool includeExisting, TrimState trim,
-        IProgress<ScanProgress>? progress, CancellationToken token)
+        IProgress<ScanProgress>? progress, CancellationToken token,
+        Action<ScanResult>? checkpoint = null)
     {
         // סריקה מתקדמת אינה תלויה במערכת הקבצים כלל, ולכן היא זהה
         // בכל מחיצה — כולל כזו שמערכת הקבצים שלה נהרסה.
         if (mode == ScanMode.Advanced)
             return FileCarver.ScanAsync(
-                diskNumber, partitionOffset, partitionSize, sectorSize, progress, token);
+                diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint);
 
         return kind switch
         {

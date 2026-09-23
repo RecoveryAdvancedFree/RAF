@@ -1,4 +1,5 @@
 using RAF.Core.Model;
+using RAF.Core.Recovery;
 
 namespace RAF.App;
 
@@ -52,10 +53,28 @@ internal sealed class ScanSession
     /// <summary>מערכת הקבצים של המחיצה, לבחירת המנוע בעת חילוץ.</summary>
     internal FileSystemKind FileSystem { get; }
 
+    /// <summary>הכונן שנסרק — לזיהויו מחדש כשהסריקה נפתחת מקובץ.</summary>
+    internal DiskIdentity Disk { get; }
+
+    /// <summary>המחיצה נקראה דרך עותק הגיבוי של מגזר האתחול.</summary>
+    internal bool ReadThrough { get; }
+
+    /// <summary>נקודת ביניים שנשמרה באמצע סריקה — לא כל המחיצה נסרקה.</summary>
+    internal bool Partial { get; init; }
+
+    /// <summary>
+    /// סריקה שנפתחה מקובץ, כשהכונן שלה אינו מחובר: אפשר לעיין בתוצאות,
+    /// אבל לא לקרוא תוכן — לא לתצוגה מקדימה ולא לשחזור.
+    /// </summary>
+    internal bool Offline => DiskNumber < 0;
+
+    /// <summary>הקובץ שממנו נפתחה הסריקה, או שאליו נשמרה אוטומטית.</summary>
+    internal string? SavedPath { get; set; }
+
     internal ScanSession(
         ScanResult result, int diskNumber, long partitionOffset,
         long partitionSize, int sectorSize, string partitionTitle,
-        FileSystemKind fileSystem)
+        FileSystemKind fileSystem, DiskIdentity disk, bool readThrough)
     {
         FileSystem = fileSystem;
         Result = result;
@@ -64,8 +83,60 @@ internal sealed class ScanSession
         PartitionSize = partitionSize;
         SectorSize = sectorSize;
         PartitionTitle = partitionTitle;
+        Disk = disk;
+        ReadThrough = readThrough;
 
         BuildIndex();
+    }
+
+    /// <summary>הסריקה כקובץ, כולל הבחירה הנוכחית.</summary>
+    internal ScanArchive ToArchive(string appVersion, bool partial) => new()
+    {
+        Header = new ScanArchiveHeader
+        {
+            SavedAt = DateTime.Now,
+            AppVersion = appVersion,
+            Disk = Disk,
+            PartitionTitle = PartitionTitle,
+            Mode = Result.Mode,
+            FileCount = Result.Files.Count(f => !f.IsDirectory),
+            RecoverableCount = _recoverableUnder.GetValueOrDefault(""),
+            Partial = partial || Partial,
+        },
+        PartitionOffset = PartitionOffset,
+        PartitionSize = PartitionSize,
+        SectorSize = SectorSize,
+        FileSystem = FileSystem,
+        ReadThrough = ReadThrough,
+        Result = Result,
+        Selected = SelectedIds(),
+    };
+
+    /// <summary>
+    /// השמירה האוטומטית רצה ברקע, בזמן שהממשק עשוי לסמן קבצים — ולכן
+    /// הבחירה נקראת ומשתנה רק תחת נעילה.
+    /// </summary>
+    private readonly object _selectionGate = new();
+
+    private List<long> SelectedIds()
+    {
+        lock (_selectionGate) return _selected.ToList();
+    }
+
+    /// <summary>שחזור סריקה מקובץ. diskNumber שלילי — הכונן אינו מחובר.</summary>
+    internal static ScanSession FromArchive(ScanArchive archive, int diskNumber, string path)
+    {
+        var session = new ScanSession(
+            archive.Result, diskNumber, archive.PartitionOffset, archive.PartitionSize,
+            archive.SectorSize, archive.Header.PartitionTitle, archive.FileSystem,
+            archive.Header.Disk, archive.ReadThrough)
+        {
+            Partial = archive.Header.Partial,
+            SavedPath = path,
+        };
+
+        session.Select(archive.Selected.Select(session.ById).OfType<RecoveredFile>(), true);
+        return session;
     }
 
     private void BuildIndex()
@@ -247,6 +318,7 @@ internal sealed class ScanSession
     /// <summary>סימון או ביטול של קבצים. קובץ שאינו ניתן לשחזור לעולם אינו מסומן.</summary>
     internal void Select(IEnumerable<RecoveredFile> files, bool on)
     {
+        lock (_selectionGate)
         foreach (var file in files)
         {
             if (!file.IsWorthRecovering) continue;

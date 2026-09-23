@@ -217,6 +217,39 @@ public class CarvingTests : IDisposable
     }
 
     [Fact]
+    public void Long_scan_hands_out_checkpoints_that_are_independent_copies()
+    {
+        // שני קבצים עם 9MB ביניהם — יותר מבלוק קריאה אחד, כדי שתהיה נקודת ביניים באמצע.
+        Place(RealFormats.Png(900, 3));
+        Place(new byte[9 * 1024 * 1024]);
+        Place(RealFormats.Png(700, 4));
+
+        var checkpoints = new List<RAF.Core.Model.ScanResult>();
+        var saved = FileCarver.CheckpointEvery;
+        FileCarver.CheckpointEvery = TimeSpan.Zero;
+        try
+        {
+            var volume = Open();
+            var final = new FileCarver().Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None,
+                                               checkpoint: checkpoints.Add);
+
+            Assert.Equal(2, final.Files.Count);
+            Assert.NotEmpty(checkpoints);
+
+            // הנקודה הראשונה נלקחה לפני שהקובץ השני נמצא — ונשארה כך גם אחרי שהסריקה המשיכה.
+            var first = checkpoints[0];
+            Assert.Single(first.Files);
+            Assert.NotSame(final.Files, first.Files);
+            Assert.True(first.Cancelled, "נקודת ביניים מסומנת כסריקה שלא הושלמה");
+            Assert.Contains("נקודת ביניים", Assert.Single(first.Warnings));
+        }
+        finally
+        {
+            FileCarver.CheckpointEvery = saved;
+        }
+    }
+
+    [Fact]
     public void Random_data_does_not_produce_false_files()
     {
         // 4MB אקראיים = 8,192 גבולות סקטור. לפני האימות המבני זה ייצר

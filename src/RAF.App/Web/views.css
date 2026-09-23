@@ -81,7 +81,8 @@
 /* ---------- פריסת התוצאות ---------- */
 .content:has(.results) { padding: 0; overflow: hidden; }
 
-.results { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+/* עמודה גמישה: הרשימה לוקחת את כל מה שנשאר, מעל ומתחת יכול להיות כל מספר של רכיבים */
+.results { display: flex; flex-direction: column; height: 100%; }
 
 .results-bar {
   display: flex; align-items: center; gap: 14px;
@@ -119,6 +120,7 @@
   display: grid;
   /* בחלון צר העץ והתצוגה המקדימה מתכווצים, כדי שלרשימה יישאר מקום לשמות */
   grid-template-columns: minmax(180px, 250px) minmax(0, 1fr) clamp(240px, 26vw, 330px);
+  flex: 1;
   min-height: 0;
 }
 
@@ -523,8 +525,39 @@
 .empty.small { padding: 50px 20px; }
 
 /* ---------- אזהרות ברמת הסריקה ---------- */
-.results { grid-template-rows: auto 1fr auto; }
-.results.has-warning { grid-template-rows: auto auto 1fr auto; }
+/* כפתור עם סמל בלבד, בגובה הכפתורים הרגילים */
+.btn.icon-only { padding: 8px 10px; }
+
+/* ---------- סריקות אחרונות ---------- */
+.recent-list { display: flex; flex-direction: column; gap: 8px; }
+.recent-scan {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; padding: 12px 16px;
+  font-family: inherit; color: inherit; text-align: start;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.recent-scan:hover { border-color: var(--accent-line); background: var(--surface-2); }
+.recent-icon {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: var(--surface-3); border: 1px solid var(--border-strong);
+  color: var(--accent);
+}
+.recent-icon svg { width: 17px; height: 17px; }
+.recent-body { flex: 1; min-width: 0; }
+.recent-title { font-size: 13.5px; font-weight: 600; }
+.recent-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* כל האזהרות במיכל אחד, עם גבול גובה: סריקה מתקדמת מוסיפה שתיים-שלוש,
+   ופתיחת סריקה שמורה עשויה להוסיף עוד — והן לא יכולות לדחוק את הרשימה */
+.results-warnings { max-height: 28vh; overflow-y: auto; flex-shrink: 0; }
+.results-flash { padding: 10px 16px 0; flex-shrink: 0; }
+.results-flash .notice { margin-bottom: 10px; }
 
 .results-warning {
   display: flex; gap: 10px; align-items: flex-start;
