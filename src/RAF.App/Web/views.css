@@ -759,3 +759,32 @@
 
 .part-letter.unmounted { font-size: 22px; font-weight: 500; line-height: 1; padding-top: 6px; }
 .failed-device .disk-note { display: flex !important; }
+
+/* ---------- מה קרה? ---------- */
+.situations {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; margin-bottom: 24px;
+}
+@media (min-width: 1400px) { .situations { grid-template-columns: repeat(6, 1fr); } }
+.situation {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 13px; text-align: right;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  font-family: inherit; color: inherit; cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, transform 0.08s;
+}
+.situation:hover { border-color: var(--accent-line); background: var(--surface-2); }
+.situation:active { transform: translateY(1px); }
+.situation-icon {
+  width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 9px; background: var(--accent-soft); color: var(--accent);
+}
+.situation-icon svg { width: 17px; height: 17px; }
+.situation-text { display: flex; flex-direction: column; min-width: 0; }
+.situation-text b { font-size: 13px; font-weight: 600; }
+.situation-text small { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+
+.guide-steps { margin: 14px 0 16px; padding-inline-start: 22px; font-size: 13.5px; line-height: 1.7; }
+.guide-steps li { margin-bottom: 6px; }
+.guide-parts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.guide-parts .btn { justify-content: flex-start; }

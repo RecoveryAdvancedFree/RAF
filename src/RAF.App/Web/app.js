@@ -130,6 +130,9 @@ function errorNotice(title, err, extra) {
 /* ------------------------------------------------------------- סמלים */
 
 const Icon = {
+  trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6 7l1 13a1.5 1.5 0 0 0 1.5 1.4h7a1.5 1.5 0 0 0 1.5-1.4L18 7"/><path d="M10 11v6M14 11v6"/></svg>',
+  eraser: '<svg viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a1.5 1.5 0 0 1 0-2.1l10-10a1.5 1.5 0 0 1 2.1 0l5.6 5.6a1.5 1.5 0 0 1 0 2.1L13 21Z"/><path d="M21 21H7"/><path d="m5 12 7 7"/></svg>',
+  unplug: '<svg viewBox="0 0 24 24"><path d="m19 5 3-3"/><path d="m2 22 3-3"/><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z"/></svg>',
   drive: '<svg viewBox="0 0 24 24"><path d="M3 6.5c0-1.4 4-2.5 9-2.5s9 1.1 9 2.5S17 9 12 9 3 7.9 3 6.5Z"/><path d="M21 6.5v11c0 1.4-4 2.5-9 2.5s-9-1.1-9-2.5v-11"/><path d="M3 12c0 1.4 4 2.5 9 2.5s9-1.1 9-2.5"/></svg>',
   hdd: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="0.6"/></svg>',
   usb: '<svg viewBox="0 0 24 24"><path d="M9 8.5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5"/><path d="M11 5h.01M13 5h.01"/><rect x="6.5" y="8.5" width="11" height="13" rx="2.5"/><path d="M10.5 17.5h3"/></svg>',
@@ -375,6 +378,8 @@ function renderDisks() {
       'ורק קריאה ישירה של הכונן מגיעה אליהם.');
   }
 
+  html += situationCards();
+
   if (State.disks.length === 0 && State.failed.length === 0) {
     html += `<div class="empty"><h3>לא נמצאו אמצעי אחסון</h3><p>ודאו שהדיסק מחובר ונסו לרענן.</p></div>`;
   } else {
@@ -388,6 +393,9 @@ function renderDisks() {
 
   el('btn-refresh').onclick = loadDisks;
   el('btn-doctor').onclick = () => openDoctorPanel();
+  document.querySelectorAll('[data-situation]').forEach((btn) => {
+    btn.onclick = () => openSituation(btn.dataset.situation);
+  });
   el('btn-open-image').onclick = () => openImageFile();
   el('btn-open-scan').onclick = () => openSavedScan();
   renderRecentScans();
@@ -422,6 +430,153 @@ function renderDisks() {
   });
 
   setStatus(`${State.disks.length} כוננים · ${totalParts} מחיצות`);
+}
+
+/* ------------------------------------------------------ מה קרה? */
+
+/// מי שהגיע לתוכנה בלחץ לא יודע אם צריך "סריקה עמוקה" או "סריקת כונן".
+/// הוא יודע מה קרה לו — והכרטיסים מתרגמים את זה לפעולה הנכונה.
+const SITUATIONS = [
+  { id: 'deleted',   icon: 'trash',  title: 'מחקתי קבצים',        sub: 'גם מסל המחזור' },
+  { id: 'formatted', icon: 'eraser', title: 'פרמטתי כונן',        sub: 'או כרטיס זיכרון' },
+  { id: 'asks',      icon: 'alert',  title: 'Windows מבקש לפרמט', sub: 'הכונן לא נפתח' },
+  { id: 'missing',   icon: 'search', title: 'מחיצה נעלמה',        sub: 'הכונן נראה ריק' },
+  { id: 'broken',    icon: 'wrench', title: 'קובץ לא נפתח',       sub: 'תמונה, מסמך, סרטון' },
+  { id: 'unseen',    icon: 'unplug', title: 'הכונן לא מופיע',     sub: 'מחובר אבל לא מזוהה' },
+];
+
+function situationCards() {
+  return `
+    <div class="section-label">מה קרה?</div>
+    <div class="situations">
+      ${SITUATIONS.map((s) => `
+        <button class="situation" data-situation="${s.id}">
+          <span class="situation-icon">${Icon[s.icon]}</span>
+          <span class="situation-text"><b>${s.title}</b><small>${s.sub}</small></span>
+        </button>`).join('')}
+    </div>`;
+}
+
+/// מחיצה ברשימה, כפתור שפותח אותה — לשימוש בתוך ההדרכה.
+function partButton(disk, part) {
+  const name = part.label || (part.letter ? 'כונן ' + part.letter : part.typeName || 'מחיצה');
+  return `<button class="btn" data-guide-part="${disk.number}:${part.index}">
+            ${diskIcon(disk.media).html}<span><bdi>${esc(name)}</bdi> · <bdi>${esc(disk.name)}</bdi> · ${formatSize(part.size)}</span>
+          </button>`;
+}
+
+function openSituation(id) {
+  if (id === 'broken') { openDoctorPanel(); return; }
+
+  const s = SITUATIONS.find((x) => x.id === id);
+  const steps = (items) => `<ol class="guide-steps">${items.map((i) => `<li>${i}</li>`).join('')}</ol>`;
+  const disks = State.disks.filter((d) => !d.unresponsive && d.rawAccessible);
+  let body = '', actions = '';
+
+  if (id === 'deleted') {
+    body = notice('warn', Icon.alert, 'אל תשמרו שום דבר על הכונן שממנו נמחקו הקבצים',
+        'כל קובץ חדש — גם הורדה או התקנה — עלול להיכתב בדיוק במקום של הקבצים שנמחקו.') +
+      steps([
+        'פתחו את הכונן ברשימה ולחצו על <b>המחיצה שבה היו הקבצים</b> (לרוב C: או D:).',
+        'בחרו <b>סריקה מהירה</b>. היא לוקחת שניות עד דקות, ושומרת שמות ותיקיות.',
+        'לא מצאתם? חזרו לאותה מחיצה ובחרו <b>סריקה עמוקה</b>.',
+        'סמנו את הקבצים ושחזרו אותם — <b>לכונן אחר</b>.',
+      ]);
+    actions = `<button class="btn btn-primary" data-guide-go>${Icon.drive}<span>לרשימת הכוננים</span></button>`;
+  } else if (id === 'formatted') {
+    body = notice('warn', Icon.alert, 'אל תעתיקו קבצים חדשים לכונן שפורמט',
+        'עד שהשחזור מסתיים, כל מה שנכתב אליו עלול לדרוס את מה שאפשר עוד להציל.',
+        'פירמוט מהיר מוחק רק את רשימת הקבצים, והתוכן נשאר. פירמוט מלא (לא מהיר) ב-Windows 10 ומעלה ' +
+        'כותב אפסים על כל הכונן, ואחריו אין מה לשחזר.') +
+      steps([
+        'לחצו על <b>המחיצה שפורמטה</b>.',
+        'בחרו <b>סריקה עמוקה</b> — לעיתים היא מוצאת גם שמות ותיקיות מלפני הפירמוט.',
+        'לא נמצא מספיק? בחרו <b>סריקה מתקדמת</b>. היא מזהה קבצים לפי התוכן שלהם ועובדת גם אחרי פירמוט, ' +
+        'אבל בלי השמות המקוריים.',
+      ]);
+    actions = `<button class="btn btn-primary" data-guide-go>${Icon.drive}<span>לרשימת הכוננים</span></button>`;
+  } else if (id === 'asks') {
+    const raw = disks.flatMap((d) => d.partitions.filter((p) => !p.scannable && !p.found).map((p) => [d, p]));
+    body = notice('danger', Icon.alert, 'אל תאשרו את הפירמוט',
+        'Windows מבקש לפרמט כשתחילת המחיצה נפגעה — אבל הקבצים בדרך כלל עדיין שם, שלמים.') +
+      steps([
+        'לחצו על המחיצה ש-Windows לא מצליח לפתוח.',
+        'התוכנה תבדוק אותה ותציע, לפי הסדר: <b>להעתיק את הקבצים בלי לכתוב לכונן</b>, לתקן את המחיצה, ' +
+        'או לחפש קבצים לפי התוכן שלהם.',
+      ]) +
+      (raw.length
+        ? `<div class="section-label">מחיצות שהתוכנה לא מצליחה לקרוא</div>
+           <div class="guide-parts">${raw.map(([d, p]) => partButton(d, p)).join('')}</div>`
+        : notice('info', Icon.info, 'כרגע כל המחיצות נקראות',
+            'אם הכונן עדיין לא נפתח ב-Windows, ייתכן שהמחיצה נמחקה מהטבלה — נסו את "מחיצה נעלמה".'));
+  } else if (id === 'missing') {
+    body = steps([
+        'ליד הכונן לחצו <b>סריקת כונן</b>.',
+        'התוכנה תעבור על כל הכונן ותחפש מחיצות שנמחקו מטבלת המחיצות — גם כשתחילתן נהרסה.',
+        'מחיצה שנמצאה תופיע ברשימה. אפשר להעתיק ממנה קבצים בלי לכתוב לכונן, או להחזיר אותה לטבלה.',
+      ]) +
+      (disks.length
+        ? `<div class="section-label">סריקת כונן</div>
+           <div class="guide-parts">${disks.map((d) => `
+             <button class="btn" data-guide-hunt="${d.number}">
+               ${diskIcon(d.media).html}<span><bdi>${esc(d.name)}</bdi> · ${formatSize(d.size)}</span>
+             </button>`).join('')}</div>`
+        : '');
+  } else if (id === 'unseen') {
+    body = (State.failed.length
+        ? notice('info', Icon.info,
+            `Windows מרגיש ${State.failed.length === 1 ? 'בהתקן אחד' : State.failed.length + ' התקנים'} שלא הופעל`,
+            'הם מופיעים בתחתית רשימת הכוננים, עם הסבר ועצות.')
+        : '') +
+      steps([
+        'חברו את הכונן ישירות למחשב, בלי מפצל USB, ונסו יציאה אחרת — עדיף בגב המחשב.',
+        'כונן חיצוני גדול: נסו כבל אחר, וודאו שספק הכוח שלו מחובר אם יש לו.',
+        'כרטיס זיכרון: נסו קורא כרטיסים אחר.',
+        'לחצו <b>רענון</b>.',
+      ]) +
+      notice('danger', Icon.alert, 'כונן שמשמיע נקישות או רעשים — נתקו אותו מיד',
+        'כל הפעלה נוספת עלולה להרוס את מה שנשאר. זה מקרה למעבדת שחזור.',
+        'כונן שהמחשב כלל אינו מרגיש שחובר אינו נראה לשום תוכנה; הבעיה בחומרה.');
+    actions = `<button class="btn btn-primary" data-guide-refresh>${Icon.refresh}<span>רענון</span></button>`;
+  }
+
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">${s.title}</div>
+        <div class="panel-sub">מה עושים עכשיו</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+    </div>
+    <div class="panel-body">${body}</div>
+    <div class="panel-foot">${actions}<button class="btn" id="btn-guide-close">סגירה</button></div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-guide-close').onclick = closePanel;
+
+  const panel = el('panel');
+  panel.querySelector('[data-guide-go]')?.addEventListener('click', () => {
+    closePanel();
+    State.disks.forEach((d) => State.openDisks.add(d.number));
+    renderDisks();
+    document.querySelector('.disk')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  panel.querySelector('[data-guide-refresh]')?.addEventListener('click', () => { closePanel(); loadDisks(); });
+  panel.querySelectorAll('[data-guide-part]').forEach((btn) => {
+    btn.onclick = () => {
+      const [d, p] = btn.dataset.guidePart.split(':').map(Number);
+      closePanel();
+      openScanPanel(d, p);
+    };
+  });
+  panel.querySelectorAll('[data-guide-hunt]').forEach((btn) => {
+    btn.onclick = () => {
+      const d = State.disks.find((x) => x.number === +btn.dataset.guideHunt);
+      closePanel();
+      if (d) openHuntPanel(d);
+    };
+  });
 }
 
 function toggleDisk(number) {
