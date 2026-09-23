@@ -140,6 +140,14 @@ internal static class OverlapCheck
         set.Add(name);
     }
 
+    /// <summary>
+    /// שמות הקבצים, כל אחד בבידוד כיווניות (FSI…PDI): רשימה של שמות לועזיים בתוך
+    /// משפט עברי התפרקה בממשק לסדר מבלבל. הבידוד שומר כל שם שלם, עברי או לועזי.
+    /// </summary>
     private static string Names(HashSet<string> names)
-        => names.Count <= 2 ? string.Join(", ", names) : $"{string.Join(", ", names.Take(2))} ועוד {names.Count - 2}";
+    {
+        static string Isolate(string name) => "⁨" + name + "⁩";
+        var shown = names.Take(2).Select(Isolate);
+        return names.Count <= 2 ? string.Join(", ", shown) : $"{string.Join(", ", shown)} ועוד {names.Count - 2}";
+    }
 }

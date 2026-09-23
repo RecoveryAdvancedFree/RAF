@@ -85,6 +85,13 @@ internal sealed class MainForm : Form
             AdditionalBrowserArguments = "--disable-features=msWebOOUI,msPdfOOUI --allow-file-access-from-files",
         };
 
+#if DEBUG
+        // בדיקות ממשק אוטומטיות: שליטה בדף דרך Chrome DevTools Protocol. רק בבנייה
+        // לפיתוח — פורט דיבאג פתוח נותן לכל תהליך מקומי שליטה בתוכנה שרצה כמנהל.
+        if (int.TryParse(Environment.GetEnvironmentVariable("RAF_REMOTE_DEBUG_PORT"), out int debugPort))
+            options.AdditionalBrowserArguments += $" --remote-debugging-port={debugPort}";
+#endif
+
         CoreWebView2Environment environment;
         try
         {

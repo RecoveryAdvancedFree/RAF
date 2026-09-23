@@ -70,6 +70,16 @@ function formatSize(bytes) {
   return '⁦' + v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2) + ' ' + units[i] + '⁩';
 }
 
+/// "קובץ אחד" / "3 קבצים" — בעברית המספר אחד בא אחרי שם העצם, ביחיד.
+function countFiles(n) {
+  return n === 1 ? 'קובץ אחד' : `${n.toLocaleString('he-IL')} קבצים`;
+}
+
+/// פועל שמתאים למספר: plural(n, 'שוחזר', 'שוחזרו').
+function plural(n, one, many) {
+  return n === 1 ? one : many;
+}
+
 function formatDuration(seconds) {
   if (!seconds || seconds < 0) return '—';
   const s = Math.floor(seconds % 60);
@@ -532,8 +542,8 @@ async function renderRecentScans() {
           <div class="recent-icon">${Icon.history}</div>
           <div class="recent-body">
             <div class="recent-title">${esc(s.title)} · ${esc(s.mode)}</div>
-            <div class="recent-sub">${esc(s.savedAt)} · ${s.files.toLocaleString('he-IL')} קבצים,
-              ${s.recoverable.toLocaleString('he-IL')} ניתנים לשחזור${s.diskName ? ` · <bdi>${esc(s.diskName)}</bdi>` : ''}</div>
+            <div class="recent-sub">${esc(s.savedAt)} · ${countFiles(s.files)},
+              ${s.recoverable.toLocaleString('he-IL')} ${plural(s.recoverable, 'ניתן', 'ניתנים')} לשחזור${s.diskName ? ` · <bdi>${esc(s.diskName)}</bdi>` : ''}</div>
           </div>
           <div class="chips">
             ${s.partial ? '<span class="chip warn" title="נשמרה באמצע סריקה — לא כל המחיצה נסרקה">חלקית</span>' : ''}
@@ -1514,7 +1524,7 @@ function renderDoctorList() {
     <div class="doc-list">${rows || '<div class="empty small"><h3>אין קבצים</h3></div>'}</div>`;
 
   el('doctor-foot').innerHTML = `
-    ${fixable.length ? `<button class="btn btn-primary" id="btn-doctor-fix">${Icon.wrench}<span>תיקון ${fixable.length} קבצים</span></button>` : ''}
+    ${fixable.length ? `<button class="btn btn-primary" id="btn-doctor-fix">${Icon.wrench}<span>תיקון ${countFiles(fixable.length)}</span></button>` : ''}
     <button class="btn" id="btn-doctor-more">בחירת קבצים אחרים</button>
     <button class="btn" id="btn-doctor-close">סגירה</button>`;
 
@@ -1552,7 +1562,7 @@ async function runDoctorRepair(paths) {
     </div>`).join('');
 
   el('doctor-body').innerHTML = `
-    ${notice('ok-notice', Icon.check, `${data.repaired} קבצים נכתבו אל:`,
+    ${notice('ok-notice', Icon.check, `${countFiles(data.repaired)} ${plural(data.repaired, 'נכתב', 'נכתבו')} אל:`,
       `<span style="direction:ltr;display:inline-block">${esc(data.output)}</span>`,
       'כל עותק מתוקן נבדק שוב אחרי הכתיבה, והתוצאה המוצגת היא של הבדיקה החוזרת. הקבצים המקוריים לא שונו.')}
     <div class="doc-list">${rows}</div>`;
@@ -1749,9 +1759,9 @@ async function renderResults() {
         <button class="btn" id="btn-home">${Icon.back}<span>מחיצות</span></button>
 
         <div class="result-stats">
-          <span><b>${(s.deleted || 0).toLocaleString('he-IL')}</b> מחוקים</span>
+          <span><b>${(s.deleted || 0).toLocaleString('he-IL')}</b> ${plural(s.deleted, 'מחוק', 'מחוקים')}</span>
           <span class="sep">·</span>
-          <span><b class="ok-text">${(s.recoverable || 0).toLocaleString('he-IL')}</b> ניתנים לשחזור</span>
+          <span><b class="ok-text">${(s.recoverable || 0).toLocaleString('he-IL')}</b> ${plural(s.recoverable, 'ניתן', 'ניתנים')} לשחזור</span>
           ${s.emptied > 0 ? `<span class="sep">·</span>
             <span><b class="danger-text">${s.emptied.toLocaleString('he-IL')}</b> ריקים</span>` : ''}
           ${s.evidence > 0 ? `<span class="sep">·</span>
@@ -1833,7 +1843,7 @@ async function renderResults() {
 
   State.currentPath = '';
   await buildTree();
-  setStatus(`${(s.total || 0).toLocaleString('he-IL')} קבצים · ${esc(s.partition)}`);
+  setStatus(`${countFiles(s.total || 0)} · ${esc(s.partition)}`);
 }
 
 /* ---------- עץ התיקיות ---------- */
@@ -1851,7 +1861,14 @@ async function buildTree(restorePath) {
   if (first) await first.expand();
 
   // בנייה מחדש של העץ אינה אמורה להחזיר את המשתמש לשורש.
-  if (restorePath) await expandToPath(restorePath);
+  if (restorePath) {
+    await expandToPath(restorePath);
+  } else if (FileList.total === 0) {
+    // שורש ריק עם תיקיות משנה — כמו בסריקה מתקדמת, שבה הקבצים מסודרים לפי סוג:
+    // התיקייה הראשונה נפתחת, במקום מסך ריק.
+    const child = root.querySelector('.tree-children .tree-item');
+    if (child) await child.expand();
+  }
 }
 
 /// פתיחת העץ עד לנתיב נתון, מקטע אחר מקטע.
@@ -2059,7 +2076,14 @@ const FileList = (() => {
 
   function emptyReason() {
     if (prefs.category !== 'all' || prefs.recoverableOnly) return 'אין קבצים שמתאימים לסינון.';
-    return target.query ? 'לא נמצאו תוצאות לחיפוש.' : 'התיקייה הזו ריקה.';
+    if (target.query) return 'לא נמצאו תוצאות לחיפוש.';
+
+    // בסריקה מתקדמת כל הקבצים בתיקיות לפי סוג, והשורש ריק — "התיקייה ריקה" נשמע
+    // כמו "לא נמצא כלום".
+    const node = [...document.querySelectorAll('#tree .tree-item')].find((n) => n.dataset.path === target.path);
+    return node && !node.classList.contains('leaf')
+      ? 'הקבצים נמצאים בתיקיות המשנה — בחרו תיקייה בעץ.'
+      : 'התיקייה הזו ריקה.';
   }
 
   /// רענון הנתונים באותה תצוגה, בלי לאבד את מיקום הגלילה — אחרי סימון תיקייה או "הכל".
@@ -2154,7 +2178,9 @@ const FileList = (() => {
           <span class="frow-text" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}"><bdi>${esc(f.name)}</bdi></span>
           ${f.deleted ? '<span class="chip warn tiny">נמחק</span>' : ''}
           ${f.compressed ? '<span class="chip tiny">דחוס</span>' : ''}
-          ${f.verified ? '<span class="chip ok tiny" title="נדגם תוכן אמיתי מהדיסק">אומת</span>' : ''}
+          ${f.verified && f.recoverable
+            // קובץ שנדרס מכיל נתונים — אבל של קובץ אחר. "אומת" ליד "לא ניתן לשחזור" היה סותר.
+            ? '<span class="chip ok tiny" title="נדגם תוכן אמיתי מהדיסק">אומת</span>' : ''}
           ${f.evidence ? `<span class="chip tiny" title="${esc(f.source)}">${esc(f.source)}</span>` : ''}
           ${f.namePartial ? `<span class="chip warn tiny"
             title="ב-FAT מחיקה דורסת את האות הראשונה של שם קצר. התוכן שלם, השם חסר אות אחת."
@@ -2289,6 +2315,7 @@ const FileList = (() => {
   return {
     open, attach, select,
     get: (id) => byId.get(id),
+    get total() { return total; },
     render,
   };
 })();
@@ -2372,7 +2399,7 @@ function updateRecoverBar() {
   const { count, bytes } = State.selection;
   el('recover-info').textContent = count === 0
     ? 'לא נבחרו קבצים'
-    : `נבחרו ${count.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, bytes))}`;
+    : `${plural(count, 'נבחר', 'נבחרו')} ${countFiles(count)} · ${formatSize(Math.max(0, bytes))}`;
   // סריקה שנפתחה מקובץ בלי שהכונן שלה מחובר — אפשר לסמן, אבל לא לשחזר.
   const offline = !!(State.summary && State.summary.offline);
   el('btn-recover').disabled = count === 0 || offline;
@@ -2442,7 +2469,7 @@ function openRecoverPanel() {
     <div class="panel-head">
       <div class="grow">
         <div class="panel-title">שחזור קבצים</div>
-        <div class="panel-sub">${State.selection.count.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, State.selection.bytes))}</div>
+        <div class="panel-sub">${countFiles(State.selection.count)} · ${formatSize(Math.max(0, State.selection.bytes))}</div>
       </div>
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
     </div>
@@ -2547,7 +2574,7 @@ function showRecoveryReport(r) {
     : '';
 
   const partial = r.partial && r.partial.length
-    ? notice('warn', Icon.alert, `${r.partial.length} קבצים שוחזרו חלקית`,
+    ? notice('warn', Icon.alert, `${countFiles(r.partial.length)} ${plural(r.partial.length, 'שוחזר', 'שוחזרו')} חלקית`,
         'הם הועברו לתיקייה <b>_חלקיים</b>, כדי שיהיה ברור על אילו קבצים לא לסמוך.',
         'חלק מהנתונים שלהם כבר נדרס, או שלא ניתן היה לקרוא אותם מהדיסק. ייתכן שלא ייפתחו כראוי.')
     : '';
@@ -2568,17 +2595,17 @@ function showRecoveryReport(r) {
     <div class="panel-body">
       <div class="notice ${r.succeeded > 0 ? 'ok-notice' : 'warn'}">
         ${r.succeeded > 0 ? Icon.check : Icon.alert}
-        <div><b>${r.succeeded.toLocaleString('he-IL')} קבצים שוחזרו בהצלחה</b><br>
+        <div><b>${countFiles(r.succeeded)} ${plural(r.succeeded, 'שוחזר', 'שוחזרו')} בהצלחה</b><br>
         ${formatSize(r.bytes)} נכתבו אל:<br>
         <span style="direction:ltr;display:inline-block">${esc(r.target)}</span></div>
       </div>
       ${partial}
       ${reportNote}
-      ${r.empty > 0 ? notice('danger', Icon.alert, `${r.empty} קבצים לא נכתבו`,
+      ${r.empty > 0 ? notice('danger', Icon.alert, `${countFiles(r.empty)} לא ${plural(r.empty, 'נכתב', 'נכתבו')}`,
         'התוכן שלהם כבר לא קיים על הדיסק.',
         'אזור הנתונים שלהם מכיל אפסים בלבד. לא נוצר עבורם קובץ, כדי שלא יתקבלו קבצים ריקים שנראים תקינים.') : ''}
       ${r.failed > r.empty ? `<div class="notice danger">${Icon.alert}
-        <div>${r.failed - r.empty} קבצים נכשלו מסיבות אחרות.</div></div>` : ''}
+        <div>${countFiles(r.failed - r.empty)} ${plural(r.failed - r.empty, 'נכשל', 'נכשלו')} מסיבות אחרות.</div></div>` : ''}
       ${failures}
     </div>
     <div class="panel-foot">
