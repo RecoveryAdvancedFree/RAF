@@ -1,6 +1,6 @@
 namespace RAF.Core.Model;
 
-/// <summary>סוג אמצעי האחסון הפיזי. קובע את אסטרטגיית השיחזור.</summary>
+/// <summary>סוג אמצעי האחסון הפיזי. קובע את אסטרטגיית השחזור.</summary>
 public enum MediaKind
 {
     Unknown = 0,
@@ -56,7 +56,7 @@ public enum ScanMode
     Advanced = 3,
 }
 
-/// <summary>מצב תמיכת TRIM — משפיע קריטית על סיכויי השיחזור ב-SSD.</summary>
+/// <summary>מצב תמיכת TRIM — משפיע קריטית על סיכויי השחזור ב-SSD.</summary>
 public enum TrimState
 {
     Unknown = 0,

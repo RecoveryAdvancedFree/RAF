@@ -7,7 +7,7 @@ using RAF.Core.Native;
 
 namespace RAF.Core.Recovery;
 
-/// <summary>הגדרות פעולת השיחזור.</summary>
+/// <summary>הגדרות פעולת השחזור.</summary>
 public sealed class RecoveryOptions
 {
     /// <summary>תיקיית היעד שאליה ייכתבו הקבצים המשוחזרים.</summary>
@@ -20,7 +20,7 @@ public sealed class RecoveryOptions
     public bool SkipUnrecoverable { get; init; } = true;
 }
 
-/// <summary>דיווח התקדמות שוטף של פעולת השיחזור.</summary>
+/// <summary>דיווח התקדמות שוטף של פעולת השחזור.</summary>
 public sealed class RecoveryProgress
 {
     public string CurrentFile { get; init; } = "";
@@ -31,10 +31,10 @@ public sealed class RecoveryProgress
     public double? Percent => FilesTotal > 0 ? FilesDone * 100.0 / FilesTotal : null;
 }
 
-/// <summary>כישלון בשיחזור קובץ יחיד, עם הסיבה בעברית.</summary>
+/// <summary>כישלון בשחזור קובץ יחיד, עם הסיבה בעברית.</summary>
 public sealed record RecoveryFailure(string FileName, string Reason);
 
-/// <summary>סיכום פעולת השיחזור.</summary>
+/// <summary>סיכום פעולת השחזור.</summary>
 public sealed class RecoveryReport
 {
     public int Succeeded { get; init; }
@@ -59,12 +59,12 @@ public static class RecoveryWriter
 {
     /// <summary>
     /// בדיקה שתיקיית היעד חוקית. זורקת חריגה עם הסבר בעברית אם לא.
-    /// נקראת גם מהממשק לפני תחילת השיחזור, כדי להזהיר מוקדם.
+    /// נקראת גם מהממשק לפני תחילת השחזור, כדי להזהיר מוקדם.
     /// </summary>
     public static void ValidateTarget(string targetFolder, int sourceDiskNumber)
     {
         if (string.IsNullOrWhiteSpace(targetFolder))
-            throw new ArgumentException("לא נבחרה תיקיית יעד לשיחזור.");
+            throw new ArgumentException("לא נבחרה תיקיית יעד לשחזור.");
 
         string full;
         try
@@ -78,20 +78,20 @@ public static class RecoveryWriter
 
         int targetDisk = DiskEnumerator.GetDiskNumberForPath(full);
 
-        // זהו הכלל החשוב ביותר בשיחזור מידע: כתיבה לדיסק המקור
+        // זהו הכלל החשוב ביותר בשחזור מידע: כתיבה לדיסק המקור
         // דורסת בדיוק את האשכולות שטרם שוחזרו.
         if (targetDisk >= 0 && targetDisk == sourceDiskNumber)
             throw new InvalidOperationException(
                 "לא ניתן לשחזר לאותו דיסק שממנו משחזרים. " +
-                "כתיבה לדיסק המקור תדרוס את הקבצים שטרם שוחזרו ותמנע את שיחזורם. " +
-                "בחר כונן אחר, למשל התקן USB חיצוני.");
+                "כתיבה לדיסק המקור תדרוס את הקבצים שטרם שוחזרו ותמנע את שחזורם. " +
+                "בחרו כונן אחר, למשל התקן USB חיצוני.");
 
         var root = new DriveInfo(Path.GetPathRoot(full)!);
         if (!root.IsReady)
             throw new InvalidOperationException("כונן היעד אינו זמין.");
     }
 
-    /// <summary>שיחזור רשימת קבצים לתיקיית היעד.</summary>
+    /// <summary>שחזור רשימת קבצים לתיקיית היעד.</summary>
     public static Task<RecoveryReport> RecoverAsync(
         FileSystemKind fileSystem,
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
@@ -117,17 +117,17 @@ public static class RecoveryWriter
         int succeeded = 0, skipped = 0, done = 0, empty = 0;
         long bytesWritten = 0;
 
-        // המחיצה נפתחת פעם אחת לכל פעולת השיחזור, בגישה אקראית:
+        // המחיצה נפתחת פעם אחת לכל פעולת השחזור, בגישה אקראית:
         // הקבצים מפוזרים על הדיסק ואין יתרון לקריאה רציפה.
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: false);
 
         if (reader is null)
-            throw new IOException("לא ניתן לפתוח את דיסק המקור לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+            throw new IOException("לא ניתן לפתוח את דיסק המקור לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         using var volume = VolumeScanner.Open(reader, fileSystem, sectorSize);
         if (volume is null)
-            throw new InvalidDataException("לא ניתן לקרוא את מבנה המחיצה לצורך השיחזור.");
+            throw new InvalidDataException("לא ניתן לקרוא את מבנה המחיצה לצורך השחזור.");
 
         Directory.CreateDirectory(options.TargetFolder);
 
@@ -169,7 +169,7 @@ public static class RecoveryWriter
 
                 var outcome = WriteFile(volume, file, destination, token);
 
-                // קובץ שכל תוכנו אפסים אינו שיחזור אלא אשליה: הגודל נכון,
+                // קובץ שכל תוכנו אפסים אינו שחזור אלא אשליה: הגודל נכון,
                 // התוכן אינו קיים. עדיף למחוק אותו ולומר זאת מפורשות.
                 if (!outcome.SawContent && file.Size > 0)
                 {
@@ -302,7 +302,7 @@ public static class RecoveryWriter
         return cleaned.Length > 200 ? cleaned[..200] : cleaned;
     }
 
-    /// <summary>שיחזור חותמות הזמן המקוריות על הקובץ שנכתב.</summary>
+    /// <summary>שחזור חותמות הזמן המקוריות על הקובץ שנכתב.</summary>
     private static void ApplyTimestamps(string path, RecoveredFile file)
     {
         try
@@ -313,7 +313,7 @@ public static class RecoveryWriter
         }
         catch
         {
-            // חותמות זמן הן נתון משני; כישלון בהן אינו מכשיל את השיחזור.
+            // חותמות זמן הן נתון משני; כישלון בהן אינו מכשיל את השחזור.
         }
     }
 }

@@ -18,7 +18,7 @@ internal sealed class MainForm : Form
     {
         _bridge = new Bridge(this);
 
-        Text = "שיחזור מתקדם חינם — RAF";
+        Text = "שחזור מתקדם חינם — RAF";
         // הסמל שנצרב ב-EXE מוצג גם בשורת המשימות ובמעבר בין חלונות.
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
@@ -94,7 +94,7 @@ internal sealed class MainForm : Form
         {
             ShowFatalError(
                 "לא ניתן לאתחל את מנוע התצוגה WebView2.\n\n" +
-                "ב-Windows 11 המנוע מותקן מראש. אם אתה על Windows 10 ישן, " +
+                "ב-Windows 11 המנוע מותקן מראש. אם המחשב מריץ Windows 10 ישן, " +
                 "יש להתקין את WebView2 Runtime מאתר Microsoft.\n\n" +
                 "פירוט: " + ex.Message);
             return;
@@ -290,7 +290,7 @@ internal sealed class MainForm : Form
     }
 
     private static void ShowFatalError(string message) =>
-        MessageBox.Show(message, "שיחזור מתקדם חינם — שגיאה",
+        MessageBox.Show(message, "שחזור מתקדם חינם — שגיאה",
             MessageBoxButtons.OK, MessageBoxIcon.Error,
             MessageBoxDefaultButton.Button1, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
 }

@@ -8,11 +8,11 @@ namespace RAF.Core.Tests;
 /// <summary>
 /// בדיקות אימות התוכן מול הדיסק.
 ///
-/// אלה הבדיקות שתופסות את הכשל החמור ביותר בתוכנת שיחזור: קובץ שרשומת
+/// אלה הבדיקות שתופסות את הכשל החמור ביותר בתוכנת שחזור: קובץ שרשומת
 /// המטא-דאטה שלו שלמה — שם, גודל ומיקום אשכולות — אך הנתונים עצמם כבר
 /// אינם קיימים. בכונן SSD עם TRIM זהו המצב הרגיל לאחר מחיקה, והתוצאה
 /// היא קובץ בגודל הנכון המלא כולו באפסים. ללא אימות, התוכנה מבטיחה
-/// שיחזור שאינו אפשרי.
+/// שחזור שאינו אפשרי.
 /// </summary>
 public class ContentVerificationTests
 {
@@ -112,7 +112,7 @@ public class ContentVerificationTests
         var outcome = stream.CopyTo(output, CancellationToken.None);
 
         // הגודל נכון והכתיבה הצליחה — ולכן דווקא הדגל הזה הוא ההגנה היחידה
-        // מפני הצגת קובץ אפסים כשיחזור מוצלח.
+        // מפני הצגת קובץ אפסים כשחזור מוצלח.
         Assert.Equal(DataBytes, outcome.BytesWritten);
         Assert.False(outcome.SawContent);
         Assert.All(output.ToArray(), b => Assert.Equal(0, b));

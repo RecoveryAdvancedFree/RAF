@@ -44,7 +44,7 @@ public sealed class FileCarver
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: true)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         long length = partitionSize > 0 ? partitionSize : reader.Length;
         return Sweep(RawVolume.Open(reader, sectorSize), length, sectorSize, progress, token);

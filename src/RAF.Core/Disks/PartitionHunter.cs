@@ -77,7 +77,7 @@ public static class PartitionHunter
         {
             using var reader = VolumeReader.TryOpen(
                 disk.DiskNumber, 0, disk.SizeBytes, disk.LogicalSectorSize, sequential: true, applyOverlay: false)
-                ?? throw new IOException("לא ניתן לפתוח את הכונן לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+                ?? throw new IOException("לא ניתן לפתוח את הכונן לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
             var existing = disk.Partitions
                 .Where(p => p.SizeBytes > 0)

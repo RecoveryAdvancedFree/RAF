@@ -47,7 +47,7 @@ public sealed class ImagingResult
 /// יצירת תמונת דיסק — העתק גולמי, סקטור אחר סקטור, לקובץ על כונן אחר.
 ///
 /// הערך העיקרי הוא בכונן גוסס: כל קריאה עלולה להיות האחרונה, ולכן קוראים
-/// אותו פעם אחת בלבד, ואת כל הסריקות והשיחזורים מריצים על ההעתק.
+/// אותו פעם אחת בלבד, ואת כל הסריקות והשחזורים מריצים על ההעתק.
 ///
 /// ההעתקה נעשית בשני מעברים, כמו בכלי הצלה מקצועיים:
 /// 1. מעבר מהיר בבלוקים גדולים. בלוק שנכשל אינו נבדק מיד — מדלגים הלאה,
@@ -94,7 +94,7 @@ public static class DiskImager
         if (string.Equals(drive.DriveFormat, "FAT32", StringComparison.OrdinalIgnoreCase) && size > Fat32MaxFile)
             throw new InvalidOperationException(
                 $"כונן היעד מפורמט ב-FAT32, שאינו מאפשר קובץ גדול מ-4GB, והתמונה תהיה בגודל " +
-                $"{Size(size)}. בחר כונן NTFS או exFAT.");
+                $"{Size(size)}. בחרו כונן NTFS או exFAT.");
 
         // קובץ קיים שיידרס משחרר את מקומו.
         long reclaimed = File.Exists(full) ? new FileInfo(full).Length : 0;
@@ -113,7 +113,7 @@ public static class DiskImager
         => Task.Run(() =>
         {
             using var reader = VolumeReader.TryOpen(diskNumber, offset, length, sectorSize, sequential: true, applyOverlay: false)
-                ?? throw new IOException("לא ניתן לפתוח את הדיסק לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+                ?? throw new IOException("לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
             return Create(new VolumeSource(reader, length, sectorSize),
                 kind, sourceDescription, imagePath, progress, token);

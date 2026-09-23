@@ -1,5 +1,5 @@
 /* ==========================================================================
-   שיחזור מתקדם חינם — RAF
+   שחזור מתקדם חינם — RAF
    שכבת הממשק. מתקשרת עם מנוע הליבה דרך גשר הודעות.
    ========================================================================== */
 
@@ -36,7 +36,7 @@ const Bridge = (() => {
       pending.set(id, { resolve, reject });
       window.chrome.webview.postMessage(JSON.stringify({ id, method, params: params || {} }));
 
-      // סריקה ושיחזור עשויים להימשך שעות; שאר הבקשות מוגבלות בזמן.
+      // סריקה ושחזור עשויים להימשך שעות; שאר הבקשות מוגבלות בזמן.
       const limit = timeoutMs === 0 ? 0 : (timeoutMs || 120000);
       if (limit > 0) {
         setTimeout(() => {
@@ -84,6 +84,15 @@ function esc(text) {
 }
 
 function el(id) { return document.getElementById(id); }
+
+/// הודעה במבנה אחיד: כותרת קצרה, משפט אחד, והנימוק המלא מקופל תחת "למה?".
+/// הפרמטרים הם HTML — מי שקורא לפונקציה אחראי לבריחת טקסט חיצוני.
+function notice(cls, icon, title, text, why, extra) {
+  const head = title ? `<b>${title}</b>` : '';
+  const sep = title && text ? '<br>' : '';
+  const more = why ? `<details class="why"><summary>למה?</summary><div>${why}</div></details>` : '';
+  return `<div class="notice ${cls}${extra ? ' ' + extra : ''}">${icon}<div>${head}${sep}${text || ''}${more}</div></div>`;
+}
 
 /* ------------------------------------------------------------- סמלים */
 
@@ -208,7 +217,7 @@ const State = {
   scan: null,          // { disk, part, mode }
   summary: null,
   currentPath: '',
-  selected: new Set(), // מזהי הקבצים שסומנו לשיחזור
+  selected: new Set(), // מזהי הקבצים שסומנו לשחזור
   selectedBytes: 0,
   files: [],           // הקבצים המוצגים כרגע
   searchMode: false,
@@ -248,10 +257,10 @@ function renderDisks() {
     <div class="page-head">
       <div>
         <div class="page-title">הכוננים במערכת</div>
-        <div class="page-desc">לחץ על כונן כדי לראות את המחיצות שבו</div>
+        <div class="page-desc">לחצו על כונן כדי לראות את המחיצות שבו</div>
       </div>
       <div class="head-actions">
-        <button class="btn" id="btn-open-image">${Icon.open}<span>פתח תמונת דיסק</span></button>
+        <button class="btn" id="btn-open-image">${Icon.open}<span>פתיחת תמונת דיסק</span></button>
         <button class="btn" id="btn-doctor">${Icon.wrench}<span>תיקון קבצים פגומים</span></button>
         <button class="btn" id="btn-refresh">${Icon.refresh}<span>רענון</span></button>
       </div>
@@ -259,21 +268,19 @@ function renderDisks() {
 
   // הודעה חד-פעמית מפעולה קודמת (למשל תוצאת סריקת כונן).
   if (State.flash) {
-    html += `<div class="notice ${State.flash.cls}">${State.flash.icon}<div>${State.flash.html}</div></div>`;
+    html += State.flash;
     State.flash = null;
   }
 
   if (!State.elevated) {
-    html += `
-      <div class="notice danger">${Icon.alert}
-        <div><b>התוכנה אינה פועלת בהרשאות מנהל.</b><br>
-        ללא הרשאות מנהל לא ניתן לקרוא את הדיסק ברמה הגולמית, והשיחזור לא יעבוד.
-        סגור את התוכנה והפעל אותה מחדש בלחיצה ימנית ← "הפעל כמנהל".</div>
-      </div>`;
+    html += notice('danger', Icon.alert,
+      'אין הרשאות מנהל — השחזור לא יעבוד',
+      'סגרו את התוכנה והפעילו אותה מחדש: לחיצה ימנית ← "הפעל כמנהל".',
+      'בלי הרשאות מנהל Windows לא מאפשר לקרוא את הדיסק ברמת הסקטורים, ושם נמצאים הקבצים שנמחקו.');
   }
 
   if (State.disks.length === 0 && State.failed.length === 0) {
-    html += `<div class="empty"><h3>לא נמצאו אמצעי אחסון</h3><p>ודא שהדיסק מחובר ונסה לרענן.</p></div>`;
+    html += `<div class="empty"><h3>לא נמצאו אמצעי אחסון</h3><p>ודאו שהדיסק מחובר ונסו לרענן.</p></div>`;
   } else {
     html += State.disks.map(renderDisk).join('');
   }
@@ -346,12 +353,12 @@ function renderDisk(disk) {
 
   const actions = [];
   if (disk.rawAccessible && disk.size > 0) {
-    actions.push(`<button class="btn btn-sm" data-hunt-disk="${disk.number}" title="חיפוש מחיצות שנמחקו או שאבדו בכל הכונן">${Icon.search}<span>סרוק כונן</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-hunt-disk="${disk.number}" title="חיפוש מחיצות שנמחקו או שאבדו בכל הכונן">${Icon.search}<span>סריקת כונן</span></button>`);
   }
   if (disk.isImage) {
-    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>סגור תמונה</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>סגירת התמונה</span></button>`);
   } else if (disk.rawAccessible) {
-    actions.push(`<button class="btn btn-sm" data-image-disk="${disk.number}" title="העתקת הדיסק כולו לקובץ, וסריקה מתוכו">${Icon.copy}<span>צור תמונה</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-image-disk="${disk.number}" title="העתקת הדיסק כולו לקובץ, וסריקה מתוכו">${Icon.copy}<span>יצירת תמונה</span></button>`);
   }
 
   const notes = [];
@@ -368,12 +375,12 @@ function renderDisk(disk) {
   let parts = disk.partitions.map((p) => renderPartition(disk, p)).join('');
   if (!parts) {
     parts = `<div class="part-empty">לא נמצאו מחיצות בטבלת המחיצות של הכונן.
-      ${disk.rawAccessible && disk.size > 0 ? 'אם היו בו מחיצות שנמחקו — לחץ על <b>סרוק כונן</b>.' : ''}</div>`;
+      ${disk.rawAccessible && disk.size > 0 ? 'היו בו מחיצות שנמחקו? לחצו על <b>סריקת כונן</b>.' : ''}</div>`;
   }
 
   return `
     <section class="disk ${open ? 'open' : ''}" data-disk-card="${disk.number}">
-      <div class="disk-head" data-toggle-disk="${disk.number}" title="לחץ להצגת המחיצות">
+      <div class="disk-head" data-toggle-disk="${disk.number}" title="לחצו להצגת המחיצות">
         <div class="disk-toggle">${Icon.chevron}</div>
         <div class="disk-icon ${icon.cls}">${icon.html}</div>
         <div class="disk-meta">
@@ -490,18 +497,16 @@ function openHuntPanel(disk) {
     </div>
     <div class="panel-body">
       <div class="strategy">
-        <p>הסריקה עוברת על כל הכונן ומחפשת מחיצות שנמחקו, או שטבלת המחיצות איבדה —
-        למשל אחרי מחיקה בטעות, אחרי שהכונן הופיע פתאום "לא מאותחל", או אחרי התקנה מחדש.</p>
-        <p>מחיצה שנמחקה מהטבלה לא נמחקה מהכונן: הקבצים שלה עדיין שם. כל מחיצה שתימצא
-        תופיע ברשימה, ותוכל לסרוק אותה ולהעתיק ממנה קבצים — או להחזיר אותה לטבלת המחיצות.</p>
+        <p>מחפשת מחיצות שנמחקו או שאבדו — אחרי מחיקה בטעות, התקנה מחדש,
+        או כשהכונן מופיע פתאום "לא מאותחל".</p>
+        <p>מחיצה שנמחקה מהטבלה עדיין על הכונן, עם כל הקבצים. מה שיימצא יופיע ברשימה,
+        ואפשר יהיה להעתיק ממנו קבצים או להחזיר אותו לטבלה.</p>
       </div>
-      <div class="notice info">${Icon.shield}
-        <div><b>הסריקה קוראת בלבד.</b> שום דבר לא נכתב לכונן. היא עוברת על כל הכונן,
-        ולכן בכונן גדול היא עשויה להימשך זמן רב — אפשר לעצור בכל רגע, ומה שנמצא עד אז יוצג.</div>
-      </div>
+      ${notice('info', Icon.shield, 'קריאה בלבד — שום דבר לא נכתב לכונן',
+        'בכונן גדול זה לוקח זמן. אפשר לעצור בכל רגע, ומה שנמצא עד אז יוצג.')}
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-start-hunt">${Icon.search}<span>התחל סריקה</span></button>
+      <button class="btn btn-primary" id="btn-start-hunt">${Icon.search}<span>התחלת סריקה</span></button>
       <button class="btn" id="btn-cancel-hunt">ביטול</button>
     </div>`;
 
@@ -540,7 +545,7 @@ async function startHunt(disk) {
       </div>
 
       <div class="scan-actions">
-        <button class="btn" id="btn-stop-hunt">${Icon.stop}<span>עצור</span></button>
+        <button class="btn" id="btn-stop-hunt">${Icon.stop}<span>עצירה</span></button>
       </div>
     </div>`;
 
@@ -558,20 +563,22 @@ async function startHunt(disk) {
     if (i >= 0) State.disks[i] = r.disk;
     State.openDisks.add(disk.number);
 
-    const stopped = r.cancelled ? 'הסריקה נעצרה לפני סופה. ' : '';
+    const stopped = r.cancelled ? ' (הסריקה נעצרה לפני סופה)' : '';
 
     // שאריות בתוך מחיצות אחרות אינן מוצגות — רק מוזכרות, כדי שיהיה ברור שנבדקו.
     const hidden = r.hidden > 0
-      ? `<br><span class="faint">נמצאו גם ${r.hidden === 1 ? 'שארית אחת' : r.hidden + ' שאריות'} של מערכות קבצים
-         בתוך מחיצות אחרות — בדרך כלל קבצי תמונה (ISO) שנשמרו בעבר על הכונן. הן אינן מחיצות, ולכן לא הוצגו.</span>`
+      ? `נמצאו גם ${r.hidden === 1 ? 'שארית אחת' : r.hidden + ' שאריות'} של מערכות קבצים בתוך מחיצות אחרות —
+         בדרך כלל קבצי ISO שנשמרו על הכונן. הן אינן מחיצות, ולכן לא הוצגו.`
       : '';
     State.flash = r.found > 0
-      ? { cls: 'ok-notice', icon: Icon.check,
-          html: `${stopped}<b>נמצאו ${r.found === 1 ? 'מחיצה אחת' : r.found + ' מחיצות'}</b> שאינן בטבלת המחיצות של ${esc(disk.name)}.
-                 הן מסומנות "נמצאה בסריקה". לחץ על מחיצה כדי לסרוק אותה ולהעתיק ממנה קבצים, או להחזיר אותה לטבלה.${hidden}` }
-      : { cls: 'warn', icon: Icon.info,
-          html: `${stopped}לא נמצאו מחיצות אבודות ב${esc(disk.name)}. אם הקבצים עדיין חסרים, נסה <b>סריקה מתקדמת</b>
-                 על אחת המחיצות — היא מחפשת קבצים לפי סוגם, גם בלי מחיצה.${hidden}` };
+      ? notice('ok-notice', Icon.check,
+          `נמצאו ${r.found === 1 ? 'מחיצה אחת' : r.found + ' מחיצות'} ב${esc(disk.name)}${stopped}`,
+          'הן מסומנות "נמצאה בסריקה". לחצו על מחיצה כדי להעתיק ממנה קבצים או להחזיר אותה לטבלה.',
+          hidden)
+      : notice('warn', Icon.info,
+          `לא נמצאו מחיצות אבודות ב${esc(disk.name)}${stopped}`,
+          'הקבצים עדיין חסרים? נסו <b>סריקה מתקדמת</b> על אחת המחיצות — היא מוצאת קבצים לפי סוגם.',
+          hidden);
 
     renderDisks();
   } catch (err) {
@@ -612,9 +619,9 @@ function restoreOption(disk, part) {
     <button class="scan-opt subtle" id="btn-restore-part">
       <div class="scan-opt-icon">${Icon.layers}</div>
       <div class="scan-opt-body">
-        <div class="scan-opt-title">החזר את המחיצה לטבלת המחיצות</div>
-        <div class="scan-opt-desc">רישום המחיצה מחדש בכונן, כדי ש-Windows יראה אותה שוב ותקבל אות כונן.
-        זו כתיבה לכונן — מומלץ קודם להעתיק את הקבצים החשובים.</div>
+        <div class="scan-opt-title">החזרת המחיצה לטבלת המחיצות</div>
+        <div class="scan-opt-desc">כדי ש-Windows יראה אותה שוב, עם אות כונן.
+        כותב לכונן — כדאי להעתיק קודם את הקבצים החשובים.</div>
       </div>
     </button>`;
 }
@@ -653,21 +660,20 @@ async function openRestorePanel(disk, part) {
   el('panel').querySelector('.panel-body').innerHTML = `
     <div class="notice ok-notice">${Icon.check}<div>${esc(plan.explanation)}</div></div>
     <div class="strategy"><p>${esc(plan.whatWillChange)}</p></div>
-    <div class="notice warn">${Icon.alert}
-      <div><b>פעולה זו כותבת לכונן.</b> אם יש במחיצה קבצים חשובים — מומלץ להעתיק אותם קודם
-      (סגור את החלון ובחר סריקה). אם משהו ישתבש, התוכנה תחזיר את המצב הקודם אוטומטית.</div>
-    </div>
+    ${notice('warn', Icon.alert, 'הפעולה כותבת לכונן',
+      'יש במחיצה קבצים חשובים? העתיקו אותם קודם: סגרו את החלון ובחרו סריקה.',
+      'לפני הכתיבה נשמר גיבוי של כל סקטור שישתנה. אם משהו ישתבש, התוכנה תחזיר את המצב הקודם אוטומטית.')}
 
     <div class="section-label">תיקיית גיבוי — על כונן אחר</div>
     <div class="target-row">
       <input type="text" id="restore-undo" readonly placeholder="לא נבחרה תיקייה">
-      <button class="btn" id="btn-pick-restore-undo">${Icon.folder}<span>בחר</span></button>
+      <button class="btn" id="btn-pick-restore-undo">${Icon.folder}<span>בחירה</span></button>
     </div>
     <div id="restore-status"></div>`;
 
   el('panel').insertAdjacentHTML('beforeend', `
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-do-restore" disabled>${Icon.layers}<span>החזר לטבלה</span></button>
+      <button class="btn btn-primary" id="btn-do-restore" disabled>${Icon.layers}<span>החזרה לטבלה</span></button>
       <button class="btn" id="btn-back-restore">חזרה</button>
     </div>`);
 
@@ -708,26 +714,40 @@ async function openRestorePanel(disk, part) {
    לוח בחירת סוג הסריקה
    ===================================================================== */
 
+/// desc — מתי לבחור בסריקה, במילים פשוטות. time — מה נשמר וכמה זמן.
+/// tech — מה הסריקה עושה בפועל; מוצג בריחוף ובמתקפל "מה ההבדל?".
 const SCAN_MODES = [
   {
     id: 1, name: 'סריקה מהירה', icon: Icon.bolt,
-    desc: 'קוראת את טבלת ה-MFT ומאתרת קבצים שנמחקו אך רשומתם עדיין קיימת. ' +
-          'שומרת על שמות הקבצים ומבנה התיקיות המקורי.',
-    time: 'משך משוער: שניות עד דקות ספורות',
+    desc: 'נמחק לאחרונה? התחילו כאן.',
+    time: 'שמות ותיקיות נשמרים · שניות עד דקות',
+    tech: 'קוראת את טבלת הקבצים של המחיצה ומאתרת קבצים שנמחקו אך הרשומה שלהם עדיין קיימת. ' +
+          'ב-NTFS זו טבלת ה-MFT, וב-FAT וב-exFAT — רשומות התיקיות.',
   },
   {
     id: 2, name: 'סריקה עמוקה', icon: Icon.layers,
-    desc: 'סורקת בנוסף את כל המחיצה לאיתור רשומות MFT יתומות — רשומות של קבצים ' +
-          'שהטבלה כבר אינה מצביעה עליהן. מאתרת קבצים שסריקה מהירה מפספסת.',
-    time: 'משך משוער: דקות עד שעה',
+    desc: 'המהירה לא מצאה? נסו את זו.',
+    time: 'רוב השמות נשמרים · דקות עד שעה',
+    tech: 'עוברת בנוסף על כל המחיצה ומחפשת רשומות יתומות — רשומות של קבצים שהטבלה ' +
+          'כבר אינה מצביעה עליהן — וקוראת את יומני מערכת הקבצים.',
   },
   {
     id: 3, name: 'סריקה מתקדמת', icon: Icon.radar,
-    desc: 'סורקת כל סקטור ומזהה קבצים לפי חתימות HEX, ללא תלות במערכת הקבצים. ' +
-          'מוצאת קבצים גם לאחר פירמוט, אך ללא שמות מקוריים וללא נתיבי תיקייה.',
-    time: 'משך משוער: שעה עד מספר שעות',
+    desc: 'אחרי פירמוט או נזק כבד.',
+    time: 'בלי שמות מקוריים · שעה ומעלה',
+    tech: 'קוראת כל סקטור ומזהה קבצים לפי חתימות HEX, בלי תלות במערכת הקבצים. ' +
+          'עובדת גם אחרי פירמוט, אבל שמות ותיקיות אינם נשמרים.',
   },
 ];
+
+/// הסבר טכני על כל סוגי הסריקה, מקופל כברירת מחדל.
+function scanTechDetails() {
+  return `
+    <details class="scan-tech">
+      <summary>מה ההבדל בין הסריקות?</summary>
+      <dl>${SCAN_MODES.map((m) => `<dt>${m.name}</dt><dd>${m.tech}</dd>`).join('')}</dl>
+    </details>`;
+}
 
 function findPart(diskNumber, partIndex) {
   const disk = State.disks.find((d) => d.number === diskNumber);
@@ -746,7 +766,7 @@ function openScanPanel(diskNumber, partIndex) {
   const { disk, part } = found;
 
   // מחיצה שמערכת הקבצים שלה אינה נקראת מקבלת קודם אבחון:
-  // ייתכן שניתן לתקן אותה, וזה עדיף על שיחזור קבצים בודדים.
+  // ייתכן שניתן לתקן אותה, וזה עדיף על שחזור קבצים בודדים.
   if (!part.scannable) {
     openRepairPanel(disk, part);
     return;
@@ -757,7 +777,7 @@ function openScanPanel(diskNumber, partIndex) {
     const blocked = !part.scannable && m.id !== 3;
 
     return `
-    <button class="scan-opt" data-mode="${m.id}"${blocked ? ' disabled' : ''}>
+    <button class="scan-opt" data-mode="${m.id}" title="${esc(m.tech)}"${blocked ? ' disabled' : ''}>
       <div class="scan-opt-icon">${m.icon}</div>
       <div class="scan-opt-body">
         <div class="scan-opt-title">${m.name}${blocked ? '<span class="chip">לא זמין</span>' : ''}</div>
@@ -767,19 +787,17 @@ function openScanPanel(diskNumber, partIndex) {
     </button>`;
   }).join('');
 
-  const fsNotice = !part.scannable ? `
-    <div class="notice warn">${Icon.alert}
-      <div>מערכת הקבצים <b>${esc(part.fsLabel)}</b> אינה נתמכת לסריקת מטא-דאטה.
-      נתמכות: NTFS, exFAT, FAT32, FAT16 ו-FAT12.<br>
-      <b>סריקה מתקדמת עדיין תעבוד</b> — היא מזהה קבצים לפי חתימות HEX
-      ואינה תלויה במערכת הקבצים.</div>
-    </div>` : '';
+  const fsNotice = !part.scannable
+    ? notice('warn', Icon.alert, `מערכת הקבצים ${esc(part.fsLabel)} אינה נתמכת`,
+        '<b>סריקה מתקדמת</b> עדיין תעבוד — היא אינה תלויה במערכת הקבצים.',
+        'נתמכות: NTFS, exFAT, FAT32, FAT16 ו-FAT12.')
+    : '';
 
-  const readThroughNotice = part.readThrough ? `
-    <div class="notice ok-notice">${Icon.shield}
-      <div><b>המחיצה נקראת דרך עותק הגיבוי של מגזר האתחול.</b> שום דבר לא נכתב לכונן.
-      בחר <b>סריקה מהירה</b> — יוצגו כל הקבצים שעל הכונן עם שמותיהם, ולא רק קבצים שנמחקו.</div>
-    </div>` : '';
+  const readThroughNotice = part.readThrough
+    ? notice('ok-notice', Icon.shield, 'המחיצה נקראת דרך עותק הגיבוי',
+        'בחרו <b>סריקה מהירה</b> — יוצגו כל הקבצים עם השמות, ולא רק קבצים שנמחקו.',
+        'תחילת המחיצה פגומה, והתוכנה קוראת אותה דרך עותק הגיבוי של מגזר האתחול — בזיכרון בלבד. שום דבר לא נכתב לכונן.')
+    : '';
 
   el('panel').innerHTML = `
     <div class="panel-head">
@@ -792,8 +810,9 @@ function openScanPanel(diskNumber, partIndex) {
     <div class="panel-body">
       ${readThroughNotice}
       ${fsNotice}
-      <div class="section-label">בחר סוג סריקה</div>
+      <div class="section-label">בחרו סוג סריקה</div>
       ${options}
+      ${scanTechDetails()}
       ${imageOption(disk)}
       ${restoreOption(disk, part)}
     </div>`;
@@ -823,9 +842,9 @@ function imageOption(disk) {
     <button class="scan-opt ${hdd ? '' : 'subtle'}" id="btn-image-part">
       <div class="scan-opt-icon">${Icon.copy}</div>
       <div class="scan-opt-body">
-        <div class="scan-opt-title">צור תמונה של המחיצה לפני הסריקה</div>
-        <div class="scan-opt-desc">העתקת המחיצה סקטור אחר סקטור לקובץ על כונן אחר. הכונן נקרא פעם
-        אחת בלבד, ואת כל הסריקות והשיחזורים מריצים על ההעתק — בלי לשחוק כונן שעלול להפסיק לעבוד.</div>
+        <div class="scan-opt-title">יצירת תמונה של המחיצה לפני הסריקה</div>
+        <div class="scan-opt-desc">מעתיקים את המחיצה פעם אחת לקובץ על כונן אחר, וסורקים את ההעתק —
+        בלי לשחוק כונן שעלול להפסיק לעבוד.</div>
       </div>
     </button>`;
 }
@@ -867,28 +886,24 @@ async function openRepairPanel(disk, part) {
   const readThroughBlock = d.canRepair ? `
     <div class="section-label">אפשרות 1 — העתקת הקבצים בלי לגעת בכונן (מומלץ)</div>
     <div class="strategy">
-      <p>Windows מבקש לפרמט כי תחילת המחיצה נפגעה — אבל הקבצים עצמם, והרשימה
-      שמתארת אותם, בדרך כלל שלמים. התוכנה תקרא את המחיצה דרך עותק הגיבוי שנמצא,
-      ותציג את כל הקבצים <b>עם השמות והתיקיות המקוריים</b>, כדי להעתיק אותם לכונן אחר.</p>
+      <p>Windows מבקש לפרמט כי תחילת המחיצה נפגעה, אבל הקבצים עצמם בדרך כלל שלמים.
+      התוכנה תציג את כולם <b>עם השמות והתיקיות המקוריים</b>, להעתקה לכונן אחר.</p>
     </div>
-    <div class="notice info">${Icon.shield}
-      <div><b>שום דבר לא נכתב לכונן.</b> התיקון קיים רק בזיכרון של התוכנה,
-      והכונן נשאר בדיוק כפי שהוא.</div>
-    </div>` : '';
+    ${notice('info', Icon.shield, 'שום דבר לא נכתב לכונן',
+      'התיקון קיים רק בזיכרון של התוכנה.',
+      'התוכנה קוראת את המחיצה דרך עותק הגיבוי של מגזר האתחול שנמצא, והכונן נשאר בדיוק כפי שהוא.')}` : '';
 
   const repairBlock = d.canRepair ? `
     <div class="section-label" style="margin-top:18px">אפשרות 2 — תיקון המחיצה</div>
     <div class="strategy">
       <p>${esc(d.whatWillChange)}</p>
     </div>
-    ${disk.isImage ? `<div class="notice info">${Icon.shield}
-      <div><b>התיקון ייכתב לקובץ התמונה בלבד.</b> הכונן המקורי אינו נוגע בתהליך —
-      זו הדרך הבטוחה ביותר לנסות תיקון.</div>
-    </div>` : `<div class="notice warn">${Icon.alert}
-      <div><b>זו הפעולה היחידה בתוכנה שכותבת לדיסק המקור.</b><br>
-      אם התיקון יצליח, כל הקבצים יחזרו להיות נגישים רגילה. אם הוא ייכשל,
-      התוכנה תחזיר את המצב הקודם אוטומטית.</div>
-    </div>`}` : '';
+    ${disk.isImage
+      ? notice('info', Icon.shield, 'התיקון ייכתב לקובץ התמונה בלבד',
+          'הכונן המקורי לא נוגע בתהליך — זו הדרך הבטוחה ביותר לנסות תיקון.')
+      : notice('warn', Icon.alert, 'הפעולה היחידה שכותבת לדיסק המקור',
+          'אם התיקון יצליח, כל הקבצים יחזרו להיות נגישים כרגיל.',
+          'אם התיקון ייכשל, התוכנה תחזיר את המצב הקודם אוטומטית מהגיבוי שנשמר לפני הכתיבה.')}` : '';
 
   el('panel').querySelector('.panel-body').innerHTML = `
     ${verdict}
@@ -899,22 +914,20 @@ async function openRepairPanel(disk, part) {
       ${d.canRepair ? 'אפשרות 3 — ' : ''}חיפוש קבצים לפי סוגם
     </div>
     <div class="strategy">
-      <p>סריקה מתקדמת מזהה קבצים לפי חתימות HEX ואינה תלויה במערכת הקבצים,
-      ולכן היא עובדת גם במחיצה שאינה נקראת כלל. ${d.canRepair
-        ? 'הקבצים יימצאו ללא שמות מקוריים — השתמש בה רק אם אפשרות 1 לא מצאה את מה שחיפשת.'
-        : 'לא נמצא עותק גיבוי, ולכן זו הדרך להציל את הקבצים. הם יימצאו ללא שמות מקוריים וללא תיקיות.'}</p>
+      <p>סריקה מתקדמת עובדת גם במחיצה שאינה נקראת כלל. ${d.canRepair
+        ? 'אבל הקבצים יימצאו בלי שמות — השתמשו בה רק אם אפשרות 1 לא מצאה את מה שחיפשתם.'
+        : 'לא נמצא עותק גיבוי, ולכן זו הדרך להציל את הקבצים — בלי שמות מקוריים ובלי תיקיות.'}</p>
     </div>
-    ${d.canRepair ? '' : `<div class="notice info">${Icon.shield}
-      <div>הכונן ייפתח לקריאה בלבד, והקבצים יועתקו לכונן אחר.</div>
-    </div>`}`;
+    ${d.canRepair ? '' : notice('info', Icon.shield, 'קריאה בלבד',
+      'הכונן לא ישתנה, והקבצים יועתקו לכונן אחר.')}`;
 
   el('panel').insertAdjacentHTML('beforeend', `
     <div class="panel-foot">
-      ${d.canRepair ? `<button class="btn btn-primary" id="btn-read-through">${Icon.copy}<span>העתק קבצים עם שמות</span></button>` : ''}
-      ${d.canRepair ? `<button class="btn" id="btn-repair">${Icon.wrench}<span>תקן את המחיצה</span></button>` : ''}
+      ${d.canRepair ? `<button class="btn btn-primary" id="btn-read-through">${Icon.copy}<span>העתקת קבצים עם שמות</span></button>` : ''}
+      ${d.canRepair ? `<button class="btn" id="btn-repair">${Icon.wrench}<span>תיקון המחיצה</span></button>` : ''}
       <button class="btn ${d.canRepair ? '' : 'btn-primary'}" id="btn-recover-raw">${Icon.radar}<span>חיפוש לפי סוג קובץ</span></button>
-      ${disk.isImage || !disk.rawAccessible ? '' : `<button class="btn" id="btn-image-raw">${Icon.copy}<span>צור תמונה</span></button>`}
-      ${part.found ? `<button class="btn" id="btn-restore-raw">${Icon.layers}<span>החזר לטבלה</span></button>` : ''}
+      ${disk.isImage || !disk.rawAccessible ? '' : `<button class="btn" id="btn-image-raw">${Icon.copy}<span>יצירת תמונה</span></button>`}
+      ${part.found ? `<button class="btn" id="btn-restore-raw">${Icon.layers}<span>החזרה לטבלה</span></button>` : ''}
       <button class="btn" id="btn-cancel-repair">ביטול</button>
     </div>`);
 
@@ -973,24 +986,21 @@ function confirmRepair(disk, part, diagnosis) {
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
     </div>
     <div class="panel-body">
-      <div class="notice warn">${Icon.alert}
-        <div><b>פעולה זו כותבת לדיסק.</b><br>${esc(diagnosis.whatWillChange)}</div>
-      </div>
+      ${notice('warn', Icon.alert, 'הפעולה כותבת לדיסק', esc(diagnosis.whatWillChange))}
 
-      <div class="section-label">תיקיית גיבוי לסקטורים</div>
+      <div class="section-label">תיקיית גיבוי לסקטורים — על כונן אחר</div>
       <div class="target-row">
         <input type="text" id="undo-path" readonly placeholder="לא נבחרה תיקייה">
-        <button class="btn" id="btn-pick-undo">${Icon.folder}<span>בחר</span></button>
+        <button class="btn" id="btn-pick-undo">${Icon.folder}<span>בחירה</span></button>
       </div>
       <div id="undo-status"></div>
 
-      <div class="notice info" style="margin-top:16px">${Icon.shield}
-        <div>התוכנה תשמור כאן עותק של הסקטורים לפני הכתיבה. אם התיקון ייכשל
-        או לא יפתור את הבעיה, המצב הקודם יוחזר אוטומטית.</div>
-      </div>
+      ${notice('info', Icon.shield, 'אפשר לחזור אחורה',
+        'לפני הכתיבה יישמר כאן עותק של הסקטורים. אם התיקון ייכשל, המצב הקודם יוחזר אוטומטית.',
+        '', 'spaced')}
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-do-repair" disabled>בצע תיקון</button>
+      <button class="btn btn-primary" id="btn-do-repair" disabled>ביצוע התיקון</button>
       <button class="btn" id="btn-back-repair">חזרה</button>
     </div>`;
 
@@ -1054,7 +1064,7 @@ async function openImageFile(path) {
 
     const card = document.querySelector(`[data-close-image="${r.number}"]`);
     if (card) card.closest('.disk').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setStatus('התמונה נפתחה — בחר מחיצה מתוכה לסריקה');
+    setStatus('התמונה נפתחה — בחרו מחיצה מתוכה לסריקה');
   } catch (err) {
     el('content').insertAdjacentHTML('afterbegin',
       `<div class="notice danger">${Icon.alert}<div><b>לא ניתן לפתוח את התמונה.</b><br>${esc(err.message)}</div></div>`);
@@ -1077,31 +1087,28 @@ function openImagePanel(disk, part) {
     </div>
     <div class="panel-body">
       <div class="strategy">
-        <p>${part ? 'המחיצה' : 'הדיסק כולו, כולל טבלת המחיצות,'} יועתק סקטור אחר סקטור לקובץ
-        על כונן אחר. אחר כך פותחים את הקובץ בתוכנה, וכל הסריקות והשיחזורים
-        רצים עליו — הכונן המקורי כבר לא נקרא.</p>
+        <p>${part ? 'המחיצה תועתק' : 'הדיסק כולו יועתק'} לקובץ על כונן אחר, וכל הסריקות
+        ירוצו על ההעתק — הכונן המקורי כבר לא ייקרא.</p>
         <ol class="image-steps">
-          <li><b>מעבר 1 — העתקה מהירה.</b> אזור שנכשל בקריאה אינו מעכב: מדלגים עליו,
-          כדי לאסוף קודם את כל מה שנקרא בקלות.</li>
-          <li><b>מעבר 2 — ניסיון חוזר.</b> חזרה לאזורים שנכשלו, סקטור אחר סקטור,
-          כדי להציל כל מה שעוד ניתן לקרוא.</li>
+          <li><b>מעבר 1 — העתקה מהירה.</b> מדלגים על אזורים פגומים, ואוספים קודם את מה שנקרא בקלות.</li>
+          <li><b>מעבר 2 — ניסיון חוזר.</b> חוזרים לאזורים שדולגו, סקטור אחר סקטור.</li>
         </ol>
       </div>
 
       <div class="section-label">קובץ התמונה</div>
       <div class="target-row">
         <input type="text" id="image-path" readonly placeholder="לא נבחר קובץ">
-        <button class="btn" id="btn-pick-image">${Icon.folder}<span>בחר</span></button>
+        <button class="btn" id="btn-pick-image">${Icon.folder}<span>בחירה</span></button>
       </div>
       <div id="image-status"></div>
 
-      <div class="notice info" style="margin-top:16px">${Icon.shield}
-        <div>הכונן המקורי נפתח לקריאה בלבד. סקטורים שלא ייקראו יתועדו בקובץ מפה
-        לצד התמונה, כדי שיהיה ידוע בדיוק מה חסר.</div>
-      </div>
+      ${notice('info', Icon.shield, 'קריאה בלבד מהכונן המקורי',
+        'סקטורים שלא ייקראו יתועדו בקובץ מפה לצד התמונה.',
+        'סקטור שלא נקרא נשמר בתמונה כאפסים, ואי אפשר להבחין בינו לבין אפסים אמיתיים. המפה מראה בדיוק מה חסר.',
+        'spaced')}
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-start-image" disabled>${Icon.copy}<span>צור תמונה</span></button>
+      <button class="btn btn-primary" id="btn-start-image" disabled>${Icon.copy}<span>יצירת תמונה</span></button>
       <button class="btn" id="btn-cancel-image">ביטול</button>
     </div>`;
 
@@ -1158,13 +1165,11 @@ async function startImaging(disk, part, request) {
       </div>
 
       <div class="scan-actions">
-        <button class="btn" id="btn-stop-image">${Icon.stop}<span>עצור</span></button>
+        <button class="btn" id="btn-stop-image">${Icon.stop}<span>עצירה</span></button>
       </div>
 
-      <div class="notice info">${Icon.info}
-        <div>ניתן לעצור בכל רגע. מה שכבר הועתק יישמר, והמפה תתעד מה לא הועתק —
-        כך שגם תמונה חלקית ניתנת לסריקה.</div>
-      </div>
+      ${notice('info', Icon.info, 'אפשר לעצור בכל רגע',
+        'מה שהועתק יישמר, וגם תמונה חלקית ניתנת לסריקה.')}
     </div>`;
 
   el('btn-stop-image').onclick = () => {
@@ -1239,7 +1244,7 @@ function showImageResult(title, r) {
     </div>
 
     <div class="scan-actions">
-      <button class="btn btn-primary" id="btn-open-created">${Icon.open}<span>פתח את התמונה לסריקה</span></button>
+      <button class="btn btn-primary" id="btn-open-created">${Icon.open}<span>פתיחת התמונה לסריקה</span></button>
     </div>`;
 
   el('btn-home').onclick = loadDisks;
@@ -1277,18 +1282,16 @@ async function openDoctorPanel(source) {
 
 function renderDoctorEmpty() {
   el('doctor-body').innerHTML = `
-    <div class="notice info">${Icon.shield}
-      <div>הבדיקה משווה בין חתימת הפתיחה של כל קובץ, הסיומת שלו והאורך שמבנהו מצהיר עליו.
-      <b>הקבצים המקוריים לעולם אינם משתנים</b> — התיקון נכתב לעותק חדש, ונבדק מחדש אחרי הכתיבה.</div>
-    </div>
-    <div class="section-label">מה ניתן לתקן</div>
+    ${notice('info', Icon.shield, 'הקבצים המקוריים לא משתנים',
+      'התיקון נכתב לעותק חדש, ונבדק שוב אחרי הכתיבה.',
+      'הבדיקה משווה בין חתימת הפתיחה של כל קובץ, הסיומת שלו והאורך שמבנה הקובץ מצהיר עליו.')}
+    <div class="section-label">מה אפשר לתקן</div>
     <div class="strategy"><p>
-      חתימת פתיחה שנמחקה · נתונים עודפים אחרי סוף הקובץ · חתימת סיום חסרה · סיומת שגויה.
-      קובץ שחסרים בו נתונים, או שתוכנו אינו תואם לשום פורמט מוכר, לא יתוקן —
-      התוכנה לא ממציאה נתונים ולא מנחשת.</p></div>`;
+      חתימת פתיחה שנמחקה · נתונים עודפים בסוף הקובץ · חתימת סיום חסרה · סיומת שגויה.</p>
+      <p>קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.</p></div>`;
 
   el('doctor-foot').innerHTML = `
-    <button class="btn btn-primary" id="btn-doctor-pick">${Icon.file}<span>בחר קבצים</span></button>
+    <button class="btn btn-primary" id="btn-doctor-pick">${Icon.file}<span>בחירת קבצים</span></button>
     <button class="btn" id="btn-doctor-close">סגירה</button>`;
 
   el('btn-doctor-pick').onclick = pickDoctorFiles;
@@ -1353,8 +1356,8 @@ function renderDoctorList() {
     <div class="doc-list">${rows || '<div class="empty small"><h3>אין קבצים</h3></div>'}</div>`;
 
   el('doctor-foot').innerHTML = `
-    ${fixable.length ? `<button class="btn btn-primary" id="btn-doctor-fix">${Icon.wrench}<span>תקן ${fixable.length} קבצים</span></button>` : ''}
-    <button class="btn" id="btn-doctor-more">בחר קבצים אחרים</button>
+    ${fixable.length ? `<button class="btn btn-primary" id="btn-doctor-fix">${Icon.wrench}<span>תיקון ${fixable.length} קבצים</span></button>` : ''}
+    <button class="btn" id="btn-doctor-more">בחירת קבצים אחרים</button>
     <button class="btn" id="btn-doctor-close">סגירה</button>`;
 
   const fix = el('btn-doctor-fix');
@@ -1391,11 +1394,9 @@ async function runDoctorRepair(paths) {
     </div>`).join('');
 
   el('doctor-body').innerHTML = `
-    <div class="notice ok-notice">${Icon.check}
-      <div><b>${data.repaired} קבצים נכתבו אל:</b><br>
-      <span style="direction:ltr;display:inline-block">${esc(data.output)}</span><br>
-      כל עותק מתוקן נבדק מחדש אחרי הכתיבה. הקבצים המקוריים לא שונו.</div>
-    </div>
+    ${notice('ok-notice', Icon.check, `${data.repaired} קבצים נכתבו אל:`,
+      `<span style="direction:ltr;display:inline-block">${esc(data.output)}</span>`,
+      'כל עותק מתוקן נבדק שוב אחרי הכתיבה, והתוצאה המוצגת היא של הבדיקה החוזרת. הקבצים המקוריים לא שונו.')}
     <div class="doc-list">${rows}</div>`;
 
   el('doctor-foot').innerHTML = `<button class="btn btn-primary" id="btn-doctor-done">סיום</button>`;
@@ -1426,7 +1427,7 @@ async function showStrategy(disk, part, modeId) {
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
     </div>
     <div class="panel-body"><div class="loading" style="height:180px">
-      <div class="spinner"></div><p>מחשב אסטרטגיית שיחזור…</p></div></div>`;
+      <div class="spinner"></div><p>מחשב אסטרטגיית שחזור…</p></div></div>`;
   el('panel-close').onclick = closePanel;
 
   let profile;
@@ -1456,7 +1457,7 @@ async function showStrategy(disk, part, modeId) {
       </div>
       <div class="meter">
         <div class="meter-head">
-          <span>הערכת סיכויי שיחזור: <b>${word}</b></span>
+          <span>הערכת סיכויי שחזור: <b>${word}</b></span>
           <span style="direction:ltr;color:var(--text-faint)">${profile.outlook}%</span>
         </div>
         <div class="meter-track"><div class="meter-fill ${cls}" style="width:${profile.outlook}%"></div></div>
@@ -1468,14 +1469,12 @@ async function showStrategy(disk, part, modeId) {
       <span>הצג גם קבצים קיימים, ולא רק קבצים שנמחקו</span>
     </label>
 
-    <div class="notice info">${Icon.shield}
-      <div><b>התוכנה אינה כותבת לדיסק המקור.</b><br>
-      כל הגישה לדיסק היא לקריאה בלבד, והשיחזור יתאפשר רק לכונן אחר.</div>
-    </div>`;
+    ${notice('info', Icon.shield, 'קריאה בלבד מהדיסק המקור',
+      'השחזור יתאפשר רק לכונן אחר.')}`;
 
   el('panel').insertAdjacentHTML('beforeend', `
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-start">${Icon.bolt}<span>התחל סריקה</span></button>
+      <button class="btn btn-primary" id="btn-start">${Icon.bolt}<span>התחלת סריקה</span></button>
       <button class="btn" id="btn-back">חזרה</button>
     </div>`);
 
@@ -1522,12 +1521,11 @@ async function startScan(disk, part, modeId, includeExisting) {
       </div>
 
       <div class="scan-actions">
-        <button class="btn" id="btn-cancel-scan">${Icon.stop}<span>עצור סריקה</span></button>
+        <button class="btn" id="btn-cancel-scan">${Icon.stop}<span>עצירת הסריקה</span></button>
       </div>
 
-      <div class="notice info">${Icon.info}
-        <div>ניתן לעצור את הסריקה בכל רגע. הקבצים שנמצאו עד לעצירה יוצגו ויהיו ניתנים לשיחזור.</div>
-      </div>
+      ${notice('info', Icon.info, 'אפשר לעצור בכל רגע',
+        'מה שנמצא עד אז יוצג, ואפשר יהיה לשחזר אותו.')}
     </div>`;
 
   el('btn-cancel-scan').onclick = () => {
@@ -1590,7 +1588,7 @@ async function renderResults() {
         <div class="result-stats">
           <span><b>${(s.deleted || 0).toLocaleString('he-IL')}</b> מחוקים</span>
           <span class="sep">·</span>
-          <span><b class="ok-text">${(s.recoverable || 0).toLocaleString('he-IL')}</b> ניתנים לשיחזור</span>
+          <span><b class="ok-text">${(s.recoverable || 0).toLocaleString('he-IL')}</b> ניתנים לשחזור</span>
           ${s.emptied > 0 ? `<span class="sep">·</span>
             <span><b class="danger-text">${s.emptied.toLocaleString('he-IL')}</b> ריקים</span>` : ''}
           ${s.evidence > 0 ? `<span class="sep">·</span>
@@ -1629,13 +1627,13 @@ async function renderResults() {
           <div class="filelist" id="filelist"></div>
         </div>
         <aside class="preview" id="preview">
-          <div class="preview-empty">${Icon.image}<p>בחר קובץ לתצוגה מקדימה</p></div>
+          <div class="preview-empty">${Icon.image}<p>בחרו קובץ לתצוגה מקדימה</p></div>
         </aside>
       </div>
 
       <div class="recover-bar">
         <div class="recover-info" id="recover-info">לא נבחרו קבצים</div>
-        <button class="btn btn-primary" id="btn-recover" disabled>${Icon.save}<span>שחזר לכונן אחר</span></button>
+        <button class="btn btn-primary" id="btn-recover" disabled>${Icon.save}<span>שחזור לכונן אחר</span></button>
       </div>
     </div>`;
 
@@ -1788,7 +1786,7 @@ function renderFileList(banner) {
     const checked = State.selected.has(f.id) ? ' checked' : '';
     const disabled = f.recoverable ? '' : ' disabled';
 
-    // קובץ שאומת כריק מקבל תווית מפורשת, ולא דירוג איכות שמרמז על אפשרות שיחזור.
+    // קובץ שאומת כריק מקבל תווית מפורשת, ולא דירוג איכות שמרמז על אפשרות שחזור.
     // רשומה שמקורה ביומן היא עדות לקיום הקובץ בלבד, ללא מיקום תוכן.
     const label = f.evidence ? 'עדות בלבד'
       : f.emptyContent ? 'ריק — נמחק'
@@ -1925,39 +1923,37 @@ async function showPreview(id) {
 }
 
 /* =====================================================================
-   שיחזור
+   שחזור
    ===================================================================== */
 
 function openRecoverPanel() {
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
-        <div class="panel-title">שיחזור קבצים</div>
+        <div class="panel-title">שחזור קבצים</div>
         <div class="panel-sub">${State.selected.size.toLocaleString('he-IL')} קבצים · ${formatSize(Math.max(0, State.selectedBytes))}</div>
       </div>
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
     </div>
     <div class="panel-body">
-      <div class="notice warn">${Icon.alert}
-        <div><b>תיקיית היעד חייבת להיות על כונן אחר.</b><br>
-        כתיבה לאותו דיסק שממנו משחזרים תדרוס את הקבצים שטרם שוחזרו ותמנע את שיחזורם.
-        התוכנה תחסום זאת אוטומטית.</div>
-      </div>
+      ${notice('warn', Icon.alert, 'יעד על כונן אחר בלבד',
+        'שחזור לאותו כונן ידרוס קבצים שעוד לא שוחזרו.',
+        'קובץ שנמחק עדיין יושב באזור שמסומן "פנוי". כל קובץ חדש שנכתב לאותו כונן עלול לתפוס בדיוק את האזור הזה. התוכנה חוסמת זאת אוטומטית.')}
 
       <div class="section-label">תיקיית יעד</div>
       <div class="target-row">
         <input type="text" id="target-path" readonly placeholder="לא נבחרה תיקייה">
-        <button class="btn" id="btn-pick">${Icon.folder}<span>בחר</span></button>
+        <button class="btn" id="btn-pick">${Icon.folder}<span>בחירה</span></button>
       </div>
       <div id="target-status"></div>
 
       <label class="switch" style="margin-top:16px">
         <input type="checkbox" id="opt-preserve" checked>
-        <span>שחזר גם את מבנה התיקיות המקורי</span>
+        <span>שמירה על מבנה התיקיות המקורי</span>
       </label>
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-do-recover" disabled>${Icon.save}<span>שחזר עכשיו</span></button>
+      <button class="btn btn-primary" id="btn-do-recover" disabled>${Icon.save}<span>שחזור</span></button>
       <button class="btn" id="btn-cancel">ביטול</button>
     </div>`;
 
@@ -2009,7 +2005,7 @@ async function runRecovery() {
       </div>
     </div>
     <div class="panel-foot">
-      <button class="btn" id="btn-stop-rec">${Icon.stop}<span>עצור</span></button>
+      <button class="btn" id="btn-stop-rec">${Icon.stop}<span>עצירה</span></button>
     </div>`;
 
   el('btn-stop-rec').onclick = () => Bridge.call('recover.cancel');
@@ -2042,14 +2038,14 @@ function showRecoveryReport(r) {
     : '';
 
   const partial = r.partial && r.partial.length
-    ? `<div class="notice warn">${Icon.alert}
-        <div><b>${r.partial.length} קבצים שוחזרו חלקית.</b><br>
-        חלק מהנתונים שלהם כבר נדרס על הדיסק. הקבצים נשמרו, אך ייתכן שלא ייפתחו כראוי.</div>
-       </div>` : '';
+    ? notice('warn', Icon.alert, `${r.partial.length} קבצים שוחזרו חלקית`,
+        'הם נשמרו, אבל ייתכן שלא ייפתחו כראוי.',
+        'חלק מהנתונים שלהם כבר נדרס, או שלא ניתן היה לקרוא אותם מהדיסק.')
+    : '';
 
   el('panel').innerHTML = `
     <div class="panel-head"><div class="grow">
-      <div class="panel-title">${r.cancelled ? 'השיחזור נעצר' : 'השיחזור הושלם'}</div>
+      <div class="panel-title">${r.cancelled ? 'השחזור נעצר' : 'השחזור הושלם'}</div>
       <div class="panel-sub">${formatDuration(r.duration)}</div>
     </div>
     <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button></div>
@@ -2061,17 +2057,16 @@ function showRecoveryReport(r) {
         <span style="direction:ltr;display:inline-block">${esc(r.target)}</span></div>
       </div>
       ${partial}
-      ${r.empty > 0 ? `<div class="notice danger">${Icon.alert}
-        <div><b>${r.empty} קבצים לא נכתבו כלל.</b><br>
-        תוכנם כבר אינו קיים על הדיסק — אזור הנתונים שלהם מכיל אפסים בלבד.
-        לא נוצר עבורם קובץ, כדי שלא תקבל קבצים ריקים שנראים תקינים.</div></div>` : ''}
+      ${r.empty > 0 ? notice('danger', Icon.alert, `${r.empty} קבצים לא נכתבו`,
+        'התוכן שלהם כבר לא קיים על הדיסק.',
+        'אזור הנתונים שלהם מכיל אפסים בלבד. לא נוצר עבורם קובץ, כדי שלא יתקבלו קבצים ריקים שנראים תקינים.') : ''}
       ${r.failed > r.empty ? `<div class="notice danger">${Icon.alert}
         <div>${r.failed - r.empty} קבצים נכשלו מסיבות אחרות.</div></div>` : ''}
       ${failures}
     </div>
     <div class="panel-foot">
       <button class="btn btn-primary" id="btn-done">סיום</button>
-      ${r.succeeded > 0 ? `<button class="btn" id="btn-check-recovered">${Icon.wrench}<span>בדוק את הקבצים ששוחזרו</span></button>` : ''}
+      ${r.succeeded > 0 ? `<button class="btn" id="btn-check-recovered">${Icon.wrench}<span>בדיקת הקבצים ששוחזרו</span></button>` : ''}
     </div>`;
 
   el('panel-close').onclick = closePanel;

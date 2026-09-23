@@ -16,13 +16,13 @@ internal sealed class ScanSession
     /// תיקיות המשנה הישירות של כל תיקייה, בשני עותקים.
     ///
     /// רשומות שמקורן ביומנים מספקות שם בלבד וללא מיקום תוכן, והן נפוצות
-    /// בהרבה מהקבצים הניתנים לשיחזור בפועל. הצגתן כברירת מחדל מטביעה
+    /// בהרבה מהקבצים הניתנים לשחזור בפועל. הצגתן כברירת מחדל מטביעה
     /// את התוצאות המשמעותיות, ולכן העץ נבנה גם בגרסה שאינה כוללת אותן.
     /// </summary>
     private readonly Dictionary<string, SortedSet<string>> _subFolders = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SortedSet<string>> _subFoldersReal = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>גישה מהירה לקובץ לפי מזההו, לצורך תצוגה מקדימה ושיחזור.</summary>
+    /// <summary>גישה מהירה לקובץ לפי מזההו, לצורך תצוגה מקדימה ושחזור.</summary>
     private readonly Dictionary<long, RecoveredFile> _byId = new();
 
     internal ScanResult Result { get; }
@@ -76,7 +76,7 @@ internal sealed class ScanSession
 
     /// <summary>
     /// רשומה שמקורה ביומן מעידה שהקובץ היה קיים, אך אינה נושאת
-    /// את מיקום תוכנו ולכן לעולם לא תניב שיחזור.
+    /// את מיקום תוכנו ולכן לעולם לא תניב שחזור.
     /// </summary>
     internal static bool IsEvidence(RecoveredFile file)
         => file.Source is DiscoverySource.UsnJournal or DiscoverySource.LogFile;
@@ -142,7 +142,7 @@ internal sealed class ScanSession
     {
         string prefix = path ?? "";
 
-        // רשומות יומן לעולם לא יניבו שיחזור, ולכן אינן נכללות בבחירת תיקייה.
+        // רשומות יומן לעולם לא יניבו שחזור, ולכן אינן נכללות בבחירת תיקייה.
         return Result.Files
             .Where(f => !f.IsDirectory && !IsEvidence(f) && IsUnder(f.Path ?? "", prefix))
             .ToList();

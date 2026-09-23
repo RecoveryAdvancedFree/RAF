@@ -120,7 +120,7 @@ internal static class FileSystemIdentifier
         _ => "לא ידוע",
     };
 
-    /// <summary>האם מערכת הקבצים נתמכת לשיחזור מבוסס מטא-דאטה בגרסה זו.</summary>
+    /// <summary>האם מערכת הקבצים נתמכת לשחזור מבוסס מטא-דאטה בגרסה זו.</summary>
     internal static bool IsSupported(FileSystemKind kind) => kind
         is FileSystemKind.Ntfs or FileSystemKind.ExFat
         or FileSystemKind.Fat32 or FileSystemKind.Fat16 or FileSystemKind.Fat12;

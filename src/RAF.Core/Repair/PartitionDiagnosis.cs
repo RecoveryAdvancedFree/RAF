@@ -15,7 +15,7 @@ public enum RepairOutlook
     /// <summary>נמצא עותק גיבוי תקין של מגזר האתחול — ניתן לתקן.</summary>
     BackupFound,
 
-    /// <summary>לא נמצא עותק גיבוי. נותר רק שיחזור קבצים.</summary>
+    /// <summary>לא נמצא עותק גיבוי. נותר רק שחזור קבצים.</summary>
     NoBackup,
 
     /// <summary>לא ניתן היה לקרוא את המחיצה כלל.</summary>
@@ -73,7 +73,7 @@ public static class PartitionDiagnosis
             return new PartitionDiagnosisResult
             {
                 Outlook = RepairOutlook.Unreadable,
-                Summary = "לא ניתן לפתוח את הדיסק לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.",
+                Summary = "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.",
             };
         }
 

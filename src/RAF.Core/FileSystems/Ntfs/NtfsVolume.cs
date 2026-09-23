@@ -23,7 +23,7 @@ internal sealed class NtfsVolume : IClusterVolume
     private readonly List<DataExtent> _mftExtents = new();
     private long _mftClusterCount;
 
-    /// <summary>מפת האשכולות התפוסים, לצורך הערכת איכות השיחזור.</summary>
+    /// <summary>מפת האשכולות התפוסים, לצורך הערכת איכות השחזור.</summary>
     private byte[]? _clusterBitmap;
 
     internal NtfsBootSector Boot { get; }
@@ -80,7 +80,7 @@ internal sealed class NtfsVolume : IClusterVolume
         return RecordCount > 0;
     }
 
-    /// <summary>טעינת מפת האשכולות ($Bitmap) — משמשת להערכת סיכויי שיחזור.</summary>
+    /// <summary>טעינת מפת האשכולות ($Bitmap) — משמשת להערכת סיכויי שחזור.</summary>
     internal void LoadClusterBitmap()
     {
         if (_clusterBitmap is not null) return;

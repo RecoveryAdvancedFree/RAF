@@ -9,7 +9,7 @@ namespace RAF.Core.FileSystems.Fat;
 /// סורק FAT12 / FAT16 / FAT32.
 ///
 /// ב-FAT, מחיקת קובץ מאפסת את כל ערכי טבלת ההקצאה של השרשרת שלו ומשאירה
-/// רק את אשכול ההתחלה ואת הגודל ברשומת הספרייה. לכן שיחזור מניח הקצאה
+/// רק את אשכול ההתחלה ואת הגודל ברשומת הספרייה. לכן שחזור מניח הקצאה
 /// רציפה — הנחה נכונה ברוב הקבצים ושגויה בקובץ שהיה מפוצל. התוכנה מציינת
 /// זאת במפורש בדירוג, במקום להציג ודאות שאינה קיימת.
 /// </summary>
@@ -44,7 +44,7 @@ public sealed class FatScanner
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: mode != ScanMode.Quick)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         using var volume = FatVolume.Open(reader)
             ?? throw new InvalidDataException(
@@ -69,10 +69,10 @@ public sealed class FatScanner
         if (_verifiedEmpty > 0)
             _warnings.Add(
                 $"{_verifiedEmpty:N0} קבצים נמצאו ברשומות הספרייה אך אזור הנתונים שלהם מכיל אפסים. " +
-                "הם סומנו כלא ניתנים לשיחזור.");
+                "הם סומנו כלא ניתנים לשחזור.");
 
         _warnings.Add(
-            "ב-FAT מחיקת קובץ מוחקת את שרשרת האשכולות שלו. השיחזור מניח שהקובץ " +
+            "ב-FAT מחיקת קובץ מוחקת את שרשרת האשכולות שלו. השחזור מניח שהקובץ " +
             "הוקצה ברצף מאשכול ההתחלה — הנחה נכונה ברוב הקבצים, אך קובץ שהיה " +
             "מפוצל על פני הכונן ישוחזר פגום.");
 
@@ -277,7 +277,7 @@ public sealed class FatScanner
 
         if (entry.NameIsPartial)
             file.QualityReason +=
-                " שים לב: שם הקובץ נשמר בתבנית הקצרה בלבד, ומחיקה ב-FAT דורסת את " +
+                " שימו לב: שם הקובץ נשמר בתבנית הקצרה בלבד, ומחיקה ב-FAT דורסת את " +
                 "האות הראשונה שלו. התוכן שלם, אך האות הראשונה בשם הוחלפה בקו תחתון.";
         return file;
     }
@@ -363,7 +363,7 @@ public sealed class FatScanner
         {
             0 => (RecoveryQuality.Excellent,
                   "נמצאו נתונים, וכל האשכולות שהקובץ תפס עדיין פנויים. " +
-                  "השיחזור מניח שהקובץ היה רציף על הכונן."),
+                  "השחזור מניח שהקובץ היה רציף על הכונן."),
             < 0.15 => (RecoveryQuality.Good,
                   $"נמצאו נתונים. כ-{ratio:P0} מהאשכולות כבר הוקצו לקבצים אחרים."),
             < 0.85 => (RecoveryQuality.Poor,

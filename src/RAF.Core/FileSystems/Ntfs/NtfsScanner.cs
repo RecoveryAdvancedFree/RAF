@@ -11,7 +11,7 @@ namespace RAF.Core.FileSystems.Ntfs;
 /// </summary>
 public sealed class NtfsScanner
 {
-    /// <summary>רשומת ביניים המשמשת לשיחזור עץ התיקיות.</summary>
+    /// <summary>רשומת ביניים המשמשת לשחזור עץ התיקיות.</summary>
     private readonly record struct DirEntry(string Name, long Parent, ushort ParentSequence, ushort Sequence);
 
     private readonly Dictionary<long, DirEntry> _directory = new();
@@ -74,7 +74,7 @@ public sealed class NtfsScanner
 
         using var reader = VolumeReader.TryOpen(diskNumber, partitionOffset, partitionSize, sectorSize, sequential)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         using var volume = NtfsVolume.Open(reader)
             ?? throw new InvalidDataException(
@@ -105,14 +105,14 @@ public sealed class NtfsScanner
         }
 
         // היומנים נסרקים אחרונים: הם מאתרים קבצים שרשומת ה-MFT שלהם כבר
-        // נדרסה, ובנוסף מספקים שמות תיקיות שמשפרים את שיחזור הנתיבים.
+        // נדרסה, ובנוסף מספקים שמות תיקיות שמשפרים את שחזור הנתיבים.
         if (mode is ScanMode.Deep or ScanMode.Advanced && !token.IsCancellationRequested)
         {
             ScanUsnJournal(files, seen, progress, clock, token);
             ScanLogFile(files, progress, clock, token);
         }
 
-        // שיחזור הנתיבים מתבצע רק לאחר שכל הרשומות נאספו,
+        // שחזור הנתיבים מתבצע רק לאחר שכל הרשומות נאספו,
         // כדי שתיקיות שנמצאו מאוחר בסריקה ישמשו גם לקבצים שנמצאו מוקדם.
         ResolvePaths(files, progress, clock, token);
 
@@ -123,7 +123,7 @@ public sealed class NtfsScanner
                 (_trim == TrimState.Enabled
                     ? "בכונן זה פקודת TRIM פעילה, והבקר מוחק פיזית בלוקים של קבצים שנמחקו. "
                     : "האשכולות שלהם נדרסו או אופסו. ") +
-                "קבצים אלה סומנו כלא ניתנים לשיחזור ולא יוצעו לשיחזור.");
+                "קבצים אלה סומנו כלא ניתנים לשחזור ולא יוצעו לשחזור.");
         }
 
         return new ScanResult
@@ -298,7 +298,7 @@ public sealed class NtfsScanner
         return includeExisting || !record.InUse;
     }
 
-    /// <summary>רישום הרשומה במפת התיקיות, לשימוש בשיחזור הנתיבים.</summary>
+    /// <summary>רישום הרשומה במפת התיקיות, לשימוש בשחזור הנתיבים.</summary>
     private void Index(MftRecord record)
     {
         var name = record.PreferredName();
@@ -347,7 +347,7 @@ public sealed class NtfsScanner
     }
 
     /// <summary>
-    /// קביעת דירוג השיחזור.
+    /// קביעת דירוג השחזור.
     ///
     /// הדירוג נקבע בשני שלבים: תחילה נדגם התוכן בפועל מהדיסק, ורק אם נמצאו
     /// שם נתונים אמיתיים נבדק כמה מהאשכולות הוקצו מחדש. ללא הדגימה הזו,
@@ -408,7 +408,7 @@ public sealed class NtfsScanner
 
             case ContentCheck.NotChecked:
                 file.Quality = RecoveryQuality.Good;
-                file.QualityReason = "תוכן הקובץ לא אומת מול הדיסק. ייתכן שהשיחזור יניב קובץ ריק.";
+                file.QualityReason = "תוכן הקובץ לא אומת מול הדיסק. ייתכן שהשחזור יניב קובץ ריק.";
                 return;
         }
 
@@ -534,7 +534,7 @@ public sealed class NtfsScanner
             entry =>
             {
                 // כל רשומה ביומן היא גם עדות לשם של תיקייה או קובץ,
-                // ולכן היא משפרת את שיחזור עץ הנתיבים.
+                // ולכן היא משפרת את שחזור עץ הנתיבים.
                 RegisterFromJournal(entry.FileRecord, entry.FileSequence,
                     entry.FileName, entry.ParentRecord, entry.ParentSequence);
 
@@ -663,7 +663,7 @@ public sealed class NtfsScanner
     }
 
     /// <summary>
-    /// רישום שם מתוך יומן למפת התיקיות, לשיפור שיחזור הנתיבים.
+    /// רישום שם מתוך יומן למפת התיקיות, לשיפור שחזור הנתיבים.
     /// רשומה שכבר נאספה מה-MFT גוברת — היא אמינה יותר.
     /// </summary>
     private void RegisterFromJournal(
@@ -677,7 +677,7 @@ public sealed class NtfsScanner
         _directory[record] = new DirEntry(name, parent, parentSequence, sequence);
     }
 
-    // ------------------------------------------------------ שיחזור נתיבים
+    // ------------------------------------------------------ שחזור נתיבים
 
     /// <summary>בניית הנתיב המלא של כל קובץ מתוך שרשרת רשומות ההורה.</summary>
     private void ResolvePaths(
@@ -721,7 +721,7 @@ public sealed class NtfsScanner
 
             if (!_directory.TryGetValue(current, out var entry))
             {
-                // התיקייה עצמה נדרסה ואינה ניתנת לשיחזור.
+                // התיקייה עצמה נדרסה ואינה ניתנת לשחזור.
                 uncertain = true;
                 break;
             }

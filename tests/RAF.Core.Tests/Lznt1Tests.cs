@@ -106,7 +106,7 @@ public class Lznt1Tests
     [Fact]
     public void Truncated_input_returns_what_was_decoded_instead_of_throwing()
     {
-        // בלוק שמצהיר על 100 בתים אך נקטע — מצב טיפוסי בשיחזור מדיסק פגום.
+        // בלוק שמצהיר על 100 בתים אך נקטע — מצב טיפוסי בשחזור מדיסק פגום.
         byte[] input = new byte[6];
         BinaryPrimitives.WriteUInt16LittleEndian(input, (ushort)(0xB000 | 99));
 

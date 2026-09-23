@@ -1,6 +1,6 @@
 /* ==========================================================================
-   שיחזור מתקדם חינם — RAF
-   סגנונות מסכי העבודה: סריקה, תוצאות, תצוגה מקדימה ושיחזור.
+   שחזור מתקדם חינם — RAF
+   סגנונות מסכי העבודה: סריקה, תוצאות, תצוגה מקדימה ושחזור.
    הבסיס (מעטפת החלון, כרטיסי הדיסקים והלוח הצדדי) נמצא ב-styles.css.
    ========================================================================== */
 
@@ -289,7 +289,7 @@
   white-space: pre;
 }
 
-/* ---------- שורת שיחזור ---------- */
+/* ---------- שורת שחזור ---------- */
 .recover-bar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 14px;
@@ -320,6 +320,38 @@
   color: var(--ok-text);
 }
 .notice.tiny-notice { margin: 12px 0 0; padding: 10px 12px; font-size: 12.5px; }
+
+.notice.spaced { margin-top: 16px; }
+
+/* הנימוק המלא של הודעה, מקופל כברירת מחדל */
+.notice .why { margin-top: 4px; }
+.notice .why summary {
+  display: inline-block;
+  font-size: 12px; font-weight: 600;
+  opacity: 0.8; cursor: pointer;
+  list-style: none;
+}
+.notice .why summary::-webkit-details-marker { display: none; }
+.notice .why summary::after,
+.scan-tech summary::after {
+  content: '▾'; display: inline-block; margin-inline-start: 4px;
+  font-size: 10px; transition: transform 0.15s;
+}
+.notice .why[open] summary::after,
+.scan-tech[open] summary::after { transform: rotate(180deg); }
+.notice .why summary:hover { opacity: 1; text-decoration: underline; }
+.notice .why > div { margin-top: 4px; opacity: 0.9; }
+
+/* פרטים טכניים על סוגי הסריקה */
+.scan-tech { margin-top: 4px; font-size: 12.5px; color: var(--text-dim); }
+.scan-tech summary {
+  cursor: pointer; font-weight: 600; color: var(--text-faint);
+  list-style: none; padding: 4px 0;
+}
+.scan-tech summary::-webkit-details-marker { display: none; }
+.scan-tech summary:hover { color: var(--text); }
+.scan-tech dl { margin-top: 6px; line-height: 1.65; }
+.scan-tech dt { font-weight: 650; color: var(--text); margin-top: 6px; }
 
 /* ---------- רשימת כשלונות ---------- */
 .fail-list {

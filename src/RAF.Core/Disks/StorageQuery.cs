@@ -86,7 +86,7 @@ internal static class StorageQuery
         return buf[8] != 0;
     }
 
-    /// <summary>האם פקודת TRIM פעילה — קובע דרמטית את סיכויי השיחזור ב-SSD.</summary>
+    /// <summary>האם פקודת TRIM פעילה — קובע דרמטית את סיכויי השחזור ב-SSD.</summary>
     internal static TrimState GetTrimState(IntPtr handle)
     {
         byte[]? buf = Query(handle, Win32.StoragePropertyId.StorageDeviceTrimProperty, 64);

@@ -75,7 +75,7 @@ public sealed class FileRepairResult
 ///
 /// האבחון משווה בין שלושה מקורות מידע: חתימת הפתיחה בפועל, הסיומת,
 /// והאורך שמבנה הקובץ מצהיר עליו. כל פער ביניהם הוא בעיה שניתן לזהות,
-/// וחלקן ניתנות לתיקון מכני: שיחזור חתימה שנמחקה, הסרת זבל אחרי סוף
+/// וחלקן ניתנות לתיקון מכני: שחזור חתימה שנמחקה, הסרת זבל אחרי סוף
 /// הקובץ, השלמת חתימת סיום ותיקון סיומת.
 ///
 /// הקובץ המקורי לעולם אינו משתנה. התיקון נכתב לעותק חדש, ואחריו
@@ -183,7 +183,7 @@ public static class FileDoctor
                 {
                     issues.Add(new FileIssue(FileIssueKind.Truncated,
                         $"מבנה הקובץ מצהיר על {declared:N0} בתים, אך רק {size:N0} קיימים. " +
-                        $"{declared - size:N0} בתים חסרים ואינם ניתנים לשיחזור מתוך הקובץ עצמו. " +
+                        $"{declared - size:N0} בתים חסרים ואינם ניתנים לשחזור מתוך הקובץ עצמו. " +
                         "ייתכן שהקובץ ייפתח חלקית.", false));
                 }
             }
@@ -310,7 +310,7 @@ public static class FileDoctor
         {
             switch (issue.Kind)
             {
-                // חתימה וסמן נפגעים לרוב יחד; השיחזור מטפל בשניהם בפעם אחת.
+                // חתימה וסמן נפגעים לרוב יחד; השחזור מטפל בשניהם בפעם אחת.
                 case FileIssueKind.HeaderDamaged when format is not null && !headerRestored:
                     RestoreHeader(data, format);
                     FixSizeFields(data, format);

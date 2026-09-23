@@ -6,7 +6,7 @@ namespace RAF.Core.FileSystems;
 
 /// <summary>
 /// תוצאת חילוץ זרם. מבדילה בין בתים שנקראו בפועל לבין בתים שהושלמו באפסים
-/// בגלל קריאה שנכשלה — הבחנה קריטית, אחרת קובץ ריק נראה כשיחזור מוצלח.
+/// בגלל קריאה שנכשלה — הבחנה קריטית, אחרת קובץ ריק נראה כשחזור מוצלח.
 /// </summary>
 internal readonly record struct CopyOutcome(long BytesWritten, long UnreadableBytes, bool SawContent);
 

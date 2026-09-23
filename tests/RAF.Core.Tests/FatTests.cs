@@ -185,7 +185,7 @@ public class FatTests
         var e = Assert.Single(entries);
         Assert.True(e.IsDeleted);
 
-        // האות הראשונה נדרסה בסימון המחיקה ואינה ניתנת לשיחזור.
+        // האות הראשונה נדרסה בסימון המחיקה ואינה ניתנת לשחזור.
         Assert.Equal("_EPORT.TXT", e.Name);
     }
 

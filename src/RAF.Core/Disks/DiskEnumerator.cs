@@ -282,7 +282,7 @@ public static class DiskEnumerator
 
             if (match is null)
             {
-                // מחיצה שקיימת פיזית אך Windows אינו מכיר — יעד שיחזור מובהק.
+                // מחיצה שקיימת פיזית אך Windows אינו מכיר — יעד שחזור מובהק.
                 merged.Add(Clone(p, isUnmounted: true));
                 continue;
             }
@@ -407,7 +407,7 @@ public static class DiskEnumerator
             if (first.Length >= 2 && first[1] == ':') driveLetter = first[..2];
         }
 
-        // כוננים מרוחקים או תקליטורים אינם רלוונטיים לשיחזור גולמי.
+        // כוננים מרוחקים או תקליטורים אינם רלוונטיים לשחזור גולמי.
         uint driveType = Win32.GetDriveType(volumeName);
         if (driveType is Win32.DRIVE_REMOTE or Win32.DRIVE_CDROM) return null;
 

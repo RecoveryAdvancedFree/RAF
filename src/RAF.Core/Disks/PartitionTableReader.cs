@@ -143,7 +143,7 @@ internal static class PartitionTableReader
         if (type == GuidBasicData) return "נתונים בסיסיים";
         if (type == GuidEfiSystem) return "מחיצת מערכת EFI";
         if (type == GuidMsReserved) return "שמור למערכת";
-        if (type == GuidWinRecovery) return "שיחזור Windows";
+        if (type == GuidWinRecovery) return "שחזור Windows";
         if (type == GuidLinuxData) return "נתוני Linux";
         if (type == GuidLinuxSwap) return "Linux Swap";
         if (type == GuidAppleApfs) return "Apple APFS";
@@ -253,7 +253,7 @@ internal static class PartitionTableReader
         0x07 => "NTFS / exFAT",
         0x0B or 0x0C => "FAT32",
         0x11 or 0x14 or 0x16 or 0x17 or 0x1B or 0x1C or 0x1E => "מחיצה מוסתרת",
-        0x27 => "שיחזור Windows",
+        0x27 => "שחזור Windows",
         0x82 => "Linux Swap",
         0x83 => "Linux",
         0x8E => "Linux LVM",

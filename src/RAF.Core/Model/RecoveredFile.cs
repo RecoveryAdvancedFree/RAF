@@ -19,7 +19,7 @@ public enum DiscoverySource
     Carving,
 }
 
-/// <summary>הערכת סיכויי השיחזור של קובץ מסוים.</summary>
+/// <summary>הערכת סיכויי השחזור של קובץ מסוים.</summary>
 public enum RecoveryQuality
 {
     /// <summary>כל האשכולות פנויים — הקובץ צפוי להשתחזר במלואו.</summary>
@@ -58,7 +58,7 @@ public readonly record struct DataExtent(long StartCluster, long ClusterCount, b
         IsSparse ? $"[דליל × {ClusterCount}]" : $"[{StartCluster}+{ClusterCount}]";
 }
 
-/// <summary>קובץ שנמצא בסריקה ומועמד לשיחזור.</summary>
+/// <summary>קובץ שנמצא בסריקה ומועמד לשחזור.</summary>
 public sealed class RecoveredFile
 {
     /// <summary>מזהה ייחודי בתוך הסריקה. ב-NTFS זהו מספר רשומת ה-MFT.</summary>
@@ -87,7 +87,7 @@ public sealed class RecoveredFile
     public string QualityReason { get; set; } = "";
 
     /// <summary>
-    /// האם נדגם תוכן אמיתי מהדיסק. דירוג שאינו מאומת אינו יכול להבטיח שיחזור:
+    /// האם נדגם תוכן אמיתי מהדיסק. דירוג שאינו מאומת אינו יכול להבטיח שחזור:
     /// בכונן SSD עם TRIM רשומת המטא-דאטה שורדת גם אחרי שהנתונים נמחקו פיזית.
     /// </summary>
     public ContentCheck Content { get; set; } = ContentCheck.NotChecked;
@@ -98,7 +98,7 @@ public sealed class RecoveredFile
     /// <summary>תוכן הקובץ כשהוא קטן מספיק להישמר בתוך רשומת ה-MFT עצמה.</summary>
     public byte[]? ResidentData { get; init; }
 
-    /// <summary>האם התוכן דחוס ב-NTFS ודורש פריסה בעת השיחזור.</summary>
+    /// <summary>האם התוכן דחוס ב-NTFS ודורש פריסה בעת השחזור.</summary>
     public bool IsCompressed { get; init; }
 
     /// <summary>גודל יחידת הדחיסה באשכולות, כשהתוכן דחוס.</summary>
@@ -106,7 +106,7 @@ public sealed class RecoveredFile
 
     /// <summary>
     /// השם שוחזר חלקית. ב-FAT, מחיקת קובץ דורסת את האות הראשונה של שם 8.3
-    /// ואינה ניתנת לשיחזור — התוכן שלם, אך אות אחת בשם אבדה.
+    /// ואינה ניתנת לשחזור — התוכן שלם, אך אות אחת בשם אבדה.
     /// </summary>
     public bool NameIsPartial { get; init; }
 
@@ -126,7 +126,7 @@ public sealed class RecoveredFile
     public bool HasContent => ResidentData is not null || Extents.Count > 0;
 
     /// <summary>
-    /// האם יש טעם להציע את הקובץ לשיחזור.
+    /// האם יש טעם להציע את הקובץ לשחזור.
     /// קובץ שנבדק ונמצא ריק לא יישוחזר — הוא רק ייצור קובץ אפסים מטעה.
     /// </summary>
     public bool IsWorthRecovering =>

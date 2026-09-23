@@ -90,14 +90,14 @@ public sealed class PartitionInfo
 
     /// <summary>
     /// המחיצה אינה מוכרת ל-Windows (נמחקה / פגומה) אך זוהתה בקריאה גולמית.
-    /// מחיצות כאלה הן לרוב יעדי השיחזור החשובים ביותר.
+    /// מחיצות כאלה הן לרוב יעדי השחזור החשובים ביותר.
     /// </summary>
     public bool IsUnmounted { get; init; }
 }
 
 /// <summary>
-/// אסטרטגיית הקריאה והשיחזור שנבחרה עבור דיסק מסוים.
-/// זהו המימוש של דרישה 5 — התאמת סוג השיחזור לסוג הדיסק.
+/// אסטרטגיית הקריאה והשחזור שנבחרה עבור דיסק מסוים.
+/// זהו המימוש של דרישה 5 — התאמת סוג השחזור לסוג הדיסק.
 /// </summary>
 public sealed class RecoveryProfile
 {
@@ -113,13 +113,13 @@ public sealed class RecoveryProfile
     /// <summary>הסבר בעברית למשתמש מדוע נבחרה אסטרטגיה זו.</summary>
     public string Rationale { get; init; } = "";
 
-    /// <summary>אזהרה למשתמש, אם סיכויי השיחזור נמוכים (למשל TRIM פעיל).</summary>
+    /// <summary>אזהרה למשתמש, אם סיכויי השחזור נמוכים (למשל TRIM פעיל).</summary>
     public string? Warning { get; init; }
 
     /// <summary>הערכה גסה של סיכויי ההצלחה, 0–100, להצגה כמחוון בממשק.</summary>
     public int SuccessOutlook { get; init; }
 
-    /// <summary>בניית פרופיל השיחזור המתאים לדיסק נתון ולמצב הסריקה שנבחר.</summary>
+    /// <summary>בניית פרופיל השחזור המתאים לדיסק נתון ולמצב הסריקה שנבחר.</summary>
     public static RecoveryProfile For(PhysicalDiskInfo disk, ScanMode mode)
     {
         bool carving = mode == ScanMode.Advanced;
@@ -135,7 +135,7 @@ public sealed class RecoveryProfile
                 SuccessOutlook = carving ? 85 : 90,
                 Rationale = "דיסק מגנטי מסתובב: הסריקה תתבצע ברצף לפי סדר הסקטורים, " +
                             "בבלוקים של 4MB ובזרם קריאה יחיד, כדי למנוע תנועות ראש מיותרות. " +
-                            "בדיסק מסוג זה נתונים שנמחקו נשארים על הצלחת עד לדריסה — סיכויי השיחזור גבוהים.",
+                            "בדיסק מסוג זה נתונים שנמחקו נשארים על הצלחת עד לדריסה — סיכויי השחזור גבוהים.",
             },
 
             MediaKind.Ssd or MediaKind.NvmeSsd => new RecoveryProfile
@@ -150,8 +150,8 @@ public sealed class RecoveryProfile
                       "כדי לנצל את התורים הפנימיים של הבקר ולהגיע למהירות מרבית."
                     : "כונן SSD: אין עלות גישה אקראית, ולכן הסריקה תרוץ ב-4 ערוצים מקבילים.",
                 Warning = disk.Trim == TrimState.Enabled
-                    ? "שים לב: בכונן זה פקודת TRIM פעילה. משמעות הדבר שהבקר מוחק פיזית " +
-                      "בלוקים של קבצים שנמחקו, לרוב תוך דקות. שיחזור אפשרי בעיקר לקבצים שנמחקו " +
+                    ? "שימו לב: בכונן זה פקודת TRIM פעילה. משמעות הדבר שהבקר מוחק פיזית " +
+                      "בלוקים של קבצים שנמחקו, לרוב תוך דקות. שחזור אפשרי בעיקר לקבצים שנמחקו " +
                       "לאחרונה מאוד. מומלץ לכבות את המחשב ולסרוק בהקדם האפשרי."
                     : null,
             },

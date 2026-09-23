@@ -55,7 +55,7 @@ public static class FailedDevices
 
                 // במחלקת USB מוצגים רק התקני אחסון, או התקן שנכשל כבר בזיהוי
                 // הראשוני — שם אי אפשר לדעת מה הוא, וייתכן שזה הכונן.
-                // מצלמה או עכבר תקולים אינם רלוונטיים לשיחזור.
+                // מצלמה או עכבר תקולים אינם רלוונטיים לשחזור.
                 bool storage = ids.Contains(@"USB\Class_08", StringComparison.OrdinalIgnoreCase);
                 bool enumFailure = ids.Contains("_FAILURE", StringComparison.OrdinalIgnoreCase);
                 if (isUsbClass && !storage && !enumFailure) continue;
@@ -98,11 +98,11 @@ public static class FailedDevices
         if (code == 22)
             return "אפשר להפעיל אותו מחדש במנהל ההתקנים: קליק ימני על הכונן ← \"הפעל התקן\".";
 
-        var tips = new StringBuilder("נתק את הכונן, המתן כמה שניות וחבר אותו מחדש. ");
+        var tips = new StringBuilder("נתקו את הכונן, המתינו כמה שניות וחברו אותו מחדש. ");
         if (usb)
-            tips.Append("נסה יציאת USB אחרת — עדיף יציאה בגב המחשב — וכבל או מתאם אחר. ");
+            tips.Append("נסו יציאת USB אחרת — עדיף יציאה בגב המחשב — וכבל או מתאם אחר. ");
         tips.Append("בכונן קשיח פנימי: חיבור ישיר בכבל SATA במקום מתאם USB מצליח לעיתים קרובות " +
-                    "גם כשהמתאם נכשל. כשהכונן יזוהה — צור ממנו תמונה לפני כל דבר אחר.");
+                    "גם כשהמתאם נכשל. כשהכונן יזוהה — צרו ממנו תמונה לפני כל דבר אחר.");
         return tips.ToString();
     }
 

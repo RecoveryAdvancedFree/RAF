@@ -27,7 +27,7 @@ internal static class Program
         MessageBox.Show(
             "אירעה שגיאה בלתי צפויה:\n\n" + (ex?.Message ?? "שגיאה לא ידועה") +
             "\n\nפירוט טכני:\n" + (ex?.StackTrace ?? ""),
-            "שיחזור מתקדם חינם — שגיאה",
+            "שחזור מתקדם חינם — שגיאה",
             MessageBoxButtons.OK, MessageBoxIcon.Error,
             MessageBoxDefaultButton.Button1,
             MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);

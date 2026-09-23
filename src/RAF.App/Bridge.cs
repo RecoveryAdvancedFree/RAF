@@ -15,7 +15,7 @@ namespace RAF.App;
 /// <summary>
 /// גשר בין הממשק (JavaScript) לבין מנוע הליבה.
 /// הממשק שולח בקשה עם מזהה ושם שיטה ומקבל תשובה עם אותו מזהה.
-/// בנוסף, הגשר דוחף אירועי התקדמות ביוזמתו במהלך סריקה ושיחזור.
+/// בנוסף, הגשר דוחף אירועי התקדמות ביוזמתו במהלך סריקה ושחזור.
 /// </summary>
 internal sealed class Bridge
 {
@@ -79,10 +79,10 @@ internal sealed class Bridge
         "repair.diagnose" => await Task.Run(() => Diagnose(p)),
         "repair.apply" => await Task.Run(() => ApplyRepair(p)),
         "repair.readThrough" => await Task.Run(() => ReadThrough(p)),
-        "repair.pickFolder" => PickFolder("בחר תיקייה לגיבוי הסקטורים — חייבת להיות על כונן אחר"),
+        "repair.pickFolder" => PickFolder("בחרו תיקייה לגיבוי הסקטורים — חייבת להיות על כונן אחר"),
 
         "doctor.pickFiles" => PickFiles(),
-        "doctor.pickFolder" => PickFolder("בחר תיקייה לשמירת הקבצים המתוקנים"),
+        "doctor.pickFolder" => PickFolder("בחרו תיקייה לשמירת הקבצים המתוקנים"),
         "doctor.diagnose" => await Task.Run(() => DoctorDiagnose(p)),
         "doctor.diagnoseFolder" => await Task.Run(() => DoctorDiagnoseFolder(p)),
         "doctor.repair" => await Task.Run(() => DoctorRepair(p)),
@@ -143,7 +143,7 @@ internal sealed class Bridge
 
         return new
         {
-            appName = "שיחזור מתקדם חינם",
+            appName = "שחזור מתקדם חינם",
             version = typeof(Bridge).Assembly.GetName().Version?.ToString(3) ?? "0.1.0",
             elevated = DiskEnumerator.IsElevated,
             machine = Environment.MachineName,
@@ -294,7 +294,7 @@ internal sealed class Bridge
         if (!VolumeScanner.CanScan(part.FileSystem, mode))
             throw new InvalidOperationException(
                 $"מערכת הקבצים {Display.FileSystem(part.FileSystem)} אינה נתמכת לסריקת מטא-דאטה. " +
-                "נסה סריקה מתקדמת, שאינה תלויה במערכת הקבצים.");
+                "נסו סריקה מתקדמת, שאינה תלויה במערכת הקבצים.");
 
         _scanCancel?.Cancel();
         _scanCancel = new CancellationTokenSource();
@@ -538,9 +538,9 @@ internal sealed class Bridge
         return text.Length > maxChars ? text[..maxChars] + "\n\n… (התצוגה נקטעה)" : text;
     }
 
-    // ------------------------------------------------------------ שיחזור
+    // ------------------------------------------------------------ שחזור
 
-    private object PickFolder() => PickFolder("בחר תיקיית יעד לשיחזור — חייבת להיות על כונן אחר");
+    private object PickFolder() => PickFolder("בחרו תיקיית יעד לשחזור — חייבת להיות על כונן אחר");
 
     private object PickFolder(string description)
     {
@@ -600,7 +600,7 @@ internal sealed class Bridge
         }
 
         if (files.Count == 0)
-            throw new InvalidOperationException("לא נבחרו קבצים לשיחזור.");
+            throw new InvalidOperationException("לא נבחרו קבצים לשחזור.");
 
         _recoverCancel?.Cancel();
         _recoverCancel = new CancellationTokenSource();
@@ -806,7 +806,7 @@ internal sealed class Bridge
         {
             using var dialog = new SaveFileDialog
             {
-                Title = "שמירת תמונת הדיסק — בחר כונן אחר מהכונן המקורי",
+                Title = "שמירת תמונת הדיסק — בחרו כונן אחר מהכונן המקורי",
                 FileName = suggested,
                 Filter = "תמונת דיסק גולמית (*.img)|*.img",
                 DefaultExt = "img",
@@ -1047,7 +1047,7 @@ internal sealed class Bridge
         {
             using var dialog = new OpenFileDialog
             {
-                Title = "בחר קבצים לבדיקה ולתיקון",
+                Title = "בחרו קבצים לבדיקה ולתיקון",
                 Multiselect = true,
                 CheckFileExists = true,
             };
@@ -1066,7 +1066,7 @@ internal sealed class Bridge
     }
 
     /// <summary>
-    /// בדיקת כל הקבצים בתיקייה — משמש אחרי שיחזור, כדי לאתר מיד
+    /// בדיקת כל הקבצים בתיקייה — משמש אחרי שחזור, כדי לאתר מיד
     /// קבצים שחזרו פגומים ולהציע לתקן אותם.
     /// </summary>
     private object DoctorDiagnoseFolder(JsonObject? p)

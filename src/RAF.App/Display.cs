@@ -75,7 +75,7 @@ internal static class Display
         RecoveryQuality.Excellent => "מצוין",
         RecoveryQuality.Good => "טוב",
         RecoveryQuality.Poor => "פגום חלקית",
-        _ => "לא ניתן לשיחזור",
+        _ => "לא ניתן לשחזור",
     };
 
     internal static string Source(DiscoverySource s) => s switch

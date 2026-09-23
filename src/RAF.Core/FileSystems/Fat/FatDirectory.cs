@@ -221,7 +221,7 @@ internal static class FatDirectory
 
     /// <summary>
     /// קריאת שם 8.3. בקובץ שנמחק האות הראשונה הוחלפה בסימון המחיקה
-    /// ואינה ניתנת לשיחזור, ולכן מוצג במקומה קו תחתון.
+    /// ואינה ניתנת לשחזור, ולכן מוצג במקומה קו תחתון.
     /// </summary>
     private static string ReadShortName(ReadOnlySpan<byte> entry, bool deleted)
     {

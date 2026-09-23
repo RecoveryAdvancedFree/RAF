@@ -42,7 +42,7 @@ public sealed class ExFatScanner
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: mode != ScanMode.Quick)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודא שהתוכנה פועלת בהרשאות מנהל.");
+                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         using var volume = ExFatVolume.Open(reader)
             ?? throw new InvalidDataException(
@@ -69,7 +69,7 @@ public sealed class ExFatScanner
         if (_verifiedEmpty > 0)
             _warnings.Add(
                 $"{_verifiedEmpty:N0} קבצים נמצאו ברשומות הספרייה אך אזור הנתונים שלהם מכיל אפסים. " +
-                "הם סומנו כלא ניתנים לשיחזור.");
+                "הם סומנו כלא ניתנים לשחזור.");
 
         return new ScanResult
         {
@@ -286,7 +286,7 @@ public sealed class ExFatScanner
         // כי ההנחה על רציפות אינה ניחוש אלא נתון שנשמר ברשומה.
         string basis = entry.NoFatChain
             ? "הרשומה מציינת שהקובץ היה רציף על הכונן, ולכן מיקומו ידוע בוודאות."
-            : "השיחזור מניח שהקובץ היה רציף על הכונן.";
+            : "השחזור מניח שהקובץ היה רציף על הכונן.";
 
         double ratio = total == 0 ? 0 : (double)taken / total;
 
