@@ -178,20 +178,41 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
   flex-shrink: 0;
 }
 
-.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
-.brand-title { font-size: 13.5px; font-weight: 600; letter-spacing: -0.1px; }
-.brand-sub { font-size: 10px; color: var(--text-faint); letter-spacing: 0.4px; direction: ltr; }
+.brand-title { font-size: 13.5px; font-weight: 600; letter-spacing: -0.1px; white-space: nowrap; }
 
-.brand-badge {
-  margin-right: 4px;
-  padding: 2px 7px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-  border-radius: 5px;
-  direction: ltr;
+/* ---------- שלבי השחזור, במרכז שורת הכותרת ---------- */
+.steps {
+  display: flex; align-items: center; gap: 4px;
+  min-width: 0;
 }
+.step {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 10px 4px 8px;
+  font-family: inherit; font-size: 12.5px; font-weight: 550;
+  color: var(--text-faint);
+  background: transparent; border: 0; border-radius: 999px;
+  white-space: nowrap;
+  cursor: default;
+}
+.step-num {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+}
+.step-num svg { width: 11px; height: 11px; stroke-width: 2.6; }
+.step-sep { width: 18px; height: 1.5px; flex-shrink: 0; background: var(--border-strong); border-radius: 1px; }
+
+.step.done { color: var(--text-dim); }
+.step.done .step-num { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
+.step.current { color: var(--text); background: var(--accent-soft); }
+.step.current .step-num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.step-sep.done { background: var(--ok-line); }
+
+/* שלב שאפשר לחזור אליו */
+.step.link { cursor: pointer; }
+.step.link:hover { color: var(--accent); background: var(--surface-3); }
 
 .win-controls { display: flex; gap: 2px; }
 
@@ -415,8 +436,9 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
 .status-chip.muted  { color: var(--text-faint); background: transparent; border-color: transparent; }
 
 /* ---------- לוח צדדי ---------- */
+/* הלוח מתחיל מתחת לשורת הכותרת: פס השלבים נשאר גלוי, והחלון נשאר ניתן לגרירה ולמזעור */
 .overlay {
-  position: fixed; inset: 0; z-index: 500;
+  position: fixed; inset: var(--titlebar-h) 0 0 0; z-index: 500;
   background: var(--overlay);
   backdrop-filter: blur(3px);
   display: flex; justify-content: flex-start;

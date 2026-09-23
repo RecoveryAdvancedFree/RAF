@@ -196,12 +196,15 @@ el('btn-min').onclick = () => Bridge.call('window.minimize');
 el('btn-max').onclick = () => Bridge.call('window.toggleMaximize');
 el('btn-close').onclick = () => Bridge.call('window.close');
 
+// כפתורים בשורת הכותרת — שליטת חלון ושלבים שאפשר לחזור אליהם — אינם גוררים את החלון.
+const NOT_DRAG = '.win-btn, .step.link';
+
 el('titlebar').addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || e.target.closest('.win-btn')) return;
+  if (e.button !== 0 || e.target.closest(NOT_DRAG)) return;
   Bridge.call('window.beginDrag', { hit: 2 });
 });
 el('titlebar').addEventListener('dblclick', (e) => {
-  if (!e.target.closest('.win-btn')) Bridge.call('window.toggleMaximize');
+  if (!e.target.closest(NOT_DRAG)) Bridge.call('window.toggleMaximize');
 });
 
 document.querySelectorAll('.resize-edge').forEach((edge) => {
@@ -230,11 +233,67 @@ const State = {
 
 function setStatus(text) { el('status-text').textContent = text; }
 
+/// פס השלבים בשורת הכותרת. שלב קודם הוא קישור חזרה — אלא בזמן פעולה ארוכה
+/// (סריקה, יצירת תמונה, שחזור), שתוצאתה הייתה דורסת את המסך שאליו עברו.
+/// "בחירת קבצים" זמין גם ממסך הכוננים כל עוד יש תוצאות סריקה: הבחירה נשמרת במנוע.
+const Steps = (() => {
+  const STEPS = ['מחיצה', 'סריקה', 'בחירת קבצים', 'שחזור'];
+  let current = 1;
+  let busy = false;
+
+  function canGo(n) {
+    if (busy || n === current) return false;
+    if (n === 1) return current >= 3;
+    if (n === 3) return (current === 1 || current === 4) && !!State.summary;
+    return false;
+  }
+
+  function render() {
+    el('steps').innerHTML = STEPS.map((label, i) => {
+      const n = i + 1;
+      const done = n < current;
+      const cls = ['step', done ? 'done' : '', n === current ? 'current' : '', canGo(n) ? 'link' : ''].join(' ');
+      const sep = n > 1 ? `<span class="step-sep${done || n === current ? ' done' : ''}"></span>` : '';
+      return `${sep}<button class="${cls}" data-step="${n}"${canGo(n) ? '' : ' tabindex="-1"'}
+                ${n === current ? 'aria-current="step"' : ''}>
+                <span class="step-num">${done ? Icon.check : n}</span>${label}</button>`;
+    }).join('');
+  }
+
+  el('steps').addEventListener('click', (e) => {
+    const step = e.target.closest('[data-step]');
+    if (!step || !canGo(+step.dataset.step)) return;
+    closePanel();
+    if (+step.dataset.step === 1) loadDisks();
+    else if (!el('filelist')) renderResults();
+  });
+
+  render();
+  return {
+    set(n) { current = n; render(); },
+    get current() { return current; },
+    get busy() { return busy; },
+    /// פעולה ארוכה נועלת את הניווט עד שהיא מסתיימת.
+    setBusy(on) { busy = on; render(); },
+  };
+})();
+
+/// קריאה ארוכה למנוע (סריקה, תמונה, שחזור): ללא מגבלת זמן, והניווט נעול עד סופה.
+async function longCall(method, params) {
+  Steps.setBusy(true);
+  try {
+    return await Bridge.call(method, params, 0);
+  } finally {
+    Steps.setBusy(false);
+  }
+}
+
 /* =====================================================================
    מסך 1 — רשימת המחיצות
    ===================================================================== */
 
 async function loadDisks() {
+  Steps.set(1);
   el('content').innerHTML =
     '<div class="loading"><div class="spinner"></div><p>סורק את אמצעי האחסון במערכת…</p></div>';
 
@@ -558,7 +617,7 @@ async function startHunt(disk) {
   setStatus('סורק את הכונן…');
 
   try {
-    const r = await Bridge.call('disk.hunt', { disk: disk.number }, 0);
+    const r = await longCall('disk.hunt', { disk: disk.number });
 
     const i = State.disks.findIndex((d) => d.number === disk.number);
     if (i >= 0) State.disks[i] = r.disk;
@@ -1182,7 +1241,7 @@ async function startImaging(disk, part, request) {
 
   let r;
   try {
-    r = await Bridge.call('image.create', request, 0);
+    r = await longCall('image.create', request);
   } catch (err) {
     el('content').innerHTML = `
       <div class="page-head"><div>
@@ -1407,13 +1466,17 @@ async function runDoctorRepair(paths) {
 function closePanel() {
   el('overlay').hidden = true;
   el('panel').innerHTML = '';
+  // סגירת לוח השחזור מחזירה לבחירת הקבצים.
+  if (Steps.current === 4) Steps.set(3);
 }
 
+// בזמן פעולה ארוכה הלוח אינו נסגר בלחיצה בחוץ או ב-Escape: דוח השחזור
+// נכתב לתוכו בסוף, ולוח שנסגר באמצע היה מאבד אותו.
 el('overlay').addEventListener('mousedown', (e) => {
-  if (e.target === el('overlay')) closePanel();
+  if (e.target === el('overlay') && !Steps.busy) closePanel();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !el('overlay').hidden) closePanel();
+  if (e.key === 'Escape' && !el('overlay').hidden && !Steps.busy) closePanel();
 });
 
 async function showStrategy(disk, part, modeId) {
@@ -1489,6 +1552,7 @@ async function showStrategy(disk, part, modeId) {
 
 async function startScan(disk, part, modeId, includeExisting) {
   closePanel();
+  Steps.set(2);
   State.scan = { disk, part, mode: modeId };
   State.selection = { count: 0, bytes: 0 };
 
@@ -1537,9 +1601,9 @@ async function startScan(disk, part, modeId, includeExisting) {
 
   try {
     // ללא מגבלת זמן: סריקה עמוקה על דיסק גדול עשויה להימשך שעות.
-    const summary = await Bridge.call('scan.start', {
+    const summary = await longCall('scan.start', {
       disk: disk.number, part: part.index, mode: modeId, includeExisting,
-    }, 0);
+    });
 
     State.summary = summary;
     await renderResults();
@@ -1578,6 +1642,7 @@ Bridge.on('scan.progress', (p) => {
    ===================================================================== */
 
 async function renderResults() {
+  Steps.set(3);
   const s = State.summary;
 
   el('content').innerHTML = `
@@ -2239,6 +2304,7 @@ async function showPreview(id) {
    ===================================================================== */
 
 function openRecoverPanel() {
+  Steps.set(4);
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
@@ -2323,9 +2389,7 @@ async function runRecovery() {
   el('btn-stop-rec').onclick = () => Bridge.call('recover.cancel');
 
   try {
-    const report = await Bridge.call('recover.start', {
-      target, preservePaths,
-    }, 0);
+    const report = await longCall('recover.start', { target, preservePaths });
     showRecoveryReport(report);
   } catch (err) {
     el('panel').querySelector('.panel-body').innerHTML =
@@ -2393,7 +2457,8 @@ function showRecoveryReport(r) {
 async function init() {
   try {
     const info = await Bridge.call('system.info');
-    el('status-version').textContent = 'גרסה ' + info.version;
+    // השם הלועזי עבר לכאן משורת הכותרת, שבה נשאר רק השם העברי.
+    el('status-version').textContent = `⁦Recovery Advanced Free⁩ · גרסה ${info.version}`;
 
     const chip = el('status-elevation');
     chip.textContent = info.elevated ? 'הרשאות מנהל' : 'ללא הרשאות מנהל';
