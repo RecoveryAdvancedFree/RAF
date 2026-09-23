@@ -496,7 +496,10 @@ function openSituation(id) {
       ]);
     actions = `<button class="btn btn-primary" data-guide-go>${Icon.drive}<span>לרשימת הכוננים</span></button>`;
   } else if (id === 'asks') {
-    const raw = disks.flatMap((d) => d.partitions.filter((p) => !p.scannable && !p.found).map((p) => [d, p]));
+    // מחיצת "שמור למערכת" (MSR) ריקה מלכתחילה, ואינה מחיצה ש-Windows מבקש לפרמט.
+    const raw = disks.flatMap((d) => d.partitions
+      .filter((p) => !p.scannable && !p.found && p.typeName !== 'שמור למערכת')
+      .map((p) => [d, p]));
     body = notice('danger', Icon.alert, 'אל תאשרו את הפירמוט',
         'Windows מבקש לפרמט כשתחילת המחיצה נפגעה — אבל הקבצים בדרך כלל עדיין שם, שלמים.') +
       steps([

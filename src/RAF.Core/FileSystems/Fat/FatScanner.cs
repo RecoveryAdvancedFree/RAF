@@ -183,6 +183,22 @@ public sealed class FatScanner
         for (long c = FatVolume.FirstCluster; c <= total; c++)
         {
             if (token.IsCancellationRequested) return;
+
+            // הדיווח בראש הלולאה: כמעט כל אשכול מדולג באחד התנאים שבהמשך, ודיווח
+            // שהיה אחריהם כמעט לא הגיע — והסריקה נראתה תקועה על "קורא את ספריית השורש".
+            if (c % reportEvery == 0)
+            {
+                progress?.Report(new ScanProgress
+                {
+                    Stage = "סורק ספריות יתומות על פני המחיצה",
+                    Percent = c * 100.0 / total,
+                    FilesFound = files.Count,
+                    BytesProcessed = _bytesRead,
+                    BytesTotal = total * clusterSize,
+                    Elapsed = clock.Elapsed,
+                });
+            }
+
             if (_visitedDirectories.Contains(c)) continue;
 
             int read = _volume.ReadRaw(_volume.ClusterToOffset(c), cluster);
@@ -201,19 +217,6 @@ public sealed class FatScanner
                 if (!includeExisting && !entry.IsDeleted) continue;
 
                 files.Add(Materialize(entry, "?", DiscoverySource.MftOrphan));
-            }
-
-            if (c % reportEvery < 1)
-            {
-                progress?.Report(new ScanProgress
-                {
-                    Stage = "סורק ספריות יתומות על פני המחיצה",
-                    Percent = c * 100.0 / total,
-                    FilesFound = files.Count,
-                    BytesProcessed = _bytesRead,
-                    BytesTotal = total * clusterSize,
-                    Elapsed = clock.Elapsed,
-                });
             }
         }
 

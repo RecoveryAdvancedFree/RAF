@@ -336,7 +336,7 @@ public sealed class ImagingTests : IDisposable
         WithImage(path, disk =>
         {
             Assert.True(disk.ImageDamaged);
-            Assert.Contains("2", disk.ImageNote);
+            Assert.Contains("1 KB", disk.ImageNote); // כמה לא נקרא — בגודל, לא במספר סקטורים
             Assert.NotNull(RecoveryProfile.For(disk, ScanMode.Quick).Warning);
         });
     }

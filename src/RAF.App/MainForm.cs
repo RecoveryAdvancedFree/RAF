@@ -20,9 +20,13 @@ internal sealed class MainForm : Form
     private bool _buttonWasDown;
     private bool _pressedOutside;
 
+    /// <summary>התקדמות פעולות ארוכות בסמל שבשורת המשימות.</summary>
+    internal TaskbarProgress Taskbar { get; }
+
     internal MainForm()
     {
         _bridge = new Bridge(this);
+        Taskbar = new TaskbarProgress(this);
 
         Text = "שחזור מתקדם חינם — RAF";
         // הסמל שנצרב ב-EXE מוצג גם בשורת המשימות ובמעבר בין חלונות.

@@ -87,19 +87,19 @@ internal sealed partial class Bridge
         "doctor.diagnoseFolder" => await Task.Run(() => DoctorDiagnoseFolder(p)),
         "doctor.repair" => await Task.Run(() => DoctorRepair(p)),
 
-        "disk.hunt" => await HuntAsync(p),
+        "disk.hunt" => await Tracked(() => HuntAsync(p)),
         "disk.huntCancel" => Cancel(_huntCancel),
         "partition.restorePlan" => await Task.Run(() => RestorePlanFor(p)),
         "partition.restore" => await Task.Run(() => RestorePartition(p)),
 
         "image.pickSave" => PickImageTarget(p),
         "image.validate" => ValidateImageTarget(p),
-        "image.create" => await CreateImageAsync(p),
+        "image.create" => await Tracked(() => CreateImageAsync(p)),
         "image.cancel" => Cancel(_imageCancel),
         "image.open" => OpenImage(p),
         "image.close" => CloseImage(p),
 
-        "scan.start" => await StartScanAsync(p),
+        "scan.start" => await Tracked(() => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
         "scan.children" => Children(p),
         "scan.save" => await SaveScanAs(),
@@ -115,7 +115,7 @@ internal sealed partial class Bridge
 
         "recover.pickFolder" => PickFolder(),
         "recover.validate" => ValidateTarget(p),
-        "recover.start" => await StartRecoveryAsync(p),
+        "recover.start" => await Tracked(() => StartRecoveryAsync(p)),
         "recover.cancel" => Cancel(_recoverCancel),
         "recover.openFolder" => OpenFolder(p),
 
@@ -128,6 +128,31 @@ internal sealed partial class Bridge
 
         _ => throw new InvalidOperationException($"שיטה לא מוכרת: {method}"),
     };
+
+    /// <summary>
+    /// פעולה ארוכה עם חיווי בשורת המשימות: פס בזמן הריצה, הבהוב בסיום,
+    /// ופס אדום כשהיא נכשלת. ביטול אינו מסמן דבר.
+    /// </summary>
+    private async Task<T> Tracked<T>(Func<Task<T>> operation)
+    {
+        _form.Taskbar.Start();
+        try
+        {
+            T result = await operation();
+            _form.Taskbar.Finish(failed: false);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            _form.Taskbar.Clear();
+            throw;
+        }
+        catch
+        {
+            _form.Taskbar.Finish(failed: true);
+            throw;
+        }
+    }
 
     // ------------------------------------------------------------ מערכת ודיסקים
 
@@ -315,6 +340,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 120) return;
             lastPush = DateTime.UtcNow;
 
+            _form.Taskbar.Report(sp.Percent);
             PushEvent("scan.progress", new
             {
                 stage = sp.Stage,
@@ -746,6 +772,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 100) return;
             lastPush = DateTime.UtcNow;
 
+            _form.Taskbar.Report(rp.Percent);
             PushEvent("recover.progress", new
             {
                 file = rp.CurrentFile,
@@ -818,6 +845,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 150 && hp.Percent < 100) return;
             lastPush = DateTime.UtcNow;
 
+            _form.Taskbar.Report(hp.Percent);
             PushEvent("hunt.progress", new
             {
                 percent = hp.Percent,
@@ -1021,6 +1049,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 150) return;
             lastPush = DateTime.UtcNow;
 
+            _form.Taskbar.Report(ip.Percent);
             PushEvent("image.progress", new
             {
                 pass = ip.Pass,
