@@ -49,6 +49,9 @@ public enum FileIssueKind
 
     /// <summary>לסרטון חסר האינדקס (moov) — ההקלטה נקטעה. נבנה מחדש בעזרת סרטון תקין מאותו מכשיר.</summary>
     VideoIndexMissing,
+
+    /// <summary>מסמך פגום שהטקסט שבו שרד — הוא יישמר כקובץ טקסט פשוט, כמוצא אחרון.</summary>
+    TextRecoverable,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -83,6 +86,9 @@ public sealed class FileDiagnosis
 
     /// <summary>התמונה המוקטנת השלמה שבתוך תמונה פגומה — מה שיישמר בתיקון.</summary>
     internal JpegPreviews.Preview? Preview { get; init; }
+
+    /// <summary>הטקסט שחולץ ממסמך פגום — מה שיישמר בתיקון כקובץ טקסט.</summary>
+    internal string? Text { get; init; }
 }
 
 /// <summary>תוצאת תיקון קובץ.</summary>
@@ -94,6 +100,9 @@ public sealed class FileRepairResult
 
     /// <summary>התמונה המוקטנת שנשמרה מתוך תמונה פגומה, כשנשמרה.</summary>
     public string? PreviewPath { get; init; }
+
+    /// <summary>קובץ הטקסט שנשמר מתוך מסמך פגום, כשנשמר.</summary>
+    public string? TextPath { get; init; }
     public string Message { get; init; } = "";
 
     /// <summary>אבחון העותק המתוקן — ההוכחה שהתיקון עבד.</summary>
@@ -221,6 +230,15 @@ public static class FileDoctor
             }
         }
 
+        // ---------------------------------------------- מסמך Office ישן (OLE)
+        // בפורמט הזה אין חתימת סיום ואין שדה אורך — אבל טבלת ההקצאה (FAT) מגלה
+        // עד איזה סקטור הקובץ משתמש. קובץ קצר מזה נקטע; טבלה שאופסה — נדרסה.
+        if (format is not null && format.Extensions[0] == "doc" && detected is not null
+            && OleDamage(volume, size) is { } oleProblem)
+        {
+            issues.Add(new FileIssue(FileIssueKind.Truncated, oleProblem, false));
+        }
+
         // ---------------------------------------------- סרטון בלי אינדקס
         // הקלטה שנקטעה: התמונות והקול בקובץ, אבל האינדקס שנכתב רק בסוף חסר.
         // בדיקת האורך הרגילה הייתה מדווחת כאן "חסרים נתונים" — וזה לא מה שחסר.
@@ -336,6 +354,24 @@ public static class FileDoctor
             }
         }
 
+        // ---------------------------------------------- מסמך פגום: הטקסט שבו
+        // מוצא אחרון: גם אם המסמך לא ייפתח — לא לפני התיקון ולא אחריו — המילים נשמרות.
+        string? text = null;
+        string? textKind = TextExtractor.KindOf(extension)
+                           ?? (format is not null ? TextExtractor.KindOf(format.Extensions[0]) : null);
+        bool documentDamaged = issues.Any(i => i.Kind is not (FileIssueKind.ExtensionMismatch
+                                                   or FileIssueKind.TrailingData or FileIssueKind.FooterMissing));
+        if (textKind is not null && documentDamaged && size <= MaxArchive)
+        {
+            byte[] all = File.ReadAllBytes(path);
+            if (detected is null && format is not null) RestoreHeader(all, format);
+            text = TextExtractor.Extract(all, textKind == "office" ? "zip" : textKind);
+            if (text is not null)
+                issues.Add(new FileIssue(FileIssueKind.TextRecoverable,
+                    $"הטקסט של המסמך שרד — כ-{TextExtractor.Words(text):N0} מילים. אפשר לשמור אותו כקובץ טקסט פשוט: " +
+                    "העיצוב, התמונות והטבלאות לא יישמרו, אבל התוכן כן — גם אם המסמך עצמו לא ייפתח.", true));
+        }
+
         return new FileDiagnosis
         {
             Path = path,
@@ -347,7 +383,47 @@ public static class FileDoctor
             Format = format,
             CorrectLength = correctLength,
             Preview = preview,
+            Text = text,
         };
+    }
+
+    /// <summary>
+    /// בדיקת מבנה OLE: טבלאות ההקצאה שהכותרת מצביעה עליהן קיימות ואינן מאופסות,
+    /// והקובץ ארוך לפחות כמו הסקטור האחרון שבשימוש. null — לא נמצאה בעיה.
+    /// </summary>
+    private static string? OleDamage(StreamVolume volume, long size)
+    {
+        byte[] header = volume.ReadAt(0, 512);
+        if (header.Length < 512) return "הקובץ קצר מכותרת המסמך עצמה — כמעט כולו חסר.";
+        int shift = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(0x1E));
+        if (shift is not (9 or 12)) return null;
+        int sector = 1 << shift;
+        long SectorOffset(uint id) => (id + 1L) * sector;
+
+        uint fatSectors = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(0x2C));
+        long lastUsed = -1;
+        for (int i = 0; i < Math.Min(109u, fatSectors); i++)
+        {
+            uint id = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(0x4C + i * 4));
+            if (id >= 0xFFFFFFFA) continue;
+            if (SectorOffset(id) + sector > size)
+                return "המסמך נקטע: חלק מטבלת ההקצאה שלו — המפה שאומרת היכן כל חלק של המסמך — נמצא מעבר לסוף הקובץ. " +
+                       "Word לא יפתח אותו.";
+
+            byte[] fat = volume.ReadAt(SectorOffset(id), sector);
+            if (fat.All(b => b == 0))
+                return "טבלת ההקצאה של המסמך — המפה שאומרת היכן כל חלק שלו — אופסה או נדרסה. Word לא יפתח אותו.";
+
+            for (int k = 0; k < sector / 4; k++)
+            {
+                uint entry = BinaryPrimitives.ReadUInt32LittleEndian(fat.AsSpan(k * 4));
+                if (entry != 0xFFFFFFFF) lastUsed = Math.Max(lastUsed, (long)i * (sector / 4) + k);
+            }
+        }
+
+        return lastUsed >= 0 && SectorOffset((uint)lastUsed) + sector > size + sector - 1
+            ? $"המסמך נקטע: הוא אמור להיות באורך {(lastUsed + 2) * sector:N0} בתים לפחות, ויש בו {size:N0}. Word לא יפתח אותו."
+            : null;
     }
 
     /// <summary>
@@ -603,7 +679,7 @@ public static class FileDoctor
             File.WriteAllBytes(previewPath, preview.Data);
             applied.Add($"נשמרה התמונה המוקטנת שבתוך הקובץ ({preview.Width}×{preview.Height}) כקובץ נפרד");
 
-            if (!diagnosis.Issues.Any(i => i.Fixable && i.Kind != FileIssueKind.PreviewAvailable))
+            if (!diagnosis.Issues.Any(i => i.Fixable && i.Kind is not (FileIssueKind.PreviewAvailable or FileIssueKind.TextRecoverable)))
             {
                 var previewCheck = Diagnose(previewPath);
                 return new FileRepairResult
@@ -618,6 +694,27 @@ public static class FileDoctor
                 };
             }
         }
+
+        // הטקסט של מסמך פגום נשמר לצד התיקון — ובמסמך שאין בו דבר אחר לתקן, במקומו.
+        string? textPath = null;
+        if (diagnosis.Text is { } text && diagnosis.Issues.Any(i => i.Fixable && i.Kind == FileIssueKind.TextRecoverable))
+        {
+            textPath = UniquePath(outputFolder, $"{stem} (טקסט)", "txt");
+            File.WriteAllText(textPath, text, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            applied.Add($"נשמר הטקסט של המסמך (כ-{TextExtractor.Words(text):N0} מילים) בקובץ טקסט: {System.IO.Path.GetFileName(textPath)}");
+
+            if (!diagnosis.Issues.Any(i => i.Fixable && i.Kind is not (FileIssueKind.TextRecoverable or FileIssueKind.PreviewAvailable)))
+                return new FileRepairResult
+                {
+                    Succeeded = true,
+                    OutputPath = textPath,
+                    TextPath = textPath,
+                    Applied = applied,
+                    Message = "המסמך עצמו פגום, ואי אפשר לתקן אותו כך שייפתח. הטקסט שבו נשמר כקובץ טקסט פשוט — " +
+                              "אפשר לפתוח אותו בפנקס הרשימות או להעתיק ממנו לוורד.",
+                };
+        }
+
         string output = UniquePath(outputFolder, $"{stem} (תוקן)", extension);
 
         // הגנה: לעולם לא לדרוס את הקובץ המקורי.
@@ -645,13 +742,14 @@ public static class FileDoctor
         var after = Diagnose(output);
 
         // התמונה המוקטנת כבר נשמרה; בעותק היא מופיעה שוב כ"ניתן לשמור", וזה אינו כישלון התיקון.
-        bool fixedAll = after.Issues.All(i => !i.Fixable || i.Kind == FileIssueKind.PreviewAvailable);
+        bool fixedAll = after.Issues.All(i => !i.Fixable || i.Kind is FileIssueKind.PreviewAvailable or FileIssueKind.TextRecoverable);
 
         return new FileRepairResult
         {
             Succeeded = fixedAll,
             OutputPath = output,
             PreviewPath = previewPath,
+            TextPath = textPath,
             Applied = applied,
             After = after,
             Message = fixedAll
