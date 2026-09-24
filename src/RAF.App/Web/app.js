@@ -2475,7 +2475,8 @@ async function showStrategy(disk, part, modeId) {
       ${CATEGORIES.filter((c) => c.id !== 'all').map((c) => `
         <button type="button" class="type-pick on" data-type="${c.id}">${Icon.check}<span>${c.label}</span></button>`).join('')}
     </div>
-    <p class="switch-note">בחירה של סוגים מסוימים מקצרת את רשימת התוצאות ומתמקדת במה שמחפשים.</p>` : ''}
+    <p class="switch-note">בחירה של סוגים מסוימים מקצרת את רשימת התוצאות ומתמקדת במה שמחפשים.</p>
+    <div class="custom-types-line" id="custom-types-line"></div>` : ''}
 
     ${modeId === 3 && part.scannable ? `
     <label class="switch">
@@ -2509,9 +2510,99 @@ async function showStrategy(disk, part, modeId) {
     };
   });
 
+  if (modeId === 3) renderCustomTypesLine(disk, part, modeId);
+
   el('btn-start').onclick = () => startScan(disk, part, modeId, el('opt-include-existing').checked,
     !!el('opt-free-only')?.checked,
     [...document.querySelectorAll('.type-pick.on')].map((b) => b.dataset.type));
+}
+
+/* =====================================================================
+   סוגי קבצים שהמשתמש מלמד את התוכנה
+   ===================================================================== */
+
+/// השורה שבאפשרויות הסריקה המתקדמת: מה נוסף, וכפתור להוספה.
+async function renderCustomTypesLine(disk, part, modeId) {
+  const line = el('custom-types-line');
+  if (!line) return;
+  let types = [];
+  try { types = await Bridge.call('types.list', {}); } catch { /* בלי הרשימה — רק הכפתור */ }
+
+  line.innerHTML = `
+    ${types.length ? `<span>גם סוגים שהוספתם: ${types.map((t) => `<b>${esc(t.name)}</b>`).join(', ')}. הם נכללים ב"אחר".</span>` : ''}
+    <button type="button" class="btn btn-sm" id="btn-custom-types">${Icon.file}<span>${types.length ? 'ניהול הסוגים שהוספתם' : 'הוספת סוג קובץ שהתוכנה לא מכירה'}</span></button>`;
+  el('btn-custom-types').onclick = () => openCustomTypes(() => showStrategy(disk, part, modeId));
+}
+
+/// חלון הסוגים: הרשימה, ולימוד סוג חדש מקבצים לדוגמה.
+async function openCustomTypes(back) {
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">סוגי קבצים שהתוכנה לא מכירה</div>
+        <div class="panel-sub">מלמדים את הסריקה המתקדמת לחפש אותם</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+    </div>
+    <div class="panel-body">
+      ${notice('info', Icon.info, 'איך זה עובד',
+        'בוחרים כמה קבצים תקינים מאותו סוג — שלושה ומעלה, למשל מגיבוי או ממחשב אחר. ' +
+        'התוכנה מוצאת מה זהה בתחילת כולם, ולפי זה הסריקה המתקדמת תמצא קבצים שנמחקו מהסוג הזה.',
+        'הקבצים לדוגמה רק נקראים — הם לא משתנים ולא מועתקים לשום מקום.')}
+      <div id="learn-result"></div>
+      <div class="section-label">הסוגים שהוספתם</div>
+      <div id="custom-types-list"></div>
+    </div>
+    <div class="panel-foot">
+      <button class="btn btn-primary" id="btn-learn">${Icon.file}<span>בחירת קבצים לדוגמה</span></button>
+      <button class="btn" id="btn-types-back">חזרה</button>
+    </div>`;
+
+  el('panel-close').onclick = closePanel;
+  el('btn-types-back').onclick = back;
+
+  const renderList = (types) => {
+    el('custom-types-list').innerHTML = types.length
+      ? types.map((t) => `
+        <div class="custom-type-row">
+          <div class="grow"><b>${esc(t.name)}</b> <span class="muted">· ‎.${esc(t.extension)} · נלמד מ-${t.samples} קבצים${t.exactLength ? ' · אורך מדויק' : ''}</span></div>
+          <button type="button" class="btn btn-sm" data-remove="${esc(t.extension)}">הסרה</button>
+        </div>`).join('')
+      : '<p class="muted">עדיין לא הוספתם סוגים.</p>';
+    document.querySelectorAll('[data-remove]').forEach((b) => {
+      b.onclick = async () => renderList(await Bridge.call('types.remove', { extension: b.dataset.remove }));
+    });
+  };
+  renderList(await Bridge.call('types.list', {}));
+
+  el('btn-learn').onclick = async () => {
+    let r;
+    try {
+      r = await Bridge.call('types.learn', {}, 0);
+    } catch (err) {
+      el('learn-result').innerHTML = errorNotice('לא ניתן ללמוד מהקבצים', err, 'spaced');
+      return;
+    }
+    if (!r.picked) return;
+
+    if (!r.ok) {
+      el('learn-result').innerHTML = `<div class="notice warn spaced">${Icon.alert}<div>${esc(r.message)}</div></div>`;
+      return;
+    }
+
+    el('learn-result').innerHTML = `
+      <div class="notice ok-notice spaced">${Icon.check}<div>${esc(r.message)}</div></div>
+      <div class="section-label">שם לסוג — כך תיקרא התיקייה של הקבצים שיימצאו</div>
+      <div class="target-row">
+        <input type="text" class="name-input" id="custom-type-name" maxlength="60" value="${esc(r.name)}">
+        <button class="btn btn-primary" id="btn-save-type">${Icon.check}<span>שמירה</span></button>
+      </div>`;
+    el('btn-save-type').onclick = async () => {
+      renderList(await Bridge.call('types.save', { name: el('custom-type-name').value }));
+      el('learn-result').innerHTML =
+        `<div class="notice ok-notice tiny-notice">${Icon.check}<div>נשמר. מעכשיו הסריקה המתקדמת תחפש גם את הסוג הזה.</div></div>`;
+    };
+  };
 }
 
 /* =====================================================================

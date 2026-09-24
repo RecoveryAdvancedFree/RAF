@@ -44,7 +44,11 @@ internal sealed partial class Bridge
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    internal Bridge(MainForm form) => _form = form;
+    internal Bridge(MainForm form)
+    {
+        _form = form;
+        LoadCustomTypes();
+    }
 
     internal async Task<string> HandleAsync(string rawMessage)
     {
@@ -84,6 +88,11 @@ internal sealed partial class Bridge
         "repair.readThrough" => await Task.Run(() => ReadThrough(p)),
         "repair.pickFolder" => PickFolder("בחרו תיקייה לגיבוי — חייבת להיות על כונן אחר"),
         "undo.pickFile" => PickUndoFile(),
+
+        "types.list" => ListCustomTypes(),
+        "types.learn" => await Task.Run(() => LearnCustomType(p)),
+        "types.save" => SaveCustomType(p),
+        "types.remove" => RemoveCustomType(p),
         "undo.check" => await Task.Run(() => CheckUndo(p)),
         "undo.apply" => await Task.Run(() => ApplyUndo(p)),
 

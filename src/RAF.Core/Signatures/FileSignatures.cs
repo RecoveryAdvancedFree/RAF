@@ -425,10 +425,19 @@ public static class FileSignatures
         },
     };
 
+    /// <summary>
+    /// סוגים שהמשתמש לימד את התוכנה (ראו CustomSignatures). נבדקים אחרי כל הסוגים
+    /// המובנים — סוג שנוסף לא יכול להסתיר סוג מוכר.
+    /// </summary>
+    public static IReadOnlyList<FileSignature> Custom { get; internal set; } = Array.Empty<FileSignature>();
+
     /// <summary>זיהוי סוג הקובץ לפי תחילת תוכנו. מחזיר null כשאין התאמה.</summary>
     public static FileSignature? Identify(ReadOnlySpan<byte> head)
     {
         foreach (var signature in All)
+            if (signature.Matches(head)) return signature;
+
+        foreach (var signature in Custom)
             if (signature.Matches(head)) return signature;
 
         return null;
@@ -436,5 +445,5 @@ public static class FileSignatures
 
     /// <summary>החתימות הרלוונטיות לסיומת נתונה — לבדיקת תקינות קובץ.</summary>
     public static IEnumerable<FileSignature> ForExtension(string extension)
-        => All.Where(s => s.Extensions.Contains(extension, StringComparer.OrdinalIgnoreCase));
+        => All.Concat(Custom).Where(s => s.Extensions.Contains(extension, StringComparer.OrdinalIgnoreCase));
 }
