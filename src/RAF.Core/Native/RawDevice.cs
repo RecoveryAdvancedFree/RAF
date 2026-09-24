@@ -51,14 +51,14 @@ internal sealed class RawDevice : IDisposable
 
         var device = new RawDevice(h, devicePath, sectorSize);
 
-        // קובץ כונן וירטואלי (VHD/VHDX): הקריאות מתורגמות למקום בקובץ. כונן פגום או
+        // קובץ כונן וירטואלי (VHD/VHDX/VMDK): הקריאות מתורגמות למקום בקובץ. כונן פגום או
         // מסוג "הפרשים" — ההסבר עולה למשתמש, במקום "לא ניתן לפתוח".
         if (!DevicePaths.IsDevicePath(devicePath))
         {
             try
             {
                 long length = new FileInfo(devicePath).Length;
-                device.Virtual = VirtualDisk.TryOpen((at, count) => device.ReadBlockPhysical(at, count), length);
+                device.Virtual = VirtualDisk.TryOpen((at, count) => device.ReadBlockPhysical(at, count), length, devicePath);
             }
             catch
             {
@@ -122,6 +122,7 @@ internal sealed class RawDevice : IDisposable
     public int Read(long offset, Span<byte> destination)
     {
         if (Virtual is not { } disk) return ReadPhysical(offset, destination);
+        if (disk.IsComposite) return disk.ReadComposite(offset, destination);
 
         // כונן וירטואלי: קטע אחרי קטע, כל אחד בתוך בלוק אחד. בלוק שלא הוקצה — אפסים.
         if (offset >= disk.Size) return 0;
@@ -214,6 +215,7 @@ internal sealed class RawDevice : IDisposable
                 _handle = Win32.INVALID_HANDLE_VALUE;
             }
         }
+        Virtual?.Close();
         GC.SuppressFinalize(this);
     }
 

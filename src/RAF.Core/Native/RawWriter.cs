@@ -31,7 +31,7 @@ internal sealed class RawWriter : IDisposable
         if (DevicePaths.IsVolumePath(devicePath))
             throw new InvalidOperationException("כונן שנפתח דרך Windows הוא לקריאה בלבד — התוכנה אינה כותבת אליו.");
 
-        // קובץ VHD/VHDX: כתיבה ישירה הייתה הורסת את מבנה הכונן הווירטואלי.
+        // קובץ VHD/VHDX/VMDK: כתיבה ישירה הייתה הורסת את מבנה הכונן הווירטואלי.
         if (!DevicePaths.IsDevicePath(devicePath) && File.Exists(devicePath))
         {
             using var probe = RawDevice.TryOpen(devicePath, sectorSize);

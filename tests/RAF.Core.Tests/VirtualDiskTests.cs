@@ -16,8 +16,10 @@ public class VirtualDiskTests : IDisposable
 
     public void Dispose()
     {
-        foreach (string ext in new[] { ".vhd", ".vhdx" })
+        foreach (string ext in new[] { ".vhd", ".vhdx", ".vmdk" })
             try { File.Delete(_path + ext); } catch { }
+        foreach (string dir in _dirs)
+            try { Directory.Delete(dir, true); } catch { }
     }
 
     private static byte[] Pattern(int length, int seed) => RealFormats.Random(length, seed);
@@ -165,5 +167,129 @@ public class VirtualDiskTests : IDisposable
             Assert.Contains("VHD", disk.ImageNote);
         }
         finally { ImageDisk.Close(disk.DiskNumber); }
+    }
+
+    // ============================================================== VMDK
+
+    private readonly List<string> _dirs = new();
+
+    private string Folder()
+    {
+        string dir = _path + "-vmdk";
+        Directory.CreateDirectory(dir);
+        _dirs.Add(dir);
+        return dir;
+    }
+
+    /// <summary>
+    /// VMDK שגדל לפי הצורך: 8 גרגרים של 4KB, ארבעה בכל טבלה. גרגר 0 ו-2 כתובים,
+    /// גרגר 1 לא נכתב, גרגר 3 סומן כמאופס, והטבלה השנייה (גרגרים 4–7) לא קיימת כלל.
+    /// </summary>
+    private static byte[] SparseVmdk(byte[] first, byte[] third, uint flags = 3, string? parentCid = null)
+    {
+        byte[] header = new byte[512];
+        "KDMV"u8.CopyTo(header);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), flags);
+        BinaryPrimitives.WriteInt64LittleEndian(header.AsSpan(12), 64);        // 64 סקטורים = 32KB
+        BinaryPrimitives.WriteInt64LittleEndian(header.AsSpan(20), 8);         // גרגר של 8 סקטורים
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(44), 4);        // 4 רשומות בטבלה
+        BinaryPrimitives.WriteInt64LittleEndian(header.AsSpan(56), 1);         // הספרייה בסקטור 1
+
+        byte[] descriptor = [];
+        if (parentCid is not null)
+        {
+            descriptor = new byte[512];
+            System.Text.Encoding.ASCII.GetBytes($"# Disk DescriptorFile\nparentCID={parentCid}\n").CopyTo(descriptor, 0);
+            BinaryPrimitives.WriteInt64LittleEndian(header.AsSpan(28), 19);    // התיאור אחרי הגרגרים
+            BinaryPrimitives.WriteInt64LittleEndian(header.AsSpan(36), 1);
+        }
+
+        byte[] directory = new byte[512];
+        BinaryPrimitives.WriteUInt32LittleEndian(directory, 2);                // טבלה 0 בסקטור 2; טבלה 1 — אין
+
+        byte[] table = new byte[512];
+        BinaryPrimitives.WriteUInt32LittleEndian(table.AsSpan(0), 3);          // גרגר 0 — סקטור 3
+        BinaryPrimitives.WriteUInt32LittleEndian(table.AsSpan(8), 11);         // גרגר 2 — סקטור 11
+        BinaryPrimitives.WriteUInt32LittleEndian(table.AsSpan(12), 1);         // גרגר 3 — מאופס
+
+        return [.. header, .. directory, .. table, .. first, .. third, .. descriptor];
+    }
+
+    [Fact]
+    public void A_growing_vmdk_maps_grains_and_reads_missing_ones_as_zeros()
+    {
+        byte[] first = Pattern(4096, 11), third = Pattern(4096, 12);
+        using var device = Open(".vmdk", SparseVmdk(first, third));
+
+        Assert.Equal("VMDK", device.Virtual?.Format);
+        Assert.Equal(32 * 1024, device.Virtual!.Size);
+
+        byte[] all = device.ReadBlock(0, 32 * 1024);
+        Assert.Equal(first, all[..4096]);
+        Assert.All(all[4096..8192], b => Assert.Equal(0, b));
+        Assert.Equal(third, all[8192..12288]);
+        Assert.All(all[12288..], b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void A_vmdk_made_of_several_files_reads_across_them_in_order()
+    {
+        string dir = Folder();
+        byte[] flat = Pattern(8192, 13);
+        byte[] first = Pattern(4096, 14), third = Pattern(4096, 15);
+        File.WriteAllBytes(Path.Combine(dir, "disk-flat.vmdk"), flat);
+        File.WriteAllBytes(Path.Combine(dir, "disk-s001.vmdk"), SparseVmdk(first, third));
+
+        // חלק בגודל מלא שמתחיל באמצע הקובץ שלו, חלק של אפסים, וחלק שגדל לפי הצורך.
+        string descriptor = Path.Combine(dir, "disk.vmdk");
+        File.WriteAllText(descriptor,
+            "# Disk DescriptorFile\nversion=1\nCID=fffffffe\nparentCID=ffffffff\ncreateType=\"twoGbMaxExtentSparse\"\n\n" +
+            "RW 8 FLAT \"disk-flat.vmdk\" 2\nRW 8 ZERO\nRW 64 SPARSE \"disk-s001.vmdk\"\n");
+
+        using var device = RawDevice.TryOpen(descriptor)!;
+        Assert.Equal(4096 + 4096 + 32 * 1024, device.Virtual!.Size);
+
+        byte[] all = device.ReadBlock(0, (int)device.Virtual.Size);
+        Assert.Equal(flat[1024..5120], all[..4096]);
+        Assert.All(all[4096..8192], b => Assert.Equal(0, b));
+        Assert.Equal(first, all[8192..12288]);
+        Assert.Equal(third, all[16384..20480]);
+
+        // קריאה אחת שחוצה את הגבול בין שני קבצים.
+        Assert.Equal(all[4000..8300], device.ReadBlock(4000, 4300));
+
+        var disk = ImageDisk.Open(descriptor);
+        try { Assert.Contains("VMDK", disk.ImageNote); }
+        finally { ImageDisk.Close(disk.DiskNumber); }
+    }
+
+    [Fact]
+    public void A_vmdk_whose_part_is_missing_names_the_missing_file()
+    {
+        string descriptor = Path.Combine(Folder(), "disk.vmdk");
+        File.WriteAllText(descriptor, "# Disk DescriptorFile\nparentCID=ffffffff\nRW 64 SPARSE \"disk-s002.vmdk\"\n");
+
+        var ex = Assert.Throws<InvalidOperationException>(() => RawDevice.TryOpen(descriptor));
+        Assert.Contains("disk-s002.vmdk", ex.Message);
+    }
+
+    [Fact]
+    public void A_snapshot_vmdk_is_refused_with_an_explanation()
+    {
+        string descriptor = Path.Combine(Folder(), "disk-000001.vmdk");
+        File.WriteAllText(descriptor, "# Disk DescriptorFile\nparentCID=6a1b2c3d\nRW 64 SPARSE \"disk-000001-s001.vmdk\"\n");
+        Assert.Contains("הפרשים", Assert.Throws<InvalidOperationException>(() => RawDevice.TryOpen(descriptor)).Message);
+
+        // גם כשהתיאור שמור בתוך קובץ יחיד.
+        byte[] single = SparseVmdk(Pattern(4096, 16), Pattern(4096, 17), parentCid: "6a1b2c3d");
+        Assert.Contains("הפרשים", Assert.Throws<InvalidOperationException>(() => Open(".vmdk", single)).Message);
+    }
+
+    [Fact]
+    public void A_compressed_exported_vmdk_is_refused_with_an_explanation()
+    {
+        byte[] compressed = SparseVmdk(Pattern(4096, 18), Pattern(4096, 19), flags: 3 | (1 << 16));
+        Assert.Contains("דחוס", Assert.Throws<InvalidOperationException>(() => Open(".vmdk", compressed)).Message);
     }
 }

@@ -1,14 +1,16 @@
 using System.Buffers.Binary;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace RAF.Core.Native;
 
 /// <summary>
-/// קובץ כונן וירטואלי של Windows — VHD (גיבוי Windows 7, מכונות וירטואליות ישנות)
-/// או VHDX (Hyper-V, "גיבוי ושחזור" החדש) — נקרא ישירות, בלי לחבר אותו למערכת:
-/// חיבור היה נותן ל-Windows לכתוב אליו. כאן רק מתרגמים היסט בדיסק הווירטואלי
-/// למקום בקובץ; אזור שמעולם לא נכתב נקרא כאפסים.
+/// קובץ כונן וירטואלי — VHD (גיבוי Windows 7, מכונות וירטואליות ישנות), VHDX
+/// (Hyper-V, "גיבוי ושחזור" החדש) או VMDK (VirtualBox ו-VMware) — נקרא ישירות,
+/// בלי לחבר אותו למערכת: חיבור היה נותן ל-Windows לכתוב אליו. כאן רק מתרגמים
+/// היסט בדיסק הווירטואלי למקום בקובץ; אזור שמעולם לא נכתב נקרא כאפסים.
 /// </summary>
-internal sealed class VirtualDisk
+internal sealed partial class VirtualDisk
 {
     /// <summary>גודל הדיסק הווירטואלי — כפי שהמערכת שבתוכו רואה אותו.</summary>
     public long Size { get; }
@@ -24,8 +26,11 @@ internal sealed class VirtualDisk
 
     private readonly long[]? _blocks;      // לכל בלוק: היסט בקובץ, או ‎-1 — לא הוקצה
     private readonly long _blockSize;       // 0 — דיסק קבוע: היסט בקובץ = היסט בדיסק
+    private readonly VmdkGrains? _grains;   // VMDK: הטבלאות נקראות לפי הצורך
+    private readonly List<Extent>? _extents; // VMDK מכמה קבצים: כל חלק בקובץ משלו
 
-    private VirtualDisk(string format, long size, int sectorSize, long blockSize, long[]? blocks, bool dirty)
+    private VirtualDisk(string format, long size, int sectorSize, long blockSize, long[]? blocks, bool dirty,
+        VmdkGrains? grains = null, List<Extent>? extents = null)
     {
         Format = format;
         Size = size;
@@ -33,6 +38,8 @@ internal sealed class VirtualDisk
         _blockSize = blockSize;
         _blocks = blocks;
         Dirty = dirty;
+        _grains = grains;
+        _extents = extents;
     }
 
     /// <summary>
@@ -41,6 +48,8 @@ internal sealed class VirtualDisk
     /// </summary>
     public long? Locate(long offset, out long contiguous)
     {
+        if (_grains is not null) return _grains.Locate(offset, out contiguous);
+
         if (_blocks is null)
         {
             contiguous = Size - offset;
@@ -58,11 +67,16 @@ internal sealed class VirtualDisk
     /// זיהוי ופענוח. null — הקובץ אינו כונן וירטואלי (תמונה רגילה). כונן מסוג
     /// "הפרשים" — שתלוי בקובץ הורה — נדחה עם הסבר.
     /// </summary>
-    public static VirtualDisk? TryOpen(Func<long, int, byte[]> read, long fileLength)
+    public static VirtualDisk? TryOpen(Func<long, int, byte[]> read, long fileLength, string? path = null)
     {
-        if (fileLength < 1024) return null;
+        if (fileLength < 1024)
+            return path is not null && IsVmdkDescriptor(read(0, (int)fileLength)) ? VmdkDescriptor(path, read(0, (int)fileLength)) : null;
 
-        if (read(0, 8).AsSpan().SequenceEqual("vhdxfile"u8)) return Vhdx(read, fileLength);
+        byte[] start = read(0, 512);
+        if (start.AsSpan().StartsWith("vhdxfile"u8)) return Vhdx(read, fileLength);
+        if (start.AsSpan().StartsWith("KDMV"u8)) return VmdkSparse(read, start, fileLength);
+        if (path is not null && fileLength <= 64 * 1024 && IsVmdkDescriptor(start))
+            return VmdkDescriptor(path, read(0, (int)fileLength));
 
         byte[] footer = read(fileLength - 512, 512);
         if (!footer.AsSpan(0, 8).SequenceEqual("conectix"u8))
@@ -194,6 +208,194 @@ internal sealed class VirtualDisk
         }
 
         return new VirtualDisk("VHDX", size, sectorSize, blockSize, blocks, dirty);
+    }
+
+    // ============================================================== VMDK
+
+    /// <summary>
+    /// VMDK שגדל לפי הצורך (ברירת המחדל ב-VirtualBox, וב-VMware כשבוחרים קובץ יחיד):
+    /// כותרת, ספריית טבלאות, וטבלאות שמצביעות על "גרגרים" — בדרך כלל 64KB כל אחד.
+    /// </summary>
+    private static VirtualDisk VmdkSparse(Func<long, int, byte[]> read, byte[] h, long fileLength)
+    {
+        uint flags = BinaryPrimitives.ReadUInt32LittleEndian(h.AsSpan(8));
+        long capacity = BinaryPrimitives.ReadInt64LittleEndian(h.AsSpan(12)) * 512;
+        long grain = BinaryPrimitives.ReadInt64LittleEndian(h.AsSpan(20)) * 512;
+        long descriptorAt = BinaryPrimitives.ReadInt64LittleEndian(h.AsSpan(28)) * 512;
+        long descriptorLength = BinaryPrimitives.ReadInt64LittleEndian(h.AsSpan(36)) * 512;
+        int perTable = (int)BinaryPrimitives.ReadUInt32LittleEndian(h.AsSpan(44));
+        long directoryAt = BinaryPrimitives.ReadInt64LittleEndian(h.AsSpan(56));
+        bool dirty = h[72] != 0;
+        int compression = BinaryPrimitives.ReadUInt16LittleEndian(h.AsSpan(77));
+
+        // התיאור שבתוך הקובץ אומר אם זה כונן "הפרשים" של תמונת מצב.
+        if (descriptorAt > 0 && descriptorLength is > 0 and <= 1024 * 1024 &&
+            VmdkHasParent(Encoding.ASCII.GetString(read(descriptorAt, (int)descriptorLength))))
+            throw Differencing("VMDK");
+
+        if (compression != 0 || (flags & (1 << 16)) != 0 || directoryAt == -1)
+            throw new InvalidOperationException(
+                "זה כונן VMDK דחוס — כזה שנוצר בייצוא של מכונה וירטואלית לקובץ העברה (OVA/OVF). " +
+                "ייבאו את המכונה ב-VirtualBox או ב-VMware, ופתחו את קובץ ה-VMDK שנוצר בייבוא.");
+
+        if (grain is < 4096 or > 64 * 1024 * 1024 || capacity <= 0 || perTable is < 1 or > 65536 || directoryAt <= 0)
+            throw new InvalidDataException("הכותרת של הכונן הווירטואלי פגומה.");
+
+        long grains = (capacity + grain - 1) / grain;
+        long tables = (grains + perTable - 1) / perTable;
+        if (tables > 16 * 1024 * 1024) throw new InvalidDataException("הכותרת של הכונן הווירטואלי פגומה.");
+
+        byte[] directory = read(directoryAt * 512, (int)(tables * 4));
+        var tableAt = new uint[tables];
+        for (int i = 0; i < tables && i * 4 + 4 <= directory.Length; i++)
+            tableAt[i] = BinaryPrimitives.ReadUInt32LittleEndian(directory.AsSpan(i * 4));
+
+        return new VirtualDisk("VMDK", capacity, 512, 0, null, dirty,
+            grains: new VmdkGrains(read, grain, perTable, tableAt, fileLength));
+    }
+
+    /// <summary>
+    /// מיפוי גרגרים. ספריית הטבלאות קטנה ונקראת מראש; טבלה עצמה (2KB) נקראת
+    /// בפעם הראשונה שצריך אותה — בכונן של טרה-בייט יש אלפי טבלאות.
+    /// </summary>
+    private sealed class VmdkGrains(Func<long, int, byte[]> read, long grain, int perTable, uint[] tableAt, long fileLength)
+    {
+        private readonly Dictionary<long, uint[]> _tables = new();
+        private readonly object _gate = new();
+
+        internal long? Locate(long offset, out long contiguous)
+        {
+            long index = offset / grain;
+            long within = offset % grain;
+            contiguous = grain - within;
+
+            long table = index / perTable;
+            if (table >= tableAt.Length || tableAt[table] == 0) return null;
+
+            uint[] entries;
+            lock (_gate)
+            {
+                if (!_tables.TryGetValue(table, out entries!))
+                {
+                    byte[] raw = read(tableAt[table] * 512L, perTable * 4);
+                    entries = new uint[perTable];
+                    for (int i = 0; i < perTable && i * 4 + 4 <= raw.Length; i++)
+                        entries[i] = BinaryPrimitives.ReadUInt32LittleEndian(raw.AsSpan(i * 4));
+                    _tables[table] = entries;
+                }
+            }
+
+            // 0 — הגרגר לא נכתב; 1 — סומן כמאופס. בשני המקרים: אפסים.
+            uint sector = entries[index % perTable];
+            if (sector <= 1 || sector * 512L >= fileLength) return null;
+            return sector * 512L + within;
+        }
+    }
+
+    /// <summary>חלק של VMDK מכמה קבצים: טווח בדיסק הווירטואלי, והקובץ שמכיל אותו (null — אפסים).</summary>
+    private sealed record Extent(long Start, long Length, RawDevice? Device, long FileOffset);
+
+    /// <summary>קובץ התיאור של VMDK: קובץ טקסט קטן שמפרט מאילו קבצים הכונן בנוי.</summary>
+    private static bool IsVmdkDescriptor(byte[] start)
+    {
+        string text = Encoding.ASCII.GetString(start, 0, Math.Min(start.Length, 1024));
+        return text.Contains("# Disk DescriptorFile", StringComparison.OrdinalIgnoreCase)
+               || (text.Contains("createType=", StringComparison.OrdinalIgnoreCase) && text.Contains("version=", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [GeneratedRegex("""^\s*(?:RW|RDONLY|NOACCESS)\s+(\d+)\s+(\w+)(?:\s+"([^"]+)"(?:\s+(\d+))?)?""", RegexOptions.Multiline)]
+    private static partial Regex ExtentLine();
+
+    [GeneratedRegex("""^\s*parentCID\s*=\s*(\w+)""", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    private static partial Regex ParentLine();
+
+    private static bool VmdkHasParent(string descriptor)
+        => ParentLine().Match(descriptor) is { Success: true } m && !m.Groups[1].Value.Equals("ffffffff", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// VMDK מכמה קבצים (ברירת המחדל ב-VMware Workstation, ובשרתי VMware): כל חלק
+    /// נפתח בנפרד — חלק שגדל לפי הצורך מתורגם בעצמו, וחלק בגודל מלא נקרא כמו שהוא.
+    /// </summary>
+    private static VirtualDisk VmdkDescriptor(string path, byte[] raw)
+    {
+        string text = Encoding.UTF8.GetString(raw);
+        if (VmdkHasParent(text)) throw Differencing("VMDK");
+
+        string folder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        var extents = new List<Extent>();
+        long at = 0;
+
+        try
+        {
+            foreach (Match m in ExtentLine().Matches(text))
+            {
+                long length = long.Parse(m.Groups[1].Value) * 512;
+                string type = m.Groups[2].Value.ToUpperInvariant();
+                string file = m.Groups[3].Value;
+                long fileOffset = m.Groups[4].Success ? long.Parse(m.Groups[4].Value) * 512 : 0;
+
+                RawDevice? device = null;
+                if (type != "ZERO")
+                {
+                    if (type is not ("FLAT" or "VMFS" or "SPARSE"))
+                        throw new InvalidOperationException($"כונן VMDK מסוג שהתוכנה לא מכירה ({type}).");
+
+                    string full = Path.Combine(folder, file);
+                    if (!File.Exists(full))
+                        throw new InvalidOperationException(
+                            $"חסר קובץ של הכונן הווירטואלי: \"{file}\". כל קובצי ה-VMDK של הכונן צריכים להיות באותה תיקייה.");
+
+                    device = RawDevice.TryOpen(full, 512, sequential: false)
+                             ?? throw new IOException($"לא ניתן לפתוח את \"{file}\". ייתכן שהוא בשימוש בתוכנה אחרת.");
+                    if (type == "SPARSE" && device.Virtual is null)
+                        throw new InvalidDataException($"החלק \"{file}\" של הכונן הווירטואלי פגום.");
+                }
+
+                extents.Add(new Extent(at, length, device, fileOffset));
+                at += length;
+            }
+        }
+        catch
+        {
+            foreach (var e in extents) e.Device?.Dispose();
+            throw;
+        }
+
+        if (extents.Count == 0) throw new InvalidDataException("קובץ התיאור של הכונן הווירטואלי לא מפרט אף קובץ נתונים.");
+        return new VirtualDisk("VMDK", at, 512, 0, null, false, extents: extents);
+    }
+
+    /// <summary>כונן שבנוי מכמה קבצים — הקריאה עוברת לכל חלק לפי תורו.</summary>
+    public bool IsComposite => _extents is not null;
+
+    public int ReadComposite(long offset, Span<byte> destination)
+    {
+        if (offset >= Size) return 0;
+        int total = (int)Math.Min(destination.Length, Size - offset);
+
+        for (int done = 0; done < total;)
+        {
+            long position = offset + done;
+            var extent = _extents!.First(e => position < e.Start + e.Length);
+            int part = (int)Math.Min(total - done, extent.Start + extent.Length - position);
+            var target = destination.Slice(done, part);
+
+            if (extent.Device is null) target.Clear();
+            else
+            {
+                int read = extent.Device.Read(extent.FileOffset + position - extent.Start, target);
+                if (read < part) return done + Math.Max(0, read);
+            }
+            done += part;
+        }
+        return total;
+    }
+
+    /// <summary>סגירת קובצי החלקים.</summary>
+    public void Close()
+    {
+        if (_extents is null) return;
+        foreach (var e in _extents) e.Device?.Dispose();
     }
 
     private static Exception Differencing(string format) => new InvalidOperationException(

@@ -17,8 +17,9 @@ public static class ImageDisk
         if (!File.Exists(full))
             throw new FileNotFoundException("קובץ התמונה לא נמצא.", full);
 
+        // קובץ התיאור של VMDK הוא טקסט של כמה מאות בתים — הנתונים בקבצים שהוא מפרט.
         long size = new FileInfo(full).Length;
-        if (size < 512)
+        if (size < 512 && !full.EndsWith(".vmdk", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("הקובץ קטן מכדי להיות תמונת דיסק.");
 
         var map = ImageMap.TryLoad(ImageMap.PathFor(full));
