@@ -971,7 +971,7 @@ async function startHunt(disk) {
           <div><dt>מחיצות שנמצאו</dt><dd id="hunt-found">0</dd></div>
           <div><dt>נקרא מהכונן</dt><dd id="hunt-done">0 B</dd></div>
           <div><dt>זמן שחלף</dt><dd id="hunt-elapsed">0:00</dd></div>
-          <div><dt>זמן משוער שנותר</dt><dd id="hunt-eta">מחשב…</dd></div>
+          <div><dt>זמן משוער שנותר</dt><dd id="hunt-eta" class="words">מחשב…</dd></div>
           <div><dt>מצב</dt><dd style="direction:rtl" id="hunt-state">פועל</dd></div>
         </div>
       </div>
@@ -1643,7 +1643,7 @@ async function startImaging(disk, part, request) {
           <div><dt>הועתק</dt><dd id="img-done">0 B</dd></div>
           <div><dt>טרם נקרא בהצלחה</dt><dd id="img-problems">0 B</dd></div>
           <div><dt>זמן שחלף</dt><dd id="img-elapsed">0:00</dd></div>
-          <div><dt>זמן משוער שנותר</dt><dd id="img-eta">מחשב…</dd></div>
+          <div><dt>זמן משוער שנותר</dt><dd id="img-eta" class="words">מחשב…</dd></div>
           <div><dt>מצב</dt><dd style="direction:rtl" id="img-state">פועל</dd></div>
         </div>
       </div>
@@ -2045,7 +2045,7 @@ async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = fa
           <div><dt>קבצים שנמצאו</dt><dd id="scan-files">0</dd></div>
           <div><dt>נקרא מהדיסק</dt><dd id="scan-bytes">0 B</dd></div>
           <div><dt>זמן שחלף</dt><dd id="scan-elapsed">0:00</dd></div>
-          <div><dt>זמן משוער שנותר</dt><dd id="scan-eta">מחשב…</dd></div>
+          <div><dt>זמן משוער שנותר</dt><dd id="scan-eta" class="words">מחשב…</dd></div>
           <div><dt>מצב</dt><dd style="direction:rtl" id="scan-state">פועל</dd></div>
         </div>
       </div>

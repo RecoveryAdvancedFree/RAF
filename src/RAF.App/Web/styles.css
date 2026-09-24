@@ -572,3 +572,6 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
 .meter-fill.good { background: var(--ok); }
 .meter-fill.mid  { background: var(--warn); }
 .meter-fill.low  { background: var(--danger); }
+
+/* ערך במילים (למשל "כ-7 דקות", "מחשב…") — מימין לשמאל, בניגוד למספרים */
+.kv dd.words { direction: rtl; }
