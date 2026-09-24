@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using RAF.Core.Carving;
 using RAF.Core.Disks;
 using RAF.Core.FileSystems;
 using RAF.Core.FileSystems.Ntfs;
@@ -61,6 +62,9 @@ public sealed class RecoveryReport
 
     /// <summary>התיקייה שאליה הועברו הקבצים ששוחזרו חלקית, אם היו כאלה.</summary>
     public string? PartialFolder { get; init; }
+
+    /// <summary>תמונות מוקטנות שלמות שנשמרו מתוך תמונות שחזרו פגומות.</summary>
+    public int PreviewsSaved { get; init; }
 }
 
 /// <summary>מה עלה בגורלו של קובץ אחד בשחזור.</summary>
@@ -135,7 +139,7 @@ public static class RecoveryWriter
         var entries = new List<RecoveryEntry>();
         var usedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        int succeeded = 0, skipped = 0, done = 0, empty = 0;
+        int succeeded = 0, skipped = 0, done = 0, empty = 0, previews = 0;
         long bytesWritten = 0;
         string partialFolder = Path.Combine(options.TargetFolder, PartialFolderName);
 
@@ -239,6 +243,14 @@ public static class RecoveryWriter
 
                 ApplyTimestamps(destination, file);
                 succeeded++;
+
+                // תמונה שחזרה חלקית או פגומה: התמונה המוקטנת שבתוכה נשמרת לצדה.
+                if (SavePreviewIfDamaged(file, destination, isPartial) is { } preview)
+                {
+                    previews++;
+                    Log(RecoveryStatus.Recovered,
+                        $"תמונה מוקטנת שלמה ({preview.Width}×{preview.Height}) מתוך התמונה הפגומה", preview.Path);
+                }
             }
             catch (Exception ex)
             {
@@ -271,11 +283,44 @@ public static class RecoveryWriter
             Entries = entries,
             ReportPath = reportPath,
             PartialFolder = partial.Count > 0 ? partialFolder : null,
+            PreviewsSaved = previews,
         };
     }
 
     /// <summary>שם התיקייה לקבצים ששוחזרו חלקית, בתוך תיקיית היעד.</summary>
     public const string PartialFolderName = "_חלקיים";
+
+    /// <summary>
+    /// JPEG שחזר חלקי או מדורג "פגום חלקית": אם הוא אכן אינו מתפענח עד סופו,
+    /// התמונה המוקטנת השלמה שבתוכו נשמרת לצדו — "שם (תמונה מוקטנת).jpg".
+    /// על כרטיס אמיתי שחולץ: ב-267 מתוך 269 תמונות פגומות נמצאה תמונה כזו.
+    /// </summary>
+    private static (string Path, int Width, int Height)? SavePreviewIfDamaged(RecoveredFile file, string destination, bool partial)
+    {
+        if (file.Extension is not ("jpg" or "jpeg") || (!partial && file.Quality < RecoveryQuality.Poor)) return null;
+
+        try
+        {
+            var info = new FileInfo(destination);
+            if (info.Length > 64L * 1024 * 1024) return null;
+
+            byte[] data = File.ReadAllBytes(destination);
+            if (JpegDecoder.Check(JpegBytes.Of(data)).Verdict != JpegVerdict.Corrupt) return null;
+            if (JpegPreviews.Best(data) is not { } preview) return null;
+
+            string folder = Path.GetDirectoryName(destination)!;
+            string stem = Path.GetFileNameWithoutExtension(destination);
+            string path = Path.Combine(folder, $"{stem} (תמונה מוקטנת).jpg");
+            for (int i = 2; File.Exists(path); i++) path = Path.Combine(folder, $"{stem} (תמונה מוקטנת {i}).jpg");
+
+            File.WriteAllBytes(path, preview.Data);
+            return (path, preview.Width, preview.Height);
+        }
+        catch
+        {
+            return null;                                           // תוספת בלבד — לעולם לא תכשיל שחזור
+        }
+    }
 
     /// <summary>
     /// העברת קובץ מתחת לתיקייה אחרת, עם אותו מבנה תיקיות יחסי —

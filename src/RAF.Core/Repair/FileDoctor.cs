@@ -40,6 +40,12 @@ public enum FileIssueKind
 
     /// <summary>טבלת המיקומים של מסמך PDF חסרה או שבורה — היא תיבנה מחדש מהמסמך עצמו.</summary>
     PdfStructureDamaged,
+
+    /// <summary>נתוני התמונה מפסיקים להתפענח באמצע — נקטעה, נדרסה או שולבה בקובץ אחר.</summary>
+    ImageDamaged,
+
+    /// <summary>בתוך תמונה פגומה שמורה תמונה מוקטנת שלמה — היא תישמר כקובץ נפרד.</summary>
+    PreviewAvailable,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -68,6 +74,9 @@ public sealed class FileDiagnosis
     // ---- נתונים פנימיים לשלב התיקון ----
     internal FileSignature? Format { get; init; }
     internal long? CorrectLength { get; init; }
+
+    /// <summary>התמונה המוקטנת השלמה שבתוך תמונה פגומה — מה שיישמר בתיקון.</summary>
+    internal JpegPreviews.Preview? Preview { get; init; }
 }
 
 /// <summary>תוצאת תיקון קובץ.</summary>
@@ -76,6 +85,9 @@ public sealed class FileRepairResult
     public bool Succeeded { get; init; }
     public string? OutputPath { get; init; }
     public List<string> Applied { get; init; } = new();
+
+    /// <summary>התמונה המוקטנת שנשמרה מתוך תמונה פגומה, כשנשמרה.</summary>
+    public string? PreviewPath { get; init; }
     public string Message { get; init; } = "";
 
     /// <summary>אבחון העותק המתוקן — ההוכחה שהתיקון עבד.</summary>
@@ -223,6 +235,11 @@ public static class FileDoctor
                 if (declared < size && format.Structure == "tif")
                 {
                 }
+                // אחרי סוף ה-JPEG טלפונים ומצלמות כותבים חלקים של הקובץ עצמו — "הסרה" שלהם
+                // הייתה מוחקת מידע אמיתי. ראו KnownJpegTrailer.
+                else if (declared < size && format.Structure == "jpg" && KnownJpegTrailer(volume, declared, size))
+                {
+                }
                 else if (declared < size)
                 {
                     correctLength = declared;
@@ -271,6 +288,34 @@ public static class FileDoctor
             }
         }
 
+        // ---------------------------------------------- תמונת JPEG: פענוח עד הסוף
+        // חתימה, סיום ואורך תקינים אינם מוכיחים שהתמונה שלמה: קובץ שחציו נדרס
+        // עובר את כולם. המפענח עובר על כל התמונה ומראה היכן היא נשברת.
+        JpegPreviews.Preview? preview = null;
+        if (format is not null && format.Extensions[0] == "jpg" && size <= format.MaxSize)
+        {
+            byte[] all = File.ReadAllBytes(path);
+            if (detected is null) RestoreHeader(all, format);
+
+            var check = JpegDecoder.Check(JpegBytes.Of(all));
+            if (check.Verdict == JpegVerdict.Corrupt)
+                issues.Add(new FileIssue(FileIssueKind.ImageDamaged,
+                    $"התמונה פגומה: רק כ-{check.Fraction:P0} ממנה מתפענח, ומשם והלאה הנתונים אינם של התמונה — " +
+                    "הקובץ נקטע, נדרס, או שחלקו נלקח מקובץ אחר. את החלק החסר אי אפשר להשלים.", false));
+
+            // התמונה המוקטנת שבתוכה שורדת לעיתים קרובות — היא בתחילת הקובץ.
+            bool damaged = issues.Any(i => i.Kind is FileIssueKind.ImageDamaged or FileIssueKind.Truncated
+                                                   or FileIssueKind.FooterMissing
+                                           || (i.Kind == FileIssueKind.HeaderDamaged && !i.Fixable));
+            if (damaged && JpegPreviews.Best(all) is { } best)
+            {
+                preview = best;
+                issues.Add(new FileIssue(FileIssueKind.PreviewAvailable,
+                    $"בתוך הקובץ שמורה תמונה מוקטנת שלמה, בגודל {best.Width}×{best.Height}. " +
+                    "אפשר לשמור אותה כקובץ נפרד — גם אם התמונה עצמה לא תיפתח, היא תישאר.", true));
+            }
+        }
+
         return new FileDiagnosis
         {
             Path = path,
@@ -281,7 +326,22 @@ public static class FileDoctor
             Issues = issues,
             Format = format,
             CorrectLength = correctLength,
+            Preview = preview,
         };
+    }
+
+    /// <summary>
+    /// נתונים אחרי סוף ה-JPEG שהם חלק מהקובץ, ולא זבל:
+    /// תמונה נוספת — תצוגה מקדימה גדולה (MPF) שמצלמות כותבות אחרי התמונה;
+    /// סרטון קצר ("תמונה נעה" של Google ו-Samsung) — MP4 שמתחיל ב-ftyp;
+    /// ובלוק המידע של טלפוני Samsung, שמסתיים ב-"SEFT" (זמן הצילום, פרטי הטלפון).
+    /// </summary>
+    private static bool KnownJpegTrailer(StreamVolume volume, long end, long size)
+    {
+        byte[] start = volume.ReadAt(end, 12);
+        if (start is [0xFF, 0xD8, 0xFF, ..]) return true;
+        if (start.Length >= 8 && start.AsSpan(4, 4).SequenceEqual("ftyp"u8)) return true;
+        return volume.ReadAt(size - 4, 4).AsSpan().SequenceEqual("SEFT"u8);
     }
 
     /// <summary>ארכיון גדול מזה אינו נבדק לעומק — הוא נקרא כולו לזיכרון.</summary>
@@ -462,6 +522,30 @@ public static class FileDoctor
         string stem = System.IO.Path.GetFileNameWithoutExtension(path);
 
         Directory.CreateDirectory(outputFolder);
+
+        // התמונה המוקטנת נשמרת לצד התיקון — ובתמונה שאין בה דבר אחר לתקן, במקומו.
+        string? previewPath = null;
+        if (diagnosis.Preview is { } preview && diagnosis.Issues.Any(i => i.Fixable && i.Kind == FileIssueKind.PreviewAvailable))
+        {
+            previewPath = UniquePath(outputFolder, $"{stem} (תמונה מוקטנת)", "jpg");
+            File.WriteAllBytes(previewPath, preview.Data);
+            applied.Add($"נשמרה התמונה המוקטנת שבתוך הקובץ ({preview.Width}×{preview.Height}) כקובץ נפרד");
+
+            if (!diagnosis.Issues.Any(i => i.Fixable && i.Kind != FileIssueKind.PreviewAvailable))
+            {
+                var previewCheck = Diagnose(previewPath);
+                return new FileRepairResult
+                {
+                    Succeeded = previewCheck.IsHealthy,
+                    OutputPath = previewPath,
+                    PreviewPath = previewPath,
+                    Applied = applied,
+                    After = previewCheck,
+                    Message = "התמונה עצמה פגומה, ואת החלק החסר בה אי אפשר להשלים. " +
+                              $"התמונה המוקטנת שבתוכה ({preview.Width}×{preview.Height}) נשמרה כקובץ נפרד ונבדקה — היא שלמה.",
+                };
+            }
+        }
         string output = UniquePath(outputFolder, $"{stem} (תוקן)", extension);
 
         // הגנה: לעולם לא לדרוס את הקובץ המקורי.
@@ -487,12 +571,15 @@ public static class FileDoctor
 
         // --- אבחון חוזר: ההוכחה שהתיקון עבד ---
         var after = Diagnose(output);
-        bool fixedAll = after.Issues.All(i => !i.Fixable);
+
+        // התמונה המוקטנת כבר נשמרה; בעותק היא מופיעה שוב כ"ניתן לשמור", וזה אינו כישלון התיקון.
+        bool fixedAll = after.Issues.All(i => !i.Fixable || i.Kind == FileIssueKind.PreviewAvailable);
 
         return new FileRepairResult
         {
             Succeeded = fixedAll,
             OutputPath = output,
+            PreviewPath = previewPath,
             Applied = applied,
             After = after,
             Message = fixedAll

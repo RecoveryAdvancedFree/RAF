@@ -50,13 +50,11 @@ public class FileDoctorTests : IDisposable
         return data;
     }
 
-    private static byte[] Jpeg(int size = 8192)
-    {
-        byte[] b = Body(size, 7);
-        b[0] = 0xFF; b[1] = 0xD8; b[2] = 0xFF; b[3] = 0xE0;
-        b[^2] = 0xFF; b[^1] = 0xD9;
-        return b;
-    }
+    /// <summary>
+    /// JPEG אמיתי: הרופא מפענח כל תמונה עד סופה, ולכן "JPEG" של בתים אקראיים
+    /// בין חתימת פתיחה לסיום מאובחן — בצדק — כתמונה פגומה.
+    /// </summary>
+    private static byte[] Jpeg() => JpegEncoder.Encode(64, 48, 7);
 
     private static byte[] Bmp(int size = 6000)
     {
@@ -279,13 +277,8 @@ public class FileDoctorTests : IDisposable
     }
 
     /// <summary>JPEG עם מקטע JFIF, כפי שמצלמות ותוכנות עריכה שומרות.</summary>
-    private static byte[] JfifJpeg()
-    {
-        byte[] b = Jpeg();
-        b[4] = 0x00; b[5] = 0x10;                      // אורך המקטע
-        Encoding.ASCII.GetBytes("JFIF\0").CopyTo(b, 6);
-        return b;
-    }
+    /// <summary>JPEG שמקטע ה-JFIF שלו מזהה את סמן המקטע הראשון — כמו כל מה שהמקודד כותב.</summary>
+    private static byte[] JfifJpeg() => Jpeg();
 
     [Fact]
     public void A_lost_jpeg_marker_is_restored_when_the_segment_id_survived()
@@ -308,6 +301,7 @@ public class FileDoctorTests : IDisposable
         // אך מודה שהקובץ עדיין אינו שלם — במקום לדווח עליו כתקין.
         byte[] damaged = Jpeg();
         for (int i = 0; i < 4; i++) damaged[i] = 0;
+        for (int i = 6; i < 11; i++) damaged[i] = 0;   // גם המזהה "JFIF" אבד — אין ממה לשחזר את הסמן
 
         var result = FileDoctor.Repair(Write("nojfif.jpg", damaged), _output);
 

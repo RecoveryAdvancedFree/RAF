@@ -829,6 +829,7 @@ internal sealed partial class Bridge
             target,
             reportPath = report.ReportPath,
             partialFolder = report.PartialFolder,
+            previews = report.PreviewsSaved,
         };
     }
 

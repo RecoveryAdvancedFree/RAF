@@ -3002,6 +3002,10 @@ function showRecoveryReport(r) {
         <span style="direction:ltr;display:inline-block">${esc(r.target)}</span></div>
       </div>
       ${partial}
+      ${r.previews > 0 ? notice('info', Icon.image,
+        `${r.previews === 1 ? 'נשמרה תמונה מוקטנת אחת' : `נשמרו ${r.previews.toLocaleString('he-IL')} תמונות מוקטנות`} מתוך תמונות פגומות`,
+        'בתוך רוב התמונות ממצלמה או מטלפון שמורה גרסה מוקטנת. כשהתמונה עצמה חזרה פגומה, הגרסה המוקטנת נשמרה לצדה — ' +
+        'בשם "(תמונה מוקטנת)" — ונבדקה שהיא שלמה.') : ''}
       ${reportNote}
       ${r.empty > 0 ? notice('danger', Icon.alert, `${countFiles(r.empty)} לא ${plural(r.empty, 'נכתב', 'נכתבו')}`,
         'התוכן שלהם כבר לא קיים על הדיסק.',
