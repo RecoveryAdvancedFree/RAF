@@ -1283,9 +1283,10 @@ internal sealed partial class Bridge
                 using var dialog = new OpenFileDialog
                 {
                     Title = "פתיחת תמונת דיסק",
-                    Filter = "תמונות דיסק וכוננים וירטואליים (*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk)|*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk|" +
+                    Filter = "תמונות דיסק וכוננים וירטואליים (*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk;*.e01)|*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk;*.e01|" +
                              "כוננים וירטואליים של Windows (*.vhd;*.vhdx)|*.vhd;*.vhdx|" +
-                             "כוננים של VirtualBox ו-VMware (*.vmdk)|*.vmdk|כל הקבצים (*.*)|*.*",
+                             "כוננים של VirtualBox ו-VMware (*.vmdk)|*.vmdk|" +
+                             "תמונות של כלי חקירה (*.e01)|*.e01|כל הקבצים (*.*)|*.*",
                     CheckFileExists = true,
                 };
 

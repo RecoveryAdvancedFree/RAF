@@ -61,7 +61,10 @@ public static class ImageDisk
                 RawAccessible = true,
                 Partitions = partitions,
                 ImagePath = full,
-                ImageNote = device.Virtual is { } vd
+                ImageNote = device.Virtual is { Format: "E01" } ewf
+                    ? "תמונה של כלי חקירה (E01) — נקראת ישירות מהקובץ, ושום דבר לא נכתב אליה." +
+                      (ewf.Md5 is not null ? " הכלי שיצר אותה שמר בה טביעת אצבע של הכונן המקורי." : "")
+                    : device.Virtual is { } vd
                     ? $"כונן וירטואלי ({vd.Format}) — נקרא ישירות מהקובץ, בלי לחבר אותו ל-Windows, ושום דבר לא נכתב אליו." +
                       (vd.Dirty ? " הכונן לא נסגר כראוי בפעם האחרונה, ולכן ייתכן שהשינויים האחרונים שנעשו בו חסרים." : "")
                     : Describe(map),

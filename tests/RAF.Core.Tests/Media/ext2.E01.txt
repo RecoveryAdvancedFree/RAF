@@ -1,0 +1,4 @@
+ext2.E01 — תמונת E01 דחוסה של כונן ext2 בגודל 4MB, מתוך נתוני הבדיקה של dfVFS:
+https://github.com/log2timeline/dfvfs/blob/main/test_data/ext2.E01
+רישיון: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+טביעת האצבע (MD5) של הכונן המקורי: 196066ADD11FB71C4C49CF1BB50D6D24

@@ -28,10 +28,15 @@ internal sealed partial class VirtualDisk
     private readonly long _blockSize;       // 0 — דיסק קבוע: היסט בקובץ = היסט בדיסק
     private readonly VmdkGrains? _grains;   // VMDK: הטבלאות נקראות לפי הצורך
     private readonly List<Extent>? _extents; // VMDK מכמה קבצים: כל חלק בקובץ משלו
+    private readonly EwfImage? _ewf;         // E01: חלקים דחוסים, אולי בכמה קבצים
+
+    /// <summary>טביעת האצבע של הכונן המקורי שנשמרה בתמונת E01. null — אין.</summary>
+    public byte[]? Md5 => _ewf?.Md5;
 
     private VirtualDisk(string format, long size, int sectorSize, long blockSize, long[]? blocks, bool dirty,
-        VmdkGrains? grains = null, List<Extent>? extents = null)
+        VmdkGrains? grains = null, List<Extent>? extents = null, EwfImage? ewf = null)
     {
+        _ewf = ewf;
         Format = format;
         Size = size;
         SectorSize = sectorSize;
@@ -74,6 +79,15 @@ internal sealed partial class VirtualDisk
 
         byte[] start = read(0, 512);
         if (start.AsSpan().StartsWith("vhdxfile"u8)) return Vhdx(read, fileLength);
+        if (path is not null && EwfImage.IsEwf(start))
+        {
+            var ewf = EwfImage.Open(path);
+            return new VirtualDisk("E01", ewf.Size, ewf.SectorSize, 0, null, false, ewf: ewf);
+        }
+        if (EwfImage.IsEwf2(start))
+            throw new InvalidOperationException(
+                "זו תמונה בפורמט Ex01 — הגרסה החדשה של E01, שהתוכנה עוד לא קוראת. " +
+                "אם אפשר, צרו את התמונה מחדש בפורמט E01 הרגיל, או המירו אותה לתמונה גולמית (dd).");
         if (start.AsSpan().StartsWith("KDMV"u8)) return VmdkSparse(read, start, fileLength);
         if (path is not null && fileLength <= 64 * 1024 && IsVmdkDescriptor(start))
             return VmdkDescriptor(path, read(0, (int)fileLength));
@@ -366,10 +380,11 @@ internal sealed partial class VirtualDisk
     }
 
     /// <summary>כונן שבנוי מכמה קבצים — הקריאה עוברת לכל חלק לפי תורו.</summary>
-    public bool IsComposite => _extents is not null;
+    public bool IsComposite => _extents is not null || _ewf is not null;
 
     public int ReadComposite(long offset, Span<byte> destination)
     {
+        if (_ewf is not null) return _ewf.Read(offset, destination);
         if (offset >= Size) return 0;
         int total = (int)Math.Min(destination.Length, Size - offset);
 
@@ -394,6 +409,7 @@ internal sealed partial class VirtualDisk
     /// <summary>סגירת קובצי החלקים.</summary>
     public void Close()
     {
+        _ewf?.Close();
         if (_extents is null) return;
         foreach (var e in _extents) e.Device?.Dispose();
     }
