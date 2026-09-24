@@ -247,10 +247,21 @@ internal sealed partial class VirtualDisk
             VmdkHasParent(Encoding.ASCII.GetString(read(descriptorAt, (int)descriptorLength))))
             throw Differencing("VMDK");
 
-        if (compression != 0 || (flags & (1 << 16)) != 0 || directoryAt == -1)
-            throw new InvalidOperationException(
-                "זה כונן VMDK דחוס — כזה שנוצר בייצוא של מכונה וירטואלית לקובץ העברה (OVA/OVF). " +
-                "ייבאו את המכונה ב-VirtualBox או ב-VMware, ופתחו את קובץ ה-VMDK שנוצר בייבוא.");
+        // כונן דחוס (ייצוא של מכונה לקובץ העברה): כל גרגר דחוס, והטבלאות נכתבות רק בסוף —
+        // ולכן הכותרת שבתחילה לא יודעת היכן הן. הכותרת האמיתית היא עותק שנכתב לפני סוף הקובץ.
+        bool compressed = compression != 0 || (flags & (1 << 16)) != 0;
+        if (compressed && compression is not (0 or 1))
+            throw new InvalidOperationException($"כונן VMDK בשיטת דחיסה שהתוכנה לא מכירה ({compression}).");
+        if (directoryAt == -1)
+        {
+            byte[] footer = read(fileLength - 1024, 512);
+            if (footer.Length < 512 || !footer.AsSpan().StartsWith("KDMV"u8))
+                throw new InvalidDataException("סוף הכונן הווירטואלי הדחוס חסר או פגום — ייתכן שהייצוא לא הושלם.");
+            capacity = BinaryPrimitives.ReadInt64LittleEndian(footer.AsSpan(12)) * 512;
+            grain = BinaryPrimitives.ReadInt64LittleEndian(footer.AsSpan(20)) * 512;
+            perTable = (int)BinaryPrimitives.ReadUInt32LittleEndian(footer.AsSpan(44));
+            directoryAt = BinaryPrimitives.ReadInt64LittleEndian(footer.AsSpan(56));
+        }
 
         if (grain is < 4096 or > 64 * 1024 * 1024 || capacity <= 0 || perTable is < 1 or > 65536 || directoryAt <= 0)
             throw new InvalidDataException("הכותרת של הכונן הווירטואלי פגומה.");
@@ -265,26 +276,36 @@ internal sealed partial class VirtualDisk
             tableAt[i] = BinaryPrimitives.ReadUInt32LittleEndian(directory.AsSpan(i * 4));
 
         return new VirtualDisk("VMDK", capacity, 512, 0, null, dirty,
-            grains: new VmdkGrains(read, grain, perTable, tableAt, fileLength));
+            grains: new VmdkGrains(read, grain, perTable, tableAt, fileLength, compressed, zeroMarker: (flags & 4) != 0));
     }
 
     /// <summary>
     /// מיפוי גרגרים. ספריית הטבלאות קטנה ונקראת מראש; טבלה עצמה (2KB) נקראת
     /// בפעם הראשונה שצריך אותה — בכונן של טרה-בייט יש אלפי טבלאות.
     /// </summary>
-    private sealed class VmdkGrains(Func<long, int, byte[]> read, long grain, int perTable, uint[] tableAt, long fileLength)
+    private sealed class VmdkGrains(Func<long, int, byte[]> read, long grain, int perTable, uint[] tableAt, long fileLength,
+        bool compressed = false, bool zeroMarker = false)
     {
         private readonly Dictionary<long, uint[]> _tables = new();
         private readonly object _gate = new();
+
+        /// <summary>הגרגרים דחוסים — הקריאה עוברת דרך Read, ולא דרך מיקום בקובץ.</summary>
+        internal bool Compressed => compressed;
 
         internal long? Locate(long offset, out long contiguous)
         {
             long index = offset / grain;
             long within = offset % grain;
             contiguous = grain - within;
+            uint sector = SectorOf(index);
+            return sector == 0 ? null : sector * 512L + within;
+        }
 
+        /// <summary>הסקטור בקובץ שבו מתחיל הגרגר. 0 — הגרגר לא נכתב (אפסים).</summary>
+        private uint SectorOf(long index)
+        {
             long table = index / perTable;
-            if (table >= tableAt.Length || tableAt[table] == 0) return null;
+            if (table >= tableAt.Length || tableAt[table] == 0) return 0;
 
             uint[] entries;
             lock (_gate)
@@ -299,10 +320,85 @@ internal sealed partial class VirtualDisk
                 }
             }
 
-            // 0 — הגרגר לא נכתב; 1 — סומן כמאופס. בשני המקרים: אפסים.
+            // 0 — הגרגר לא נכתב. 1 — סומן כמאופס, אבל רק כשהכותרת מצהירה על הסימון הזה;
+            // בלעדיה סקטור 1 הוא מקום חוקי לנתונים. בשני המקרים הראשונים: אפסים.
             uint sector = entries[index % perTable];
-            if (sector <= 1 || sector * 512L >= fileLength) return null;
-            return sector * 512L + within;
+            return sector == 0 || (sector == 1 && zeroMarker) || sector * 512L >= fileLength ? 0 : sector;
+        }
+
+        // ------------------------------------------------ גרגרים דחוסים
+
+        private readonly Dictionary<long, byte[]?> _grains = new();
+        private readonly LinkedList<long> _order = new();
+
+        /// <summary>
+        /// קריאה מכונן דחוס: לפני כל גרגר — מספר הסקטור שלו בכונן (8 בתים) ואורך הנתונים
+        /// הדחוסים (4 בתים), ואחריהם הנתונים. גרגרים שנפרסו לאחרונה נשמרים — הסריקה קוראת ברצף.
+        /// </summary>
+        internal int Read(long offset, Span<byte> destination, long size)
+        {
+            if (offset >= size) return 0;
+            int total = (int)Math.Min(destination.Length, size - offset);
+
+            for (int done = 0; done < total;)
+            {
+                long position = offset + done;
+                long index = position / grain;
+                int within = (int)(position % grain);
+                int part = (int)Math.Min(total - done, grain - within);
+                var target = destination.Slice(done, part);
+
+                uint sector = SectorOf(index);
+                if (sector == 0) target.Clear();
+                else
+                {
+                    byte[]? data = Grain(index, sector);
+                    if (data is null) return done;                               // גרגר פגום — כמו סקטור שלא נקרא
+                    data.AsSpan(within, part).CopyTo(target);
+                }
+                done += part;
+            }
+            return total;
+        }
+
+        private byte[]? Grain(long index, uint sector)
+        {
+            lock (_gate)
+            {
+                if (_grains.TryGetValue(index, out var cached)) return cached;
+            }
+
+            byte[] marker = read(sector * 512L, 12);
+            int length = marker.Length == 12 ? (int)BinaryPrimitives.ReadUInt32LittleEndian(marker.AsSpan(8)) : 0;
+            byte[]? data = null;
+            if (length > 0 && length <= grain + 64 * 1024)
+            {
+                try
+                {
+                    using var z = new System.IO.Compression.ZLibStream(
+                        new MemoryStream(read(sector * 512L + 12, length)), System.IO.Compression.CompressionMode.Decompress);
+                    data = new byte[grain];
+                    int got = 0;
+                    while (got < data.Length)
+                    {
+                        int n = z.Read(data, got, data.Length - got);
+                        if (n <= 0) break;
+                        got += n;
+                    }
+                }
+                catch (InvalidDataException)
+                {
+                    data = null;
+                }
+            }
+
+            lock (_gate)
+            {
+                _grains[index] = data;
+                _order.AddLast(index);
+                if (_order.Count > 64) { _grains.Remove(_order.First!.Value); _order.RemoveFirst(); }
+            }
+            return data;
         }
     }
 
@@ -380,11 +476,12 @@ internal sealed partial class VirtualDisk
     }
 
     /// <summary>כונן שבנוי מכמה קבצים — הקריאה עוברת לכל חלק לפי תורו.</summary>
-    public bool IsComposite => _extents is not null || _ewf is not null;
+    public bool IsComposite => _extents is not null || _ewf is not null || _grains is { Compressed: true };
 
     public int ReadComposite(long offset, Span<byte> destination)
     {
         if (_ewf is not null) return _ewf.Read(offset, destination);
+        if (_grains is { Compressed: true }) return _grains.Read(offset, destination, Size);
         if (offset >= Size) return 0;
         int total = (int)Math.Min(destination.Length, Size - offset);
 

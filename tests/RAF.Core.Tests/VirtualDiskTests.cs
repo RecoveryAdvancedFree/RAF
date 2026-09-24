@@ -183,9 +183,10 @@ public class VirtualDiskTests : IDisposable
 
     /// <summary>
     /// VMDK שגדל לפי הצורך: 8 גרגרים של 4KB, ארבעה בכל טבלה. גרגר 0 ו-2 כתובים,
-    /// גרגר 1 לא נכתב, גרגר 3 סומן כמאופס, והטבלה השנייה (גרגרים 4–7) לא קיימת כלל.
+    /// גרגר 1 לא נכתב, גרגר 3 סומן כמאופס (הכותרת מצהירה על הסימון: ביט 2), והטבלה השנייה
+    /// (גרגרים 4–7) לא קיימת כלל.
     /// </summary>
-    private static byte[] SparseVmdk(byte[] first, byte[] third, uint flags = 3, string? parentCid = null)
+    private static byte[] SparseVmdk(byte[] first, byte[] third, uint flags = 3 | 4, string? parentCid = null)
     {
         byte[] header = new byte[512];
         "KDMV"u8.CopyTo(header);
@@ -286,10 +287,80 @@ public class VirtualDiskTests : IDisposable
         Assert.Contains("הפרשים", Assert.Throws<InvalidOperationException>(() => Open(".vmdk", single)).Message);
     }
 
-    [Fact]
-    public void A_compressed_exported_vmdk_is_refused_with_an_explanation()
+    /// <summary>
+    /// VMDK דחוס, כמו בייצוא של מכונה לקובץ העברה: כל גרגר דחוס ולפניו מספר הסקטור שלו והאורך;
+    /// הספרייה והטבלה בסוף, והכותרת שבתחילה לא יודעת היכן הן — רק העותק שלה לפני סוף הקובץ.
+    /// גרגר 0 ו-2 כתובים, השאר אפסים. (נבדק גם מול כונן אמיתי של VMware: 300MB, זהה בכל בית.)
+    /// </summary>
+    private static byte[] StreamVmdk(byte[] first, byte[] third)
     {
-        byte[] compressed = SparseVmdk(Pattern(4096, 18), Pattern(4096, 19), flags: 3 | (1 << 16));
-        Assert.Contains("דחוס", Assert.Throws<InvalidOperationException>(() => Open(".vmdk", compressed)).Message);
+        static byte[] Header(long directoryAt)
+        {
+            byte[] h = new byte[512];
+            "KDMV"u8.CopyTo(h);
+            BinaryPrimitives.WriteUInt32LittleEndian(h.AsSpan(4), 3);
+            BinaryPrimitives.WriteUInt32LittleEndian(h.AsSpan(8), 3 | (1 << 16) | (1 << 17));
+            BinaryPrimitives.WriteInt64LittleEndian(h.AsSpan(12), 64);
+            BinaryPrimitives.WriteInt64LittleEndian(h.AsSpan(20), 8);
+            BinaryPrimitives.WriteUInt32LittleEndian(h.AsSpan(44), 4);
+            BinaryPrimitives.WriteInt64LittleEndian(h.AsSpan(56), directoryAt);
+            BinaryPrimitives.WriteUInt16LittleEndian(h.AsSpan(77), 1);            // דחיסה: deflate
+            return h;
+        }
+
+        static byte[] Grain(long lba, byte[] data)
+        {
+            var packed = new MemoryStream();
+            using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+                z.Write(data);
+            byte[] body = packed.ToArray();
+            byte[] g = new byte[(12 + body.Length + 511) / 512 * 512];
+            BinaryPrimitives.WriteInt64LittleEndian(g, lba);
+            BinaryPrimitives.WriteUInt32LittleEndian(g.AsSpan(8), (uint)body.Length);
+            body.CopyTo(g, 12);
+            return g;
+        }
+
+        var file = new List<byte>(Header(-1));                                 // בתחילה: "הספרייה בסוף"
+        long g0 = file.Count / 512; file.AddRange(Grain(0, first));
+        long g2 = file.Count / 512; file.AddRange(Grain(16, third));
+
+        byte[] table = new byte[512];
+        BinaryPrimitives.WriteUInt32LittleEndian(table.AsSpan(0), (uint)g0);
+        BinaryPrimitives.WriteUInt32LittleEndian(table.AsSpan(8), (uint)g2);
+        long tableAt = file.Count / 512; file.AddRange(table);
+
+        byte[] directory = new byte[512];
+        BinaryPrimitives.WriteUInt32LittleEndian(directory, (uint)tableAt);
+        long directoryAt = file.Count / 512; file.AddRange(directory);
+
+        file.AddRange(new byte[512]);                                           // סימן "כאן הכותרת"
+        file.AddRange(Header(directoryAt));                                     // הכותרת האמיתית
+        file.AddRange(new byte[512]);                                           // סימן סוף
+        return file.ToArray();
+    }
+
+    [Fact]
+    public void A_compressed_exported_vmdk_is_read_through_its_ending_header()
+    {
+        byte[] first = Pattern(4096, 18), third = Pattern(4096, 19);
+        using var device = Open(".vmdk", StreamVmdk(first, third));
+
+        Assert.Equal(32 * 1024, device.Virtual!.Size);
+        byte[] all = device.ReadBlock(0, 32 * 1024);
+        Assert.Equal(first, all[..4096]);
+        Assert.All(all[4096..8192], b => Assert.Equal(0, b));
+        Assert.Equal(third, all[8192..12288]);
+        Assert.All(all[12288..], b => Assert.Equal(0, b));
+
+        // קריאה שמתחילה באמצע גרגר דחוס וממשיכה לגרגר שלא נכתב.
+        Assert.Equal(all[3000..6000], device.ReadBlock(3000, 3000));
+    }
+
+    [Fact]
+    public void A_compressed_vmdk_whose_export_did_not_finish_is_explained()
+    {
+        byte[] cut = StreamVmdk(Pattern(4096, 20), Pattern(4096, 21))[..^1536];    // בלי הסוף
+        Assert.Contains("הייצוא לא הושלם", Assert.Throws<InvalidDataException>(() => Open(".vmdk", cut)).Message);
     }
 }
