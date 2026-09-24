@@ -241,7 +241,7 @@ public sealed class FileCarver
             for (int off = 0; off < scanLimit; off += sectorSize)
             {
                 long absolute = at + off;
-                if (token.IsCancellationRequested)
+                if (token.IsCancellationRequested || volume.Disconnected)
                 {
                     if (main) Stopped(absolute, nextAllowedStart);   // הסקטור הזה עוד לא נבדק
                     break;
@@ -256,6 +256,13 @@ public sealed class FileCarver
                 _candidates++;
 
                 var resolved = FileLength.Resolve(signature, volume, absolute, size - absolute);
+                // הכונן נותק בזמן המדידה: האורך לא נקרא, והקובץ היה אובד — נקודת ההמשך
+                // נקבעת כאן, והוא ייבדק שוב בהמשך הסריקה.
+                if (volume.Disconnected)
+                {
+                    if (main) Stopped(absolute, nextAllowedStart);
+                    break;
+                }
                 if (resolved.Bytes < 64) continue;
 
                 bool wanted = Accept is null || Accept(signature);
@@ -281,6 +288,11 @@ public sealed class FileCarver
                     nextAllowedStart = absolute + resolved.Bytes;
             }
 
+            if (volume.Disconnected)
+            {
+                if (main) _disconnected = true;
+                break;
+            }
             if (!main) continue;
             _map?.Add(at, scanLimit, SectorState.Read);
 
