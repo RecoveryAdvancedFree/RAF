@@ -156,4 +156,7 @@ public sealed class ScanProgress
     public double BytesPerSecond { get; init; }
 
     public TimeSpan Elapsed { get; init; }
+
+    /// <summary>מפת הסקטורים של מעבר שעובר סקטור אחרי סקטור; null — בשלבים אחרים.</summary>
+    public SectorMap? Map { get; init; }
 }

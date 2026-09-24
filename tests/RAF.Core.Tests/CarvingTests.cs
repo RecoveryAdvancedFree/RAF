@@ -214,6 +214,30 @@ public class CarvingTests : IDisposable
         Assert.Equal(Offsets(full.Files), Offsets(resumed.Files));
     }
 
+    private sealed class Captured<T> : IProgress<T>
+    {
+        public T? Last { get; private set; }
+        public void Report(T value) => Last = value;
+    }
+
+    [Fact]
+    public void The_sector_map_is_read_everywhere_and_marks_where_the_files_were_found()
+    {
+        Place(RealFormats.Png(3000, 1));
+        _image.Write(new byte[9 * 1024 * 1024]);
+        Place(RealFormats.Gif());
+        var volume = Open();
+
+        var progress = new Captured<RAF.Core.Model.ScanProgress>();
+        var files = new FileCarver().Sweep(volume, _image.Length, SectorSize, progress, CancellationToken.None).Files;
+
+        var map = progress.Last?.Map;
+        Assert.NotNull(map);
+        Assert.DoesNotContain('0', map!.Snapshot());
+        foreach (var f in files)
+            Assert.Equal(RAF.Core.Model.SectorState.Found, map.StateOf(map.CellOf(f.Extents[0].StartCluster * SectorSize)));
+    }
+
     [Fact]
     public void Mkv_length_is_where_its_segment_says_it_ends()
     {

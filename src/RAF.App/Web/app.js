@@ -1041,6 +1041,8 @@ async function startHunt(disk) {
           <span id="hunt-percent">0%</span>
           <span id="hunt-speed"></span>
         </div>
+
+        ${SectorMapView.html('hunt')}
         <div class="kv" style="margin-top:18px">
           <div><dt>מחיצות שנמצאו</dt><dd id="hunt-found">0</dd></div>
           <div><dt>נקרא מהכונן</dt><dd id="hunt-done">0 B</dd></div>
@@ -1113,6 +1115,7 @@ Bridge.on('hunt.progress', (p) => {
   el('hunt-done').textContent = `${formatSize(p.done)} מתוך ${formatSize(p.total)}`;
   el('hunt-elapsed').textContent = formatDuration(p.elapsed);
   el('hunt-eta').textContent = Eta.text('hunt', p.percent, p.elapsed);
+  SectorMapView.update('hunt', p.map);
 });
 
 /* =====================================================================
@@ -1713,6 +1716,8 @@ async function startImaging(disk, part, request) {
           <span id="img-speed"></span>
         </div>
 
+        ${SectorMapView.html('image')}
+
         <div class="kv" style="margin-top:18px">
           <div><dt>הועתק</dt><dd id="img-done">0 B</dd></div>
           <div><dt>טרם נקרא בהצלחה</dt><dd id="img-problems">0 B</dd></div>
@@ -1772,6 +1777,7 @@ Bridge.on('image.progress', (p) => {
   el('img-problems').classList.toggle('warn-text', p.problems > 0);
   el('img-elapsed').textContent = formatDuration(p.elapsed);
   el('img-eta').textContent = Eta.text('img', p.percent, p.elapsed);
+  SectorMapView.update('image', p.map);
 });
 
 function showImageResult(title, r) {
@@ -2156,6 +2162,8 @@ function showScanScreen(modeId, subtitle) {
           <span id="scan-speed"></span>
         </div>
 
+        ${SectorMapView.html('scan')}
+
         <div class="kv" style="margin-top:18px">
           <div><dt>קבצים שנמצאו</dt><dd id="scan-files">0</dd></div>
           <div><dt>נקרא מהדיסק</dt><dd id="scan-bytes">0 B</dd></div>
@@ -2241,6 +2249,130 @@ function showPaused(p, title) {
   setStatus('הסריקה מושהית');
 }
 
+/* =====================================================================
+   מפת הסקטורים — בכל מעבר שעובר סקטור אחרי סקטור: סריקה מתקדמת, סריקת
+   עומק, סריקת כונן ויצירת תמונה. כל ריבוע הוא חלק שווה של האזור הנסרק.
+   ===================================================================== */
+
+const SectorMapView = (() => {
+  // המצבים כפי שהמנוע שולח אותם: תו '0' עד '5' לכל ריבוע.
+  const COLORS = ['--border', '--border-strong', '--accent', '--ok', '--warn', '--danger'];
+  const LEGENDS = {
+    scan: { 2: 'נסרק', 3: 'נמצאו קבצים', 1: 'תפוס — דולג', 5: 'לא נקרא', 0: 'טרם נסרק' },
+    hunt: { 2: 'נבדק', 3: 'נמצאה מחיצה', 5: 'לא נקרא', 0: 'טרם נבדק' },
+    image: { 2: 'הועתק', 4: 'ממתין לניסיון חוזר', 5: 'לא נקרא', 0: 'טרם הועתק' },
+  };
+  const CELL = 8, GAP = 2, PITCH = CELL + GAP;
+
+  function html(kind) {
+    return `
+      <div class="sector-map" id="map-${kind}" data-kind="${kind}" hidden>
+        <div class="sm-head">
+          <span class="section-label">מפת הסקטורים</span>
+          <div class="sm-legend"></div>
+        </div>
+        <div class="sm-canvas-wrap">
+          <canvas></canvas>
+          <div class="sm-cursor" hidden></div>
+        </div>
+      </div>`;
+  }
+
+  /// מיקום הריבוע: מימין לשמאל ומלמעלה למטה, כמו קריאה בעברית.
+  function place(box, i) {
+    const col = i % box.cols, row = Math.floor(i / box.cols);
+    return { x: box.width - (col + 1) * PITCH + GAP, y: row * PITCH };
+  }
+
+  function draw(root) {
+    const data = root._map;
+    if (!data) return;
+    const canvas = root.querySelector('canvas');
+    const width = root.querySelector('.sm-canvas-wrap').clientWidth;
+    if (width <= 0) return;
+
+    const n = data.cells.length;
+    const cols = Math.max(1, Math.floor((width + GAP) / PITCH));
+    const rows = Math.ceil(n / cols);
+    const height = rows * PITCH - GAP;
+    const box = { cols, width, n };
+    root._box = box;
+
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(box.width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(box.width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = box.width + 'px';
+      canvas.style.height = height + 'px';
+    }
+
+    const css = getComputedStyle(document.documentElement);
+    const colors = COLORS.map((v) => css.getPropertyValue(v).trim());
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, box.width, height);
+    for (let i = 0; i < n; i++) {
+      const s = data.cells.charCodeAt(i) - 48;
+      const { x, y } = place(box, i);
+      ctx.fillStyle = colors[s] || colors[0];
+      ctx.fillRect(x, y, CELL, CELL);
+    }
+
+    const cursor = root.querySelector('.sm-cursor');
+    cursor.hidden = !(data.cursor >= 0 && data.cursor < n);
+    if (!cursor.hidden) {
+      const { x, y } = place(box, data.cursor);
+      cursor.style.left = (x - 2) + 'px';
+      cursor.style.top = (y - 2) + 'px';
+    }
+
+    // מקרא: רק מצבים שיש להם משמעות כאן — "דולג" רק כשבאמת דולג משהו.
+    const legend = LEGENDS[root.dataset.kind] || LEGENDS.scan;
+    const present = new Set(data.cells);
+    const items = Object.entries(legend)
+      .filter(([s]) => s !== '1' || present.has('1'))
+      .map(([s, label]) => `<span><i style="background:var(${COLORS[s]})"></i>${label}</span>`)
+      .join('');
+    const legendBox = root.querySelector('.sm-legend');
+    if (legendBox._html !== items) legendBox.innerHTML = legendBox._html = items;
+  }
+
+  /// ריחוף: איזה אזור בכונן הריבוע מייצג, ומה מצבו.
+  function hover(root, e) {
+    const box = root._box, data = root._map;
+    if (!box || !data) return;
+    const rect = e.target.getBoundingClientRect();
+    const col = Math.floor((box.width - (e.clientX - rect.left)) / PITCH);
+    const row = Math.floor((e.clientY - rect.top) / PITCH);
+    const i = row * box.cols + col;
+    if (col < 0 || col >= box.cols || i < 0 || i >= box.n) { e.target.title = ''; return; }
+
+    const start = Math.ceil(i * data.length / box.n), end = Math.ceil((i + 1) * data.length / box.n);
+    const legend = LEGENDS[root.dataset.kind] || LEGENDS.scan;
+    const state = legend[data.cells[i]] || '';
+    e.target.title = `${formatSize(start)} – ${formatSize(end)}${state ? ' · ' + state : ''}`;
+  }
+
+  /// עדכון מהודעת התקדמות. בלי מפה (שלב שאינו עובר סקטור אחרי סקטור) — המפה מוסתרת.
+  function update(kind, map) {
+    const root = el('map-' + kind);
+    if (!root) return;
+    root.hidden = !map;
+    if (!map) return;
+    root._map = map;
+
+    if (!root._wired) {
+      root._wired = true;
+      const canvas = root.querySelector('canvas');
+      canvas.addEventListener('mousemove', (e) => hover(root, e));
+      new ResizeObserver(() => draw(root)).observe(root.querySelector('.sm-canvas-wrap'));
+    }
+    draw(root);
+  }
+
+  return { html, update };
+})();
+
 Bridge.on('scan.progress', (p) => {
   const stage = el('scan-stage');
   if (!stage) return;
@@ -2257,6 +2389,7 @@ Bridge.on('scan.progress', (p) => {
   el('scan-bytes').textContent = formatSize(p.bytes);
   el('scan-elapsed').textContent = formatDuration(p.elapsed);
   el('scan-eta').textContent = Eta.text('scan', pct, p.elapsed);
+  SectorMapView.update('scan', p.map);
 });
 
 /* =====================================================================

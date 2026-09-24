@@ -226,6 +226,7 @@ public sealed class NtfsScanner
 
         long lastReport = 0;
         long reportEvery = Math.Max(blockSize, volumeSize / 200);
+        var map = new SectorMap(volumeSize);
 
         for (long offset = 0; offset < volumeSize; offset += blockSize)
         {
@@ -233,12 +234,15 @@ public sealed class NtfsScanner
 
             int want = (int)Math.Min(blockSize, volumeSize - offset);
             int read = _volume.ReadRaw(offset, block.AsSpan(0, want));
+            map.Cursor = offset;
 
             if (read <= 0)
             {
                 // סקטור פגום או אזור בלתי קריא — מדלגים וממשיכים.
+                map.Add(offset, want, SectorState.Bad);
                 continue;
             }
+            map.Add(offset, read, SectorState.Read);
 
             _bytesRead += read;
 
@@ -263,7 +267,11 @@ public sealed class NtfsScanner
                 if (!seen.Add(record.RecordNumber)) continue;
 
                 var file = Materialize(record, DiscoverySource.MftOrphan);
-                if (file is not null) files.Add(file);
+                if (file is not null)
+                {
+                    files.Add(file);
+                    map.Mark(offset + at, SectorState.Found);
+                }
             }
 
             if (offset - lastReport >= reportEvery)
@@ -271,6 +279,7 @@ public sealed class NtfsScanner
                 lastReport = offset;
                 progress?.Report(new ScanProgress
                 {
+                    Map = map,
                     Stage = "סורק רשומות יתומות על פני המחיצה",
                     Percent = offset * 100.0 / volumeSize,
                     FilesFound = files.Count,

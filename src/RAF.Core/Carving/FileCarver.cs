@@ -46,6 +46,9 @@ public sealed class FileCarver
 
     /// <summary>היכן נעצרה הסריקה הראשית: הסקטור הבא שטרם נבדק, וגבול הקובץ האחרון.</summary>
     private long _stoppedAt = -1, _stoppedAllowed;
+
+    /// <summary>מפת הסקטורים של המעבר הראשי — להצגה בזמן הסריקה.</summary>
+    private SectorMap? _map;
     private long _bytesRead;
     private long _candidates;
 
@@ -135,6 +138,12 @@ public sealed class FileCarver
         long allowed = ResumeFrom?.Resume?.NextAllowedStart ?? start;
         var pending = new List<PendingJpeg>();
 
+        // בהמשך סריקה: מה שכבר נסרק, והקבצים שכבר נמצאו, מופיעים במפה מההתחלה.
+        _map = new SectorMap(size);
+        _map.Add(0, start, SectorState.Read);
+        foreach (var f in files)
+            if (f.Extents.Count > 0) _map.Mark(f.Extents[0].StartCluster * sectorSize, SectorState.Found);
+
         SweepRange(volume, start, size, size, sectorSize, files, pending, clock, progress, token, checkpoint,
             main: true, nextAllowedStart: allowed);
         ResolveJpegs(volume, size, sectorSize, files, pending, clock, progress, token);
@@ -176,9 +185,14 @@ public sealed class FileCarver
             if (_free is not null)
             {
                 long next = _free.NextFree(at);
-                if (next >= to) break;
+                if (next >= to)
+                {
+                    if (main) _map?.Add(at, to - at, SectorState.Skipped);
+                    break;
+                }
                 if (next >= at + BlockSize)
                 {
+                    if (main) _map?.Add(at, next / BlockSize * BlockSize - at, SectorState.Skipped);
                     at = next / BlockSize * BlockSize - BlockSize;          // הלולאה תוסיף בלוק
                     continue;
                 }
@@ -191,10 +205,15 @@ public sealed class FileCarver
             if (read <= 0)
             {
                 // אזור בלתי קריא — ממשיכים הלאה במקום לעצור.
+                if (main) _map?.Add(at, Math.Min(BlockSize, to - at), SectorState.Bad);
                 continue;
             }
 
-            if (main) _bytesRead += read;
+            if (main)
+            {
+                _bytesRead += read;
+                _map!.Cursor = at;
+            }
 
             // חתימות נבדקות בגבולות סקטור: מערכות קבצים מקצות קבצים
             // בגבולות אשכול, ואשכול תמיד מיושר לסקטור.
@@ -230,7 +249,11 @@ public sealed class FileCarver
                         pending.Add(new PendingJpeg(files.Count, absolute, resolved, signature, check));
                 }
 
-                if (wanted) files.Add(Materialize(signature, resolved, absolute, sectorSize, files.Count));
+                if (wanted)
+                {
+                    files.Add(Materialize(signature, resolved, absolute, sectorSize, files.Count));
+                    _map?.Mark(absolute, SectorState.Found);
+                }
 
                 // דילוג על גוף הקובץ רק כשגבולו ודאי. ניחוש אורך היה מסתיר
                 // את כל מה שיושב אחרי הקובץ — ובסריקה על כונן אמיתי כך
@@ -240,6 +263,7 @@ public sealed class FileCarver
             }
 
             if (!main) continue;
+            _map?.Add(at, scanLimit, SectorState.Read);
 
             if (at - reported >= reportEvery)
             {
@@ -253,6 +277,7 @@ public sealed class FileCarver
                     BytesTotal = size,
                     Elapsed = clock.Elapsed,
                     BytesPerSecond = clock.Elapsed.TotalSeconds > 0 ? _bytesRead / clock.Elapsed.TotalSeconds : 0,
+                    Map = _map,
                 });
             }
 

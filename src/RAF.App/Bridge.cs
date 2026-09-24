@@ -429,6 +429,7 @@ internal sealed partial class Bridge
                 bytesTotal = sp.BytesTotal,
                 speed = sp.BytesPerSecond,
                 elapsed = sp.Elapsed.TotalSeconds,
+                map = MapDto(sp.Map),
             });
         });
 
@@ -463,6 +464,14 @@ internal sealed partial class Bridge
         _pauseRequested = false;
         return paused ? new { paused = true, percent = result.Resume!.Percent, files = result.Files.Count } : Summary();
     }
+
+    /// <summary>מפת הסקטורים לממשק: תו לכל ריבוע, הריבוע שהמעבר נמצא בו, וגודל האזור.</summary>
+    private static object? MapDto(SectorMap? map) => map is null ? null : new
+    {
+        cells = map.Snapshot(),
+        cursor = map.Cursor < 0 ? -1 : map.CellOf(map.Cursor),
+        length = map.Length,
+    };
 
     private object Summary()
     {
@@ -955,6 +964,7 @@ internal sealed partial class Bridge
                 found = hp.Found,
                 speed = hp.BytesPerSecond,
                 elapsed = hp.Elapsed.TotalSeconds,
+                map = MapDto(hp.Map),
             });
         });
 
@@ -1161,6 +1171,7 @@ internal sealed partial class Bridge
                 problems = ip.ProblemBytes,
                 speed = ip.BytesPerSecond,
                 elapsed = ip.Elapsed.TotalSeconds,
+                map = MapDto(ip.Map),
             });
         });
 

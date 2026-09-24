@@ -39,6 +39,9 @@ public sealed class HuntProgress
     public int Found { get; init; }
     public double BytesPerSecond { get; init; }
     public TimeSpan Elapsed { get; init; }
+
+    /// <summary>מפת הסקטורים של הכונן: מה נבדק, איפה נמצאו מחיצות, ומה לא נקרא.</summary>
+    public SectorMap? Map { get; init; }
 }
 
 public sealed class HuntResult
@@ -102,12 +105,15 @@ public static class PartitionHunter
         byte[] block = new byte[BlockSize];
         long unreadable = 0;
         var lastReport = TimeSpan.Zero;
+        var map = new SectorMap(length);
 
         long at = 0;
         for (; at < length && !token.IsCancellationRequested; at += BlockSize)
         {
             int want = (int)Math.Min(BlockSize, length - at);
             int read = source.Read(at, block.AsSpan(0, want));
+            int before = hypotheses.Count;
+            map.Cursor = at;
 
             if (read < want)
             {
@@ -117,22 +123,34 @@ public static class PartitionHunter
                 for (int s = 0; s + sector <= want; s += sector)
                 {
                     if (source.Read(at + s, block.AsSpan(s, sector)) == sector)
+                    {
                         Examine(block.AsSpan(s, sector), at + s, sector, hypotheses);
+                        map.Add(at + s, sector, SectorState.Read);
+                    }
                     else
+                    {
                         unreadable += sector;
+                        map.Add(at + s, sector, SectorState.Bad);
+                    }
                 }
             }
             else
             {
                 for (int s = 0; s + 512 <= read; s += sector)
                     Examine(block.AsSpan(s, sector), at + s, sector, hypotheses);
+                map.Add(at, read, SectorState.Read);
             }
+
+            // מגזר אתחול ראשי שנמצא — ריבוע בולט במפה. עותקי גיבוי אינם מחיצה נוספת.
+            for (int h = before; h < hypotheses.Count; h++)
+                if (!hypotheses[h].FromBackup) map.Mark(hypotheses[h].Start, SectorState.Found);
 
             if (clock.Elapsed - lastReport > TimeSpan.FromMilliseconds(250))
             {
                 lastReport = clock.Elapsed;
                 progress?.Report(new HuntProgress
                 {
+                    Map = map,
                     Percent = at * 100.0 / length,
                     BytesDone = at,
                     BytesTotal = length,
@@ -153,7 +171,7 @@ public static class PartitionHunter
         progress?.Report(new HuntProgress
         {
             Percent = 100, BytesDone = Math.Min(at, length), BytesTotal = length, Found = found.Count,
-            Elapsed = clock.Elapsed,
+            Elapsed = clock.Elapsed, Map = map,
         });
 
         return new HuntResult

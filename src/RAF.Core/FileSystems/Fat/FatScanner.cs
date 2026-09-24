@@ -180,16 +180,25 @@ public sealed class FatScanner
         long reportEvery = Math.Max(1, total / 200);
         int found = 0;
 
+        // מפת הסקטורים: אשכול c יושב ב-(c - הראשון) אשכולות מתחילת אזור הנתונים.
+        var map = new SectorMap((total - FatVolume.FirstCluster + 1) * clusterSize);
+        long marked = 0;
+
         for (long c = FatVolume.FirstCluster; c <= total; c++)
         {
             if (token.IsCancellationRequested) return;
+            long position = (c - FatVolume.FirstCluster) * clusterSize;
 
             // הדיווח בראש הלולאה: כמעט כל אשכול מדולג באחד התנאים שבהמשך, ודיווח
             // שהיה אחריהם כמעט לא הגיע — והסריקה נראתה תקועה על "קורא את ספריית השורש".
             if (c % reportEvery == 0)
             {
+                map.Add(marked, position - marked, SectorState.Read);
+                marked = position;
+                map.Cursor = position;
                 progress?.Report(new ScanProgress
                 {
+                    Map = map,
                     Stage = "סורק ספריות יתומות על פני המחיצה",
                     Percent = c * 100.0 / total,
                     FilesFound = files.Count,
@@ -202,6 +211,7 @@ public sealed class FatScanner
             if (_visitedDirectories.Contains(c)) continue;
 
             int read = _volume.ReadRaw(_volume.ClusterToOffset(c), cluster);
+            if (read <= 0) map.Add(position, clusterSize, SectorState.Bad);
             if (read < FatDirectory.EntrySize * 2) continue;
             _bytesRead += read;
 
@@ -209,6 +219,7 @@ public sealed class FatScanner
 
             _visitedDirectories.Add(c);
             found++;
+            map.Mark(position, SectorState.Found);
 
             foreach (var entry in FatDirectory.Parse(cluster, stopAtEnd: false))
             {

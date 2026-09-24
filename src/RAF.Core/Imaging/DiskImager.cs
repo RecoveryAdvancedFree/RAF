@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using RAF.Core.Disks;
+using RAF.Core.Model;
 using RAF.Core.Native;
 
 namespace RAF.Core.Imaging;
@@ -27,6 +28,9 @@ public sealed class ImagingProgress
     public long ProblemBytes { get; init; }
     public double BytesPerSecond { get; init; }
     public TimeSpan Elapsed { get; init; }
+
+    /// <summary>מפת הסקטורים: מה הועתק, מה ממתין לניסיון חוזר, ומה לא נקרא.</summary>
+    public SectorMap? Map { get; init; }
 }
 
 public sealed class ImagingResult
@@ -204,6 +208,16 @@ public static class DiskImager
 
         long readOk = 0;
         var lastReport = TimeSpan.Zero;
+
+        // במפה: בהמשך של תמונה קיימת — מה שכבר הועתק, מה שיינסה שוב, ומה שנשאר פגום.
+        var sectors = new SectorMap(length);
+        if (plan.Existing)
+        {
+            sectors.Add(0, length, SectorState.Read);
+            foreach (var r in plan.Pass1) sectors.Remove(r.Offset, r.Length, SectorState.Read);
+            foreach (var r in plan.Retry) { sectors.Remove(r.Offset, r.Length, SectorState.Read); sectors.Add(r.Offset, r.Length, SectorState.Retry); }
+            foreach (var r in plan.KeptUnreadable) { sectors.Remove(r.Offset, r.Length, SectorState.Read); sectors.Add(r.Offset, r.Length, SectorState.Bad); }
+        }
         var lastMapSave = TimeSpan.Zero;
         string mapPath = ImageMap.PathFor(imagePath);
 
@@ -233,6 +247,7 @@ public static class DiskImager
                 ProblemBytes = problems,
                 Elapsed = clock.Elapsed,
                 BytesPerSecond = clock.Elapsed.TotalSeconds > 0 ? readOk / clock.Elapsed.TotalSeconds : 0,
+                Map = sectors,
             });
         }
 
@@ -278,9 +293,11 @@ public static class DiskImager
 
                     int want = (int)Math.Min(ChunkSize, range.End - pos);
                     int read = source.Read(pos, buffer.AsSpan(0, want));
+                    sectors.Cursor = pos;
 
                     if (read == want)
                     {
+                        sectors.Add(pos, want, SectorState.Read);
                         Write(pos, want);
                         pos += want;
                         pass1Done += want;
@@ -293,6 +310,7 @@ public static class DiskImager
                         int good = Math.Max(0, read) / sector * sector;
                         if (good > 0)
                         {
+                            sectors.Add(pos, good, SectorState.Read);
                             Write(pos, good);
                             pos += good;
                             pass1Done += good;
@@ -302,6 +320,7 @@ public static class DiskImager
 
                         long jump = Math.Min(skip, range.End - pos);
                         pending.Add(new ByteRange(pos, jump));
+                        sectors.Add(pos, jump, SectorState.Retry);
                         pos += jump;
                         pass1Done += jump;
                         skip = Math.Min(skip * 2, MaxSkip);
@@ -339,9 +358,12 @@ public static class DiskImager
                     }
 
                     int n = (int)Math.Min(RetryBlock, range.End - at);
+                    sectors.Cursor = at;
+                    sectors.Remove(at, n, SectorState.Retry);
 
                     if (source.Read(at, buffer.AsSpan(0, n)) == n)
                     {
+                        sectors.Add(at, n, SectorState.Read);
                         Write(at, n);
                         readOk += n;
                     }
@@ -353,12 +375,14 @@ public static class DiskImager
                             int k = (int)Math.Min(sector, at + n - s);
                             if (source.Read(s, buffer.AsSpan(0, k)) == k)
                             {
+                                sectors.Add(s, k, SectorState.Read);
                                 Write(s, k);
                                 readOk += k;
                             }
                             else
                             {
                                 AddMerged(unreadable, new ByteRange(s, k));
+                                sectors.Add(s, k, SectorState.Bad);
                             }
                         }
                     }

@@ -46,6 +46,25 @@
 }
 .progress-stage { font-size: 13.5px; font-weight: 550; margin-bottom: 12px; }
 
+/* ---------- מפת הסקטורים ---------- */
+/* בתוך כרטיס ההתקדמות, מתחת לפס — כדי שתיראה בלי לגלול */
+.sector-map { margin-top: 18px; }
+.sm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.sm-head .section-label { margin: 0; }
+.sm-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--text-dim); }
+.sm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sm-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.sm-canvas-wrap { position: relative; }
+.sm-canvas-wrap canvas { display: block; }
+/* הריבוע שהמעבר נמצא בו עכשיו — מסגרת מהבהבת מעל הציור */
+.sm-cursor {
+  position: absolute; width: 12px; height: 12px;
+  border: 2px solid var(--text); border-radius: 3px;
+  pointer-events: none;
+  animation: sm-pulse 1s ease-in-out infinite;
+}
+@keyframes sm-pulse { 50% { opacity: 0.25; } }
+
 .progress-track {
   height: 8px; border-radius: 5px;
   background: var(--surface-3);
