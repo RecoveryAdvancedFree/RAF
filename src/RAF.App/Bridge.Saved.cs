@@ -138,6 +138,7 @@ internal sealed partial class Bridge
                 files = header.FileCount,
                 recoverable = header.RecoverableCount,
                 partial = header.Partial,
+                resumePercent = header.ResumePercent,
                 connected = disk is not null || (header.Disk.ImagePath is { } img && File.Exists(img)),
                 diskName = header.Disk.ImagePath is { } image ? Path.GetFileName(image) : header.Disk.Model,
             });

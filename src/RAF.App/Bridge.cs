@@ -101,6 +101,8 @@ internal sealed partial class Bridge
 
         "scan.start" => await Tracked(LongOperation.Scan, () => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
+        "scan.pause" => PauseScan(),
+        "scan.resume" => await Tracked(LongOperation.Scan, () => ResumeScanAsync(p)),
         "scan.children" => Children(p),
         "scan.save" => await SaveScanAs(),
         "scan.recent" => RecentScans(),
@@ -328,13 +330,7 @@ internal sealed partial class Bridge
         var mode = (ScanMode)(p?["mode"]?.GetValue<int>() ?? (int)ScanMode.Quick);
         bool includeExisting = p?["includeExisting"]?.GetValue<bool>() ?? false;
         bool freeSpaceOnly = p?["freeSpaceOnly"]?.GetValue<bool>() ?? false;
-
-        // סוגי הקבצים שנבחרו (קטגוריות של FileCategories). חסר, או כולן — הכול.
-        var types = p?["types"]?.AsArray()?.Select(n => n!.GetValue<string>()).ToHashSet();
-        Func<RAF.Core.Signatures.FileSignature, bool>? accept =
-            types is null || types.Count == 0 || types.Count >= FileCategories.Ordered.Length + 1
-                ? null
-                : signature => signature.Extensions.Any(e => types.Contains(FileCategories.Of(e)));
+        var types = p?["types"]?.AsArray()?.Select(n => n!.GetValue<string>()).ToList();
 
         var disk = FindDisk(diskNumber);
         var part = disk.Partitions.FirstOrDefault(x => x.Index == partIndex)
@@ -345,8 +341,74 @@ internal sealed partial class Bridge
                 $"מערכת הקבצים {Display.FileSystem(part.FileSystem)} אינה נתמכת לסריקת מטא-דאטה. " +
                 "נסו סריקה מתקדמת, שאינה תלויה במערכת הקבצים.");
 
+        string title = !string.IsNullOrEmpty(part.Label) ? part.Label
+            : !string.IsNullOrEmpty(part.DriveLetter) ? "כונן " + part.DriveLetter
+            : "מחיצה " + part.Index;
+
+        return await RunScanAsync(disk, part.OffsetBytes, part.SizeBytes, part.FileSystem, title,
+            mode, includeExisting, freeSpaceOnly, types, resumeFrom: null, NewAutosavePath(title));
+    }
+
+    /// <summary>השהיה: הסריקה נעצרת ונשמרת עם נקודת המשך. אפשר להמשיך עכשיו, או אחרי סגירת התוכנה.</summary>
+    private volatile bool _pauseRequested;
+
+    private object? PauseScan()
+    {
+        _pauseRequested = true;
+        _scanCancel?.Cancel();
+        return null;
+    }
+
+    /// <summary>
+    /// המשך סריקה מתקדמת שנעצרה — מהסריקה הנוכחית, או מקובץ סריקה שמור (גם אחרי
+    /// סגירת התוכנה). הכונן מזוהה כמו בפתיחת סריקה שמורה, וההמשך רץ באותן אפשרויות.
+    /// </summary>
+    private async Task<object> ResumeScanAsync(JsonObject? p)
+    {
+        string? path = p?["path"]?.GetValue<string>() ?? _session?.SavedPath;
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            throw new InvalidOperationException("קובץ הסריקה שממנו ממשיכים לא נמצא.");
+
+        var archive = await Task.Run(() => ScanArchive.Load(path));
+        var resume = archive.Result.Resume
+                     ?? throw new InvalidOperationException("הסריקה הזו הסתיימה, או שאי אפשר להמשיך אותה.");
+
+        var disk = MatchDisk(archive.Header.Disk);
+        if (disk is null && archive.Header.Disk.ImagePath is { } image && File.Exists(image))
+        {
+            disk = ImageDisk.Open(image);
+            _images.RemoveAll(d => d.DiskNumber == disk.DiskNumber);
+            _images.Add(disk);
+            _disks.Add(disk);
+        }
+        if (disk is null)
+            throw new InvalidOperationException("הכונן שנסרק אינו מחובר. חברו אותו, רעננו את רשימת הכוננים ונסו שוב.");
+
+        // מערכת הקבצים של המחיצה — בשביל מפת המקום הפנוי. מחיצה שאינה ברשימה נסרקת כולה.
+        var part = disk.Partitions.FirstOrDefault(x => x.OffsetBytes == archive.PartitionOffset);
+
+        return await RunScanAsync(disk, archive.PartitionOffset, archive.PartitionSize,
+            part?.FileSystem ?? FileSystemKind.Raw, archive.Header.PartitionTitle,
+            ScanMode.Advanced, includeExisting: false, resume.FreeSpaceOnly, resume.Types,
+            resumeFrom: archive.Result, autosavePath: path);
+    }
+
+    /// <summary>הרצת סריקה — חדשה, או המשך של סריקה מתקדמת שנעצרה.</summary>
+    private async Task<object> RunScanAsync(
+        PhysicalDiskInfo disk, long offset, long size, FileSystemKind fileSystem, string title,
+        ScanMode mode, bool includeExisting, bool freeSpaceOnly, List<string>? types,
+        ScanResult? resumeFrom, string autosavePath)
+    {
+        // סוגי הקבצים שנבחרו (קטגוריות של FileCategories). חסר, או כולן — הכול.
+        var chosen = types is { Count: > 0 } && types.Count < FileCategories.Ordered.Length + 1
+            ? types.ToHashSet() : null;
+        Func<RAF.Core.Signatures.FileSignature, bool>? accept = chosen is null
+            ? null
+            : signature => signature.Extensions.Any(e => chosen.Contains(FileCategories.Of(e)));
+
         _scanCancel?.Cancel();
         _scanCancel = new CancellationTokenSource();
+        _pauseRequested = false;
         var token = _scanCancel.Token;
 
         // דיווח ההתקדמות נדחס כך שלא יציף את הממשק בהודעות.
@@ -369,34 +431,36 @@ internal sealed partial class Bridge
             });
         });
 
-        string title = !string.IsNullOrEmpty(part.Label) ? part.Label
-            : !string.IsNullOrEmpty(part.DriveLetter) ? "כונן " + part.DriveLetter
-            : "מחיצה " + part.Index;
-
         // תוצאות הסריקה המתקדמת מתוארות ביחידות סקטור ולא באשכולות,
         // ולכן החילוץ שלהן חייב לעבור דרך מחיצה גולמית.
-        var extractAs = mode == ScanMode.Advanced ? FileSystemKind.Raw : part.FileSystem;
+        var extractAs = mode == ScanMode.Advanced ? FileSystemKind.Raw : fileSystem;
         var identity = DiskIdentity.Of(disk);
-        bool readThrough = _readThrough.ContainsKey((disk.DiskNumber, part.OffsetBytes));
-        string autosavePath = NewAutosavePath(title);
+        bool readThrough = _readThrough.ContainsKey((disk.DiskNumber, offset));
 
         ScanSession Session(ScanResult r) => new(
-            r, disk.DiskNumber, part.OffsetBytes, part.SizeBytes,
+            r, disk.DiskNumber, offset, size,
             disk.LogicalSectorSize, title, extractAs, identity, readThrough) { SavedPath = autosavePath };
 
         // נקודות ביניים נשמרות לאותו קובץ שהתוצאה הסופית תדרוס בסוף.
         var result = await VolumeScanner.ScanAsync(
-            part.FileSystem,
-            disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize,
+            fileSystem,
+            disk.DiskNumber, offset, size, disk.LogicalSectorSize,
             mode, includeExisting, disk.Trim, progress, token,
             checkpoint: snapshot => Autosave(Session(snapshot), partial: true),
-            freeSpaceOnly: freeSpaceOnly, accept: accept);
+            freeSpaceOnly: freeSpaceOnly, accept: accept,
+            resumeFrom: resumeFrom, types: types);
 
         _session = Session(result);
         var session = _session;
-        _ = Task.Run(() => Autosave(session, partial: false));
 
-        return Summary();
+        // סריקה שנעצרה עם נקודת המשך נשמרת מיד — כדי שאפשר יהיה להמשיך גם אחרי סגירת התוכנה.
+        bool resumable = result.Resume is not null;
+        if (resumable) await Task.Run(() => Autosave(session, partial: true));
+        else _ = Task.Run(() => Autosave(session, partial: false));
+
+        bool paused = _pauseRequested && resumable;
+        _pauseRequested = false;
+        return paused ? new { paused = true, percent = result.Resume!.Percent, files = result.Files.Count } : Summary();
     }
 
     private object Summary()
@@ -422,6 +486,7 @@ internal sealed partial class Bridge
             warnings = SessionWarnings(session).Concat(result.Warnings),
             offline = session.Offline,
             partial = session.Partial,
+            resumePercent = session.Offline ? (double?)null : result.Resume?.Percent,
             selection = SelectionDto(session.Summary(null)),
         };
     }

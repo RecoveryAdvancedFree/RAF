@@ -206,6 +206,8 @@ const Icon = {
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   save: '<svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 18v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>',
   stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M16 5v14L5 12z"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></svg>',
   image: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-5 4 4 3-2 4 4"/></svg>',
   hash: '<svg viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/></svg>',
@@ -826,17 +828,24 @@ async function renderRecentScans() {
               ${s.recoverable.toLocaleString('he-IL')} ${plural(s.recoverable, 'ניתן', 'ניתנים')} לשחזור${s.diskName ? ` · <bdi>${esc(s.diskName)}</bdi>` : ''}</div>
           </div>
           <div class="chips">
-            ${s.partial ? '<span class="chip warn" title="נשמרה באמצע סריקה — לא כל המחיצה נסרקה">חלקית</span>' : ''}
+            ${s.resumePercent != null
+              ? `<span class="chip warn" title="נעצרה באמצע — אפשר להמשיך מאותה נקודה">נעצרה ב-${s.resumePercent.toFixed(0)}%</span>`
+              : s.partial ? '<span class="chip warn" title="נשמרה באמצע סריקה — לא כל המחיצה נסרקה">חלקית</span>' : ''}
             ${s.connected ? '<span class="chip ok">הכונן מחובר</span>'
                           : '<span class="chip" title="אפשר לעיין ברשימה, אבל לא לשחזר">הכונן לא מחובר</span>'}
           </div>
         </button>
+        ${s.resumePercent != null && s.connected
+          ? `<button class="btn recent-resume" data-resume="${esc(s.path)}" data-title="${esc(s.title)}"
+               title="נעצרה אחרי ${s.resumePercent.toFixed(1)}% — המשך מאותה נקודה">${Icon.play}<span>המשך</span></button>`
+          : ''}
         <button class="recent-remove" data-forget="${esc(s.path)}" title="הסרה מהרשימה" aria-label="הסרה מהרשימה">${Icon.close}</button>
         </div>`).join('')}
     </div>`;
 
   box.querySelectorAll('[data-path]').forEach((b) => { b.onclick = () => openSavedScan(b.dataset.path); });
   box.querySelectorAll('[data-forget]').forEach((b) => { b.onclick = () => forgetScans(b.dataset.forget); });
+  box.querySelectorAll('[data-resume]').forEach((b) => { b.onclick = () => resumeScan(b.dataset.resume, b.dataset.title); });
 
   // ניקוי הכול — אישור במקום, בלי חלון: שתי מילים ליד הקישור.
   const clear = el('recent-clear');
@@ -2034,11 +2043,26 @@ async function showStrategy(disk, part, modeId) {
 
 async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = false, types = null) {
   closePanel();
-  Steps.set(2);
   State.scan = { disk, part, mode: modeId };
-  State.selection = { count: 0, bytes: 0 };
+  showScanScreen(modeId, `${partTitle(part)} · ${disk.name}`);
+  await runScan('scan.start', {
+    disk: disk.number, part: part.index, mode: modeId, includeExisting, freeSpaceOnly, types,
+  }, partTitle(part));
+}
 
+/// המשך של סריקה מתקדמת שנעצרה — מהסריקה הנוכחית (בלי נתיב) או מ"סריקות אחרונות".
+async function resumeScan(path, title) {
+  closePanel();
+  showScanScreen(3, `${title} · המשך מהנקודה שבה נעצרה`);
+  await runScan('scan.resume', path ? { path } : {}, title);
+}
+
+/// מסך הסריקה. בסריקה מתקדמת יש גם השהיה: הסריקה נשמרת ואפשר להמשיך אחר כך.
+function showScanScreen(modeId, subtitle) {
+  Steps.set(2);
+  State.selection = { count: 0, bytes: 0 };
   const mode = SCAN_MODES.find((m) => m.id === modeId);
+  const pausable = modeId === 3;
 
   el('content').innerHTML = `
     <div class="scanning">
@@ -2046,7 +2070,7 @@ async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = fa
         <div class="scan-icon">${mode.icon}</div>
         <div>
           <div class="page-title">${mode.name}</div>
-          <div class="page-desc">${esc(partTitle(part))} · ${esc(disk.name)}</div>
+          <div class="page-desc">${esc(subtitle)}</div>
         </div>
       </div>
 
@@ -2068,25 +2092,39 @@ async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = fa
       </div>
 
       <div class="scan-actions">
+        ${pausable ? `<button class="btn" id="btn-pause-scan">${Icon.pause}<span>השהיה</span></button>` : ''}
         <button class="btn" id="btn-cancel-scan">${Icon.stop}<span>עצירת הסריקה</span></button>
       </div>
 
-      ${notice('info', Icon.info, 'אפשר לעצור בכל רגע',
-        'מה שנמצא עד אז יוצג, ואפשר יהיה לשחזר אותו.')}
+      ${pausable
+        ? notice('info', Icon.info, 'אפשר להשהות ולהמשיך אחר כך',
+            'בהשהיה הסריקה נשמרת עם הנקודה שבה עצרה — אפשר להמשיך עכשיו, או גם אחרי סגירת התוכנה, ' +
+            'מ"סריקות אחרונות". בעצירה מוצג מה שנמצא עד אז.')
+        : notice('info', Icon.info, 'אפשר לעצור בכל רגע',
+            'מה שנמצא עד אז יוצג, ואפשר יהיה לשחזר אותו.')}
     </div>`;
 
   el('btn-cancel-scan').onclick = () => {
     el('scan-state').textContent = 'עוצר…';
     Bridge.call('scan.cancel');
   };
+  if (pausable) {
+    el('btn-pause-scan').onclick = () => {
+      el('scan-state').textContent = 'משהה…';
+      el('btn-pause-scan').disabled = true;
+      Bridge.call('scan.pause');
+    };
+  }
 
   setStatus('סורק…');
+}
 
+async function runScan(method, params, title) {
   try {
     // ללא מגבלת זמן: סריקה עמוקה על דיסק גדול עשויה להימשך שעות.
-    const summary = await longCall('scan.start', {
-      disk: disk.number, part: part.index, mode: modeId, includeExisting, freeSpaceOnly, types,
-    });
+    const summary = await longCall(method, params);
+
+    if (summary.paused) { showPaused(summary, title); return; }
 
     State.summary = summary;
     await renderResults();
@@ -2094,13 +2132,39 @@ async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = fa
     el('content').innerHTML = `
       <div class="page-head"><div>
         <div class="page-title">הסריקה נכשלה</div>
-        <div class="page-desc">${esc(partTitle(part))}</div>
+        <div class="page-desc">${esc(title)}</div>
       </div>
       <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button></div>
       ${errorNotice('', err)}`;
     el('btn-home').onclick = loadDisks;
     setStatus('שגיאה');
   }
+}
+
+/// סריקה מושהית: נשמרה עם נקודת ההמשך. ממשיכים עכשיו, מציגים את מה שנמצא, או חוזרים.
+function showPaused(p, title) {
+  el('content').innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title">הסריקה מושהית</div>
+        <div class="page-desc">${esc(title)} · נסרקו ${p.percent.toFixed(1)}% · ${countFiles(p.files)} נמצאו עד כה</div>
+      </div>
+    </div>
+    ${notice('ok-notice', Icon.check, 'הסריקה נשמרה עם הנקודה שבה עצרה',
+      'אפשר להמשיך עכשיו, או לסגור את התוכנה ולהמשיך אחר כך — מ"סריקות אחרונות" במסך הכוננים.')}
+    <div class="scan-actions" style="margin-top:16px">
+      <button class="btn btn-primary" id="btn-resume">${Icon.play}<span>המשך הסריקה</span></button>
+      <button class="btn" id="btn-show-found">${Icon.list}<span>הצגת מה שנמצא עד כה</span></button>
+      <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button>
+    </div>`;
+
+  el('btn-resume').onclick = () => resumeScan(null, title);
+  el('btn-show-found').onclick = async () => {
+    State.summary = await Bridge.call('scan.summary');
+    await renderResults();
+  };
+  el('btn-home').onclick = loadDisks;
+  setStatus('הסריקה מושהית');
 }
 
 Bridge.on('scan.progress', (p) => {
@@ -2163,6 +2227,12 @@ async function renderResults() {
         </div>
       </div>
 
+      ${s.resumePercent != null ? `<div class="resume-strip">
+        ${notice('warn', Icon.pause, `הסריקה נעצרה אחרי ${s.resumePercent.toFixed(1)}% מהמחיצה`,
+          'מוצג מה שנמצא עד כה. אפשר להמשיך את הסריקה מאותה נקודה.')}
+        <button class="btn btn-primary" id="btn-resume-scan">${Icon.play}<span>המשך הסריקה</span></button>
+      </div>` : ''}
+
       ${(s.warnings || []).length ? notesHtml(s.warnings.map(esc)) : ''}
 
       <div class="results-grid">
@@ -2198,6 +2268,7 @@ async function renderResults() {
   el('btn-home').onclick = loadDisks;
   el('btn-recover').onclick = openRecoverPanel;
   el('btn-save-scan').onclick = saveScanAs;
+  if (el('btn-resume-scan')) el('btn-resume-scan').onclick = () => resumeScan(null, s.partition);
   FileList.attach();
   updateRecoverBar();
 

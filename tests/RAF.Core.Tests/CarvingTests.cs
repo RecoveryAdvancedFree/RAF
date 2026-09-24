@@ -174,6 +174,46 @@ public class CarvingTests : IDisposable
         Assert.Equal(new[] { "gif", "png" }, files.Select(f => f.Extension).OrderBy(e => e).ToArray());
     }
 
+    /// <summary>
+    /// השהיה והמשך: סריקה שנעצרה באמצע והמשיכה מנקודת העצירה מוצאת בדיוק את
+    /// מה שסריקה רציפה מוצאת — אף קובץ לא חסר, ואף קובץ לא מופיע פעמיים.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(5)]
+    public void A_paused_scan_that_resumes_finds_exactly_what_a_full_scan_finds(int pauseAfter)
+    {
+        Place(RealFormats.Png(3000, 1));
+        Place(RealFormats.Gif());
+        Place(RealFormats.Bmp(40, 30, 2));
+        _image.Write(new byte[9 * 1024 * 1024]);                        // הקבצים הבאים בבלוק אחר
+        Place(RealFormats.Wav(20_000, 3));
+        Place(RealFormats.Png(5000, 4));
+        Place(RealFormats.Sqlite(4096, 3, 5));
+        var volume = Open();
+
+        static long[] Offsets(IEnumerable<RAF.Core.Model.RecoveredFile> f)
+            => f.Select(x => x.Extents[0].StartCluster).OrderBy(x => x).ToArray();
+
+        var full = new FileCarver().Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None);
+
+        // השהיה: הסריקה נעצרת אחרי שזיהתה מספר מסוים של קבצים — באמצע בלוק.
+        using var pause = new CancellationTokenSource();
+        int seen = 0;
+        var first = new FileCarver { Accept = _ => { if (++seen == pauseAfter) pause.Cancel(); return true; } }
+            .Sweep(volume, _image.Length, SectorSize, null, pause.Token);
+
+        Assert.True(first.Cancelled);
+        Assert.NotNull(first.Resume);
+
+        var resumed = new FileCarver { ResumeFrom = first }
+            .Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None);
+
+        Assert.Null(resumed.Resume);
+        Assert.Equal(Offsets(full.Files), Offsets(resumed.Files));
+    }
+
     [Fact]
     public void Mkv_length_is_where_its_segment_says_it_ends()
     {

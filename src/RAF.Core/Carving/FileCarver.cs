@@ -36,6 +36,16 @@ public sealed class FileCarver
     /// נבחר עדיין מזוהה ומדולג, כדי שתמונה שבתוך מסמך לא תדווח כתמונה נפרדת.
     /// </summary>
     internal Func<FileSignature, bool>? Accept { get; set; }
+
+    /// <summary>המשך של סריקה שנעצרה: הקבצים שכבר נמצאו, ומאיפה להמשיך (Resume).</summary>
+    internal ScanResult? ResumeFrom { get; set; }
+
+    /// <summary>האפשרויות שהסריקה רצה בהן — נשמרות בנקודת ההמשך, כדי שההמשך ירוץ באותן.</summary>
+    internal bool FreeSpaceOnlyOption { get; set; }
+    internal List<string>? TypesOption { get; set; }
+
+    /// <summary>היכן נעצרה הסריקה הראשית: הסקטור הבא שטרם נבדק, וגבול הקובץ האחרון.</summary>
+    private long _stoppedAt = -1, _stoppedAllowed;
     private long _bytesRead;
     private long _candidates;
 
@@ -49,8 +59,12 @@ public sealed class FileCarver
         IProgress<ScanProgress>? progress, CancellationToken token,
         Action<ScanResult>? checkpoint = null,
         FileSystemKind fileSystem = FileSystemKind.Raw, bool freeSpaceOnly = false,
-        Func<FileSignature, bool>? accept = null)
-        => Task.Run(() => new FileCarver { Accept = accept }.Run(
+        Func<FileSignature, bool>? accept = null,
+        ScanResult? resumeFrom = null, List<string>? types = null)
+        => Task.Run(() => new FileCarver
+        {
+            Accept = accept, ResumeFrom = resumeFrom, FreeSpaceOnlyOption = freeSpaceOnly, TypesOption = types,
+        }.Run(
             diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint,
             fileSystem, freeSpaceOnly), token);
 
@@ -114,38 +128,49 @@ public sealed class FileCarver
         Action<ScanResult>? checkpoint = null)
     {
         var clock = Stopwatch.StartNew();
-        var files = new List<RecoveredFile>();
+
+        // המשך של סריקה שנעצרה: הקבצים שכבר נמצאו נשמרים, והמעבר ממשיך מהסקטור שבו עצר.
+        var files = ResumeFrom is { } previous ? new List<RecoveredFile>(previous.Files) : new List<RecoveredFile>();
+        long start = ResumeFrom?.Resume?.Offset ?? 0;
+        long allowed = ResumeFrom?.Resume?.NextAllowedStart ?? start;
         var pending = new List<PendingJpeg>();
 
-        SweepRange(volume, 0, size, size, sectorSize, files, pending, clock, progress, token, checkpoint);
+        SweepRange(volume, start, size, size, sectorSize, files, pending, clock, progress, token, checkpoint,
+            main: true, nextAllowedStart: allowed);
         ResolveJpegs(volume, size, sectorSize, files, pending, clock, progress, token);
 
         BuildWarnings(files);
-        return Result(files, clock, token.IsCancellationRequested, _warnings);
+        var resume = token.IsCancellationRequested && _stoppedAt >= 0 ? ResumeAt(_stoppedAt, _stoppedAllowed, size) : null;
+        return Result(files, clock, token.IsCancellationRequested, _warnings, resume);
     }
 
     /// <summary>
     /// מעבר על טווח במחיצה. הטווח המלא בסריקה הראשית; טווח חלקי — בסריקה חוזרת
     /// של אזור שדולג, כשהתברר שהקובץ שבגללו דולג אינו נמשך לשם.
     /// </summary>
+    /// <param name="main">המעבר הראשי (ולא סריקה חוזרת של אזור שדולג): מדווח, שומר נקודות ביניים ונקודת המשך.</param>
+    /// <param name="nextAllowedStart">
+    /// ההיסט שממנו מותר להתחיל קובץ חדש. קובץ שאורכו נקבע מדלג את הסורק קדימה,
+    /// כדי שלא יזהה את תוכנו הפנימי כקבצים — גם כשהסריקה ממשיכה אחרי השהיה.
+    /// </param>
     private void SweepRange(
         RawVolume volume, long from, long to, long size, int sectorSize,
         List<RecoveredFile> files, List<PendingJpeg> pending, Stopwatch clock,
-        IProgress<ScanProgress>? progress, CancellationToken token, Action<ScanResult>? checkpoint)
+        IProgress<ScanProgress>? progress, CancellationToken token, Action<ScanResult>? checkpoint,
+        bool main, long nextAllowedStart)
     {
-        bool main = from == 0 && to == size;
         var lastCheckpoint = TimeSpan.Zero;
-
-        // ההיסט שממנו מותר להתחיל קובץ חדש. קובץ שאורכו נקבע
-        // מדלג את הסורק קדימה, כדי שלא יזהה את תוכנו הפנימי כקבצים.
-        long nextAllowedStart = from;
         long reported = from;
         long reportEvery = Math.Max(BlockSize, size / 200);
         using var ahead = new ReadAhead(volume, size);
 
         for (long at = from / sectorSize * sectorSize; at < to; at += BlockSize)
         {
-            if (token.IsCancellationRequested) break;
+            if (token.IsCancellationRequested)
+            {
+                if (main) Stopped(at, nextAllowedStart);
+                break;
+            }
 
             // מקום תפוס: דילוג על כל הבלוקים שאין בהם אף בית פנוי — בלי לקרוא אותם.
             if (_free is not null)
@@ -177,9 +202,13 @@ public sealed class FileCarver
 
             for (int off = 0; off < scanLimit; off += sectorSize)
             {
-                if (token.IsCancellationRequested) break;
-
                 long absolute = at + off;
+                if (token.IsCancellationRequested)
+                {
+                    if (main) Stopped(absolute, nextAllowedStart);   // הסקטור הזה עוד לא נבדק
+                    break;
+                }
+
                 if (absolute < nextAllowedStart || InSkipped(absolute)) continue;
                 if (_free is not null && !_free.IsFree(absolute)) continue;       // קובץ שנמחק מתחיל במקום פנוי
 
@@ -227,14 +256,17 @@ public sealed class FileCarver
                 });
             }
 
-            // נקודת ביניים: סריקה של שעות לא תאבד בקריסה. עותק של הרשימה, כי הסריקה ממשיכה להוסיף לה.
-            if (checkpoint is not null && clock.Elapsed - lastCheckpoint >= CheckpointEvery && files.Count > 0)
+            // נקודת ביניים: סריקה של שעות לא תאבד בקריסה — וממנה אפשר גם להמשיך.
+            // עותק של הרשימה, כי הסריקה ממשיכה להוסיף לה. הבלוק הזה נבדק כולו.
+            if (checkpoint is not null && !token.IsCancellationRequested &&
+                clock.Elapsed - lastCheckpoint >= CheckpointEvery && files.Count > 0)
             {
                 lastCheckpoint = clock.Elapsed;
+                long done = Math.Min(at + scanLimit, to);
                 checkpoint(Result(files.ToList(), clock, cancelled: true, new List<string>
                 {
-                    $"נקודת ביניים: נשמרה אחרי {at * 100.0 / size:0.#}% מהמחיצה. קבצים שאחרי נקודה זו אינם ברשימה.",
-                }));
+                    $"נקודת ביניים: נשמרה אחרי {done * 100.0 / size:0.#}% מהמחיצה. קבצים שאחרי נקודה זו אינם ברשימה.",
+                }, ResumeAt(done, nextAllowedStart, size)));
             }
         }
     }
@@ -293,9 +325,28 @@ public sealed class FileCarver
     /// <summary>מרווח בין נקודות ביניים בסריקה ארוכה.</summary>
     internal static TimeSpan CheckpointEvery { get; set; } = TimeSpan.FromMinutes(5);
 
-    private ScanResult Result(List<RecoveredFile> files, Stopwatch clock, bool cancelled, List<string> warnings)
+    /// <summary>הנקודה הראשונה שבה נעצר המעבר הראשי — הסריקה ממשיכה בדיוק ממנה.</summary>
+    private void Stopped(long at, long allowed)
+    {
+        if (_stoppedAt >= 0) return;
+        _stoppedAt = at;
+        _stoppedAllowed = allowed;
+    }
+
+    private ScanResume ResumeAt(long offset, long allowed, long size) => new()
+    {
+        Offset = offset,
+        NextAllowedStart = Math.Max(allowed, offset),
+        Percent = size > 0 ? offset * 100.0 / size : 0,
+        FreeSpaceOnly = FreeSpaceOnlyOption,
+        Types = TypesOption,
+    };
+
+    private ScanResult Result(List<RecoveredFile> files, Stopwatch clock, bool cancelled, List<string> warnings,
+        ScanResume? resume = null)
         => new()
         {
+            Resume = resume,
             Files = files,
             Mode = ScanMode.Advanced,
             Duration = clock.Elapsed,
@@ -405,7 +456,8 @@ public sealed class FileCarver
 
             long rescanFrom = p.Offset + keep, rescanTo = p.Offset + p.Resolved.Bytes;
             if (rescanTo > rescanFrom)
-                SweepRange(volume, rescanFrom, rescanTo, size, sectorSize, files, pending, clock, null, token, null);
+                SweepRange(volume, rescanFrom, rescanTo, size, sectorSize, files, pending, clock, null, token, null,
+                    main: false, nextAllowedStart: rescanFrom);
         }
     }
 

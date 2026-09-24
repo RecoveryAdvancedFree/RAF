@@ -102,6 +102,7 @@ internal sealed class ScanSession
             FileCount = Result.Files.Count(f => !f.IsDirectory),
             RecoverableCount = _recoverableUnder.GetValueOrDefault(""),
             Partial = partial || Partial,
+            ResumePercent = Result.Resume?.Percent,
         },
         PartitionOffset = PartitionOffset,
         PartitionSize = PartitionSize,

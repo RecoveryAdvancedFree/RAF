@@ -47,6 +47,9 @@ public sealed record ScanArchiveHeader
 
     /// <summary>נקודת ביניים שנשמרה באמצע סריקה — הסריקה עצמה לא הסתיימה.</summary>
     public bool Partial { get; init; }
+
+    /// <summary>סריקה מתקדמת שאפשר להמשיך: כמה ממנה נסרק, באחוזים. null — אי אפשר.</summary>
+    public double? ResumePercent { get; init; }
 }
 
 /// <summary>
