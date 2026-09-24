@@ -4,6 +4,7 @@ using RAF.Core.Disks;
 using RAF.Core.Imaging;
 using RAF.Core.Model;
 using RAF.Core.Native;
+using RAF.Core.Repair;
 using Xunit;
 
 namespace RAF.Core.Tests;
@@ -404,6 +405,131 @@ public sealed class PartitionHuntTests : IDisposable
 
             Assert.True(PartitionTableWriter.Undo(result.UndoFile!, Sector));
             Assert.Equal(content, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
+
+    // ------------------------------------------------------------ ביטול מאוחר
+
+    /// <summary>
+    /// מחיצה שהוחזרה לטבלה, והתמונה נסגרה — כמו כונן שנותק. מספר הדיסק הווירטואלי
+    /// שבקובץ הביטול כבר לא תקף, ולכן ביטול מאוחר חייב למצוא את הכונן לפי הזהות שלו.
+    /// </summary>
+    private (string Path, byte[] Before, string UndoFile) RestoredAndClosed()
+    {
+        byte[] content = new byte[8 * Mb];
+        content[510] = 0x55; content[511] = 0xAA;
+        Ntfs().CopyTo(content, (int)Mb);
+
+        var (disk, path) = ImageWith(content);
+        try
+        {
+            var result = PartitionTableWriter.Restore(disk, HuntImage(disk), UndoFolder());
+            Assert.True(result.Succeeded, result.Message);
+            return (path, content, result.UndoFile!);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
+
+    [Fact]
+    public void A_later_undo_finds_the_disk_by_identity_and_restores_it_exactly()
+    {
+        var (path, before, undo) = RestoredAndClosed();
+
+        // "הכונן חובר מחדש" — מקבל מספר חדש. מוסיפים עוד תמונה, כדי שיהיה ממה לטעות.
+        var (other, _) = ImageWith(new byte[8 * Mb]);
+        var disk = ImageDisk.Open(path);
+        try
+        {
+            var check = UndoService.Check(undo, [other, disk]);
+            Assert.Equal(UndoState.Ready, check.State);
+            Assert.Equal(disk.DiskNumber, check.Disk!.DiskNumber);
+
+            var result = UndoService.Apply(undo, [other, disk]);
+            Assert.True(result.Succeeded, result.Message);
+            ImageDisk.Close(disk.DiskNumber);
+            Assert.Equal(before, File.ReadAllBytes(path));
+
+            // פעם שנייה אין מה לבטל — והקובץ לא נוגע בכונן.
+            disk = ImageDisk.Open(path);
+            Assert.Equal(UndoState.AlreadyUndone, UndoService.Check(undo, [disk]).State);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+            ImageDisk.Close(other.DiskNumber);
+        }
+    }
+
+    [Fact]
+    public void A_disk_that_changed_since_the_repair_is_not_touched()
+    {
+        var (path, _, undo) = RestoredAndClosed();
+
+        // אחרי התיקון מישהו כתב לטבלה (למשל יצר מחיצה אחרת).
+        byte[] changed = File.ReadAllBytes(path);
+        changed[446 + 8] ^= 0x40;
+        File.WriteAllBytes(path, changed);
+
+        var disk = ImageDisk.Open(path);
+        try
+        {
+            Assert.Equal(UndoState.Changed, UndoService.Check(undo, [disk]).State);
+            Assert.False(UndoService.Apply(undo, [disk]).Succeeded);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+        Assert.Equal(changed, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void An_undo_file_for_a_disk_that_is_not_connected_writes_nothing()
+    {
+        var (path, _, undo) = RestoredAndClosed();
+        var (other, otherPath) = ImageWith(new byte[8 * Mb]);
+        try
+        {
+            Assert.Equal(UndoState.DiskMissing, UndoService.Check(undo, [other]).State);
+            Assert.False(UndoService.Apply(undo, [other]).Succeeded);
+        }
+        finally
+        {
+            ImageDisk.Close(other.DiskNumber);
+        }
+        Assert.Equal(new byte[8 * Mb], File.ReadAllBytes(otherPath));
+    }
+
+    [Fact]
+    public void A_damaged_or_old_undo_file_is_refused()
+    {
+        var (path, _, undo) = RestoredAndClosed();
+
+        byte[] damaged = File.ReadAllBytes(undo);
+        damaged[damaged.Length / 2] ^= 0xFF;
+        string damagedPath = undo + ".damaged";
+        File.WriteAllBytes(damagedPath, damaged);
+        _temp.Add(damagedPath);
+
+        string legacyPath = undo + ".old";
+        File.WriteAllBytes(legacyPath, [.. Encoding.ASCII.GetBytes("RAF-UNDO-TABLE-1"), .. new byte[64]]);
+        _temp.Add(legacyPath);
+
+        var disk = ImageDisk.Open(path);
+        try
+        {
+            Assert.Equal(UndoState.Unusable, UndoService.Check(damagedPath, [disk]).State);
+
+            var legacy = UndoService.Check(legacyPath, [disk]);
+            Assert.Equal(UndoState.Unusable, legacy.State);
+            Assert.True(legacy.File!.Legacy);
         }
         finally
         {

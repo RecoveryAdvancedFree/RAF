@@ -83,6 +83,9 @@ internal sealed partial class Bridge
         "repair.apply" => await Task.Run(() => ApplyRepair(p)),
         "repair.readThrough" => await Task.Run(() => ReadThrough(p)),
         "repair.pickFolder" => PickFolder("בחרו תיקייה לגיבוי — חייבת להיות על כונן אחר"),
+        "undo.pickFile" => PickUndoFile(),
+        "undo.check" => await Task.Run(() => CheckUndo(p)),
+        "undo.apply" => await Task.Run(() => ApplyUndo(p)),
 
         "doctor.pickFiles" => PickFiles(),
         "doctor.pickFolder" => PickFolder("בחרו תיקייה לשמירת הקבצים המתוקנים"),
@@ -1411,7 +1414,7 @@ internal sealed partial class Bridge
             disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize);
 
         var result = PartitionRepair.Repair(
-            disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize,
+            disk, part.OffsetBytes, part.SizeBytes,
             diagnosis, undoFolder, part.DriveLetter);
 
         // אחרי תיקון אמיתי הדיסק עצמו נכון, והקריאה דרך הגיבוי מיותרת.
@@ -1428,6 +1431,52 @@ internal sealed partial class Bridge
             message = result.Message,
             undoFile = result.UndoFile,
         };
+    }
+
+    // ------------------------------------------------------------ ביטול תיקון קודם
+
+    private object PickUndoFile()
+    {
+        string? selected = null;
+        _form.InvokeOnUiSync(() =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = "בחרו את קובץ הביטול שנשמר בזמן התיקון",
+                Filter = "קובצי ביטול|RAF-undo-*.bin|כל הקבצים|*.*",
+                CheckFileExists = true,
+            };
+            if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
+        });
+        return new { path = selected };
+    }
+
+    /// <summary>מה הביטול יעשה, ולאיזה כונן — לפני שנכתב דבר.</summary>
+    private object CheckUndo(JsonObject? p)
+    {
+        string path = p?["path"]?.GetValue<string>() ?? "";
+        var check = UndoService.Check(path, _disks);
+        var file = check.File;
+
+        return new
+        {
+            canUndo = check.CanUndo,
+            message = check.Message,
+            what = file is null ? null
+                : file.Kind == UndoKind.PartitionTable ? "החזרת מחיצה לטבלת המחיצות" : "תיקון מחיצה",
+            created = file?.Created,
+            diskName = check.Disk?.DisplayName,
+            diskSize = check.Disk?.SizeBytes,
+        };
+    }
+
+    private object ApplyUndo(JsonObject? p)
+    {
+        string path = p?["path"]?.GetValue<string>() ?? "";
+        RequireConfirmWord(p);
+
+        var result = UndoService.Apply(path, _disks);
+        return new { succeeded = result.Succeeded, rolledBack = result.RolledBack, message = result.Message };
     }
 
     // ------------------------------------------------------------ תיקון קבצים
@@ -1681,7 +1730,7 @@ internal sealed partial class Bridge
     }
 
     /// <summary>הפעולות היחידות שכותבות לכונן המקור. בכל השאר, שגיאה אינה נוגעת בו.</summary>
-    private static readonly HashSet<string> WritesToSource = new() { "repair.apply", "partition.restore" };
+    private static readonly HashSet<string> WritesToSource = new() { "repair.apply", "partition.restore", "undo.apply" };
 
     private static string Fail(string id, FriendlyError e, string method) =>
         JsonSerializer.Serialize(new

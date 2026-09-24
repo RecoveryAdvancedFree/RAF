@@ -1,4 +1,3 @@
-using System.Text;
 using RAF.Core.Disks;
 using RAF.Core.Model;
 using RAF.Core.Native;
@@ -30,12 +29,11 @@ public sealed class RepairResult
 /// 2. רק אז מתבצעת הכתיבה.
 /// 3. הכתיבה נקראת בחזרה ומאומתת שהיא מתפענחת.
 /// 4. אם האימות נכשל, המצב הקודם מוחזר אוטומטית.
+///
+/// קובץ הגיבוי משמש גם לביטול מאוחר, מתוך התוכנה (ראו UndoService).
 /// </summary>
 public static class PartitionRepair
 {
-    /// <summary>חתימה בראש קובץ הגיבוי, לזיהוי ולמניעת שחזור שגוי.</summary>
-    private const string UndoSignature = "RAF-UNDO-1";
-
     /// <summary>
     /// ביצוע התיקון.
     /// </summary>
@@ -43,9 +41,12 @@ public static class PartitionRepair
     /// תיקייה לשמירת גיבוי הסקטורים. חייבת להיות על דיסק אחר מדיסק המקור.
     /// </param>
     public static RepairResult Repair(
-        int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
+        PhysicalDiskInfo disk, long partitionOffset, long partitionSize,
         PartitionDiagnosisResult diagnosis, string undoFolder, string driveLetter = "")
     {
+        int diskNumber = disk.DiskNumber;
+        int sectorSize = disk.LogicalSectorSize;
+
         if (!diagnosis.CanRepair)
             return new RepairResult { Message = "האבחון לא מצא עותק גיבוי תקין, ולכן אין מה לתקן." };
 
@@ -72,7 +73,18 @@ public static class PartitionRepair
 
         byte[] original = reader.ReadBlock(diagnosis.PrimaryOffset, length);
 
+        // תיקון שאי אפשר לבטל במלואו לא מתבצע — כמו בהחזרת מחיצה לטבלה.
+        if (original.Length < length)
+            return new RepairResult
+            {
+                Message = "לא ניתן לקרוא את תחילת המחיצה כדי לגבות אותה לפני הכתיבה, ולכן לא נכתב דבר.",
+            };
+
         // --- שלב 1: שמירת המצב הקיים לפני כל כתיבה ---
+        long absoluteOffset = partitionOffset + diagnosis.PrimaryOffset;
+        var undo = UndoFile.For(disk, UndoKind.BootSector,
+            [new UndoRegion(absoluteOffset, original, replacement)]);
+
         string undoPath;
         try
         {
@@ -81,7 +93,7 @@ public static class PartitionRepair
                 undoFolder,
                 $"RAF-undo-disk{diskNumber}-{partitionOffset}-{DateTime.Now:yyyyMMdd-HHmmss}.bin");
 
-            WriteUndoFile(undoPath, diskNumber, partitionOffset, diagnosis.PrimaryOffset, original);
+            undo.Save(undoPath);
         }
         catch (Exception ex)
         {
@@ -92,7 +104,6 @@ public static class PartitionRepair
         }
 
         // --- שלב 2: הכתיבה עצמה ---
-        long absoluteOffset = partitionOffset + diagnosis.PrimaryOffset;
 
         // Windows חוסם כתיבה לסקטור השייך לאמצעי אחסון מחובר, גם בהרשאות
         // מנהל. יש לנעול ולנתק אותו תחילה; הנעילה משתחררת ביציאה מהבלוק.
@@ -136,7 +147,7 @@ public static class PartitionRepair
         }
 
         // --- שלב 4: האימות נכשל — החזרת המצב הקודם ---
-        bool restored = Undo(undoPath, sectorSize);
+        bool restored = undo.WriteBefore(diskNumber);
 
         return new RepairResult
         {
@@ -149,59 +160,5 @@ public static class PartitionRepair
                 : "התיקון נכתב, המחיצה עדיין אינה נקראת, וגם החזרת המצב הקודם נכשלה. " +
                   $"קובץ הגיבוי שמור ב: {undoPath}",
         };
-    }
-
-    /// <summary>
-    /// ביטול תיקון קודם: כתיבת הסקטורים המקוריים חזרה למקומם.
-    /// </summary>
-    public static bool Undo(string undoPath, int sectorSize)
-    {
-        try
-        {
-            byte[] file = File.ReadAllBytes(undoPath);
-            if (file.Length < 64) return false;
-
-            // כותרת: חתימה, מספר דיסק, היסט המחיצה, היסט בתוך המחיצה, אורך.
-            string signature = Encoding.ASCII.GetString(file, 0, UndoSignature.Length);
-            if (signature != UndoSignature) return false;
-
-            int diskNumber = BitConverter.ToInt32(file, 16);
-            long partitionOffset = BitConverter.ToInt64(file, 24);
-            long primaryOffset = BitConverter.ToInt64(file, 32);
-            int length = BitConverter.ToInt32(file, 40);
-
-            if (length <= 0 || 64 + length > file.Length) return false;
-
-            byte[] original = file.AsSpan(64, length).ToArray();
-
-            // קובץ ביטול של תמונה מצביע על מספר וירטואלי, שתקף רק כל עוד
-            // התמונה פתוחה. מספר שאינו רשום מחזיר null — ולא נכתב דבר.
-            string? target = DevicePaths.PathOf(diskNumber);
-            if (target is null) return false;
-
-            using var writer = RawWriter.TryOpen(target, sectorSize);
-            return writer is not null && writer.Write(partitionOffset + primaryOffset, original);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>כתיבת קובץ הגיבוי, עם כל המידע הדרוש כדי לבטל את הפעולה.</summary>
-    private static void WriteUndoFile(
-        string path, int diskNumber, long partitionOffset, long primaryOffset, byte[] original)
-    {
-        byte[] header = new byte[64];
-        Encoding.ASCII.GetBytes(UndoSignature).CopyTo(header, 0);
-        BitConverter.GetBytes(diskNumber).CopyTo(header, 16);
-        BitConverter.GetBytes(partitionOffset).CopyTo(header, 24);
-        BitConverter.GetBytes(primaryOffset).CopyTo(header, 32);
-        BitConverter.GetBytes(original.Length).CopyTo(header, 40);
-
-        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        stream.Write(header);
-        stream.Write(original);
-        stream.Flush(flushToDisk: true);
     }
 }

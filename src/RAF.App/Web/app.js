@@ -628,6 +628,7 @@ function renderDisks() {
         <button class="btn" id="btn-open-scan">${Icon.history}<span>פתיחת סריקה שמורה</span></button>
         <button class="btn" id="btn-open-image">${Icon.open}<span>פתיחת תמונת דיסק</span></button>
         <button class="btn" id="btn-doctor">${Icon.wrench}<span>תיקון קבצים שלא נפתחים</span></button>
+        <button class="btn" id="btn-undo-repair">${Icon.back}<span>ביטול תיקון קודם</span></button>
         <button class="btn" id="btn-refresh">${Icon.refresh}<span>רענון</span></button>
       </div>
     </div>`;
@@ -661,6 +662,7 @@ function renderDisks() {
 
   el('btn-refresh').onclick = () => loadDisks({ quiet: true });
   el('btn-doctor').onclick = () => openDoctorPanel();
+  el('btn-undo-repair').onclick = () => openUndoPanel();
   document.querySelectorAll('[data-situation]').forEach((btn) => {
     btn.onclick = () => openSituation(btn.dataset.situation);
   });
@@ -1792,6 +1794,99 @@ async function runRepair(disk, part) {
     <button class="btn btn-primary" id="btn-done-repair">סיום</button>`;
 
   el('btn-done-repair').onclick = () => { closePanel(); loadDisks(); };
+}
+
+/// ביטול תיקון קודם מתוך קובץ הביטול שנשמר בזמן התיקון. המנוע מוודא שזה
+/// הכונן הנכון ושהוא עדיין במצב שהתיקון השאיר — רק אז אפשר לאשר.
+function openUndoPanel() {
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">ביטול תיקון קודם</div>
+        <div class="panel-sub">החזרת הכונן למצב שלפני תיקון מחיצה או החזרת מחיצה לטבלה</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+    </div>
+    <div class="panel-body">
+      ${notice('info', Icon.info, '',
+        'בכל תיקון התוכנה שומרת קובץ ביטול בתיקיית הגיבוי שבחרתם. שמו מתחיל ב-RAF-undo.')}
+
+      <div class="section-label">קובץ הביטול</div>
+      <div class="target-row">
+        <input type="text" id="undo-file" readonly placeholder="לא נבחר קובץ">
+        <button class="btn" id="btn-pick-undo-file">${Icon.file}<span>בחירה</span></button>
+      </div>
+      <div id="undo-check"></div>
+      <div id="undo-confirm-row" hidden>${confirmWordField('undo-confirm')}</div>
+    </div>
+    <div class="panel-foot">
+      <button class="btn btn-primary" id="btn-do-undo" disabled>${Icon.back}<span>ביטול התיקון</span></button>
+      <button class="btn" id="btn-close-undo">סגירה</button>
+    </div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-close-undo').onclick = closePanel;
+
+  let checked = false;
+  const ready = () => { el('btn-do-undo').disabled = !checked || !confirmTyped('undo-confirm'); };
+  el('undo-confirm').oninput = ready;
+
+  el('btn-pick-undo-file').onclick = async () => {
+    const { path } = await Bridge.call('undo.pickFile', {}, 0);
+    if (!path) return;
+
+    el('undo-file').value = path;
+    checked = false;
+    ready();
+    el('undo-check').innerHTML =
+      `<div class="loading" style="height:80px"><div class="spinner"></div><p>בודק את הכונן…</p></div>`;
+
+    let c;
+    try {
+      c = await Bridge.call('undo.check', { path }, 0);
+    } catch (err) {
+      el('undo-check').innerHTML = errorNotice('לא ניתן לבדוק את קובץ הביטול', err, 'spaced');
+      return;
+    }
+
+    checked = c.canUndo;
+    const details = c.what ? `
+      <div class="strategy"><p>
+        <b>הפעולה:</b> ${esc(c.what)}<br>
+        ${c.created ? `<b>מתי:</b> ${esc(new Date(c.created).toLocaleString('he-IL'))}<br>` : ''}
+        ${c.diskName ? `<b>הכונן:</b> ${esc(c.diskName)} · ${formatSize(c.diskSize)}` : ''}
+      </p></div>` : '';
+    el('undo-check').innerHTML = details +
+      `<div class="notice ${c.canUndo ? 'ok-notice' : 'warn'} tiny-notice">
+        ${c.canUndo ? Icon.check : Icon.alert}<div>${esc(c.message)}</div></div>`;
+    el('undo-confirm-row').hidden = !c.canUndo;
+    ready();
+  };
+
+  el('btn-do-undo').onclick = async () => {
+    const path = el('undo-file').value;
+    const confirm = el('undo-confirm').value.trim();
+
+    el('panel').querySelector('.panel-body').innerHTML =
+      `<div class="loading" style="height:180px"><div class="spinner"></div><p>מחזיר את הכונן למצב הקודם…</p></div>`;
+    el('panel').querySelector('.panel-foot').innerHTML = '';
+
+    let r;
+    try {
+      r = await Bridge.call('undo.apply', { path, confirm }, 0);
+    } catch (err) {
+      r = { succeeded: false, error: err };
+    }
+
+    const cls = r.succeeded ? 'ok-notice' : r.rolledBack ? 'warn' : 'danger';
+    el('panel').querySelector('.panel-body').innerHTML = r.error
+      ? errorNotice('ביטול התיקון לא הושלם', r.error)
+      : `<div class="notice ${cls}">${r.succeeded ? Icon.check : Icon.alert}<div>${esc(r.message)}</div></div>`;
+    el('panel').querySelector('.panel-foot').innerHTML =
+      `<button class="btn btn-primary" id="btn-done-undo">סיום</button>`;
+    el('btn-done-undo').onclick = () => { closePanel(); loadDisks(); };
+  };
 }
 
 /* =====================================================================

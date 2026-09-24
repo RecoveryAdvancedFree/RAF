@@ -33,7 +33,6 @@ public sealed class RestorePlan
 /// </summary>
 public static class PartitionTableWriter
 {
-    private const string UndoSignature = "RAF-UNDO-TABLE-1";
     private static readonly Guid GuidBasicData = new("EBD0A0A2-B9E5-4433-87C0-68B6B72699C7");
 
     public static RestorePlan Plan(PhysicalDiskInfo disk, FoundPartition found)
@@ -273,13 +272,16 @@ public static class PartitionTableWriter
         }
 
         // --- שלב 1: גיבוי ---
+        var undo = UndoFile.For(disk, UndoKind.PartitionTable,
+            before.Zip(plan.Writes, (b, a) => new UndoRegion(b.Offset, b.Data, a.Data)).ToList());
+
         string undoPath;
         try
         {
             Directory.CreateDirectory(undoFolder);
             undoPath = Path.Combine(undoFolder,
                 $"RAF-undo-table-disk{disk.DiskNumber}-{DateTime.Now:yyyyMMdd-HHmmss}.bin");
-            WriteUndo(undoPath, disk.DiskNumber, before);
+            undo.Save(undoPath);
         }
         catch (Exception ex)
         {
@@ -338,54 +340,18 @@ public static class PartitionTableWriter
         };
     }
 
-    /// <summary>ביטול: כתיבת כל הסקטורים המקוריים חזרה למקומם.</summary>
+    /// <summary>
+    /// ביטול מיד אחרי הכתיבה: כתיבת כל הסקטורים המקוריים חזרה למקומם, לפי מספר הדיסק
+    /// שבקובץ. ביטול מאוחר עובר דרך UndoService, שמוודא קודם שזה עדיין הכונן הנכון.
+    /// </summary>
     public static bool Undo(string undoPath, int sectorSize)
     {
-        try
-        {
-            using var stream = File.OpenRead(undoPath);
-            using var r = new BinaryReader(stream);
+        var undo = UndoFile.Load(undoPath);
+        if (undo is null || undo.Legacy) return false;
 
-            if (Encoding.ASCII.GetString(r.ReadBytes(UndoSignature.Length)) != UndoSignature) return false;
-
-            int diskNumber = r.ReadInt32();
-            int count = r.ReadInt32();
-            var regions = new List<(long, byte[])>();
-
-            for (int i = 0; i < count; i++)
-            {
-                long offset = r.ReadInt64();
-                int length = r.ReadInt32();
-                regions.Add((offset, r.ReadBytes(length)));
-            }
-
-            bool ok = WriteAll(diskNumber, sectorSize, regions);
-            RefreshLayout(diskNumber);
-            return ok;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static void WriteUndo(string path, int diskNumber, List<(long Offset, byte[] Data)> regions)
-    {
-        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        using var w = new BinaryWriter(stream);
-
-        w.Write(Encoding.ASCII.GetBytes(UndoSignature));
-        w.Write(diskNumber);
-        w.Write(regions.Count);
-        foreach (var (offset, data) in regions)
-        {
-            w.Write(offset);
-            w.Write(data.Length);
-            w.Write(data);
-        }
-
-        w.Flush();
-        stream.Flush(flushToDisk: true);
+        bool ok = undo.WriteBefore(undo.DiskNumber);
+        RefreshLayout(undo.DiskNumber);
+        return ok;
     }
 
     private static bool WriteAll(int diskNumber, int sectorSize, List<(long Offset, byte[] Data)> regions)
@@ -403,7 +369,7 @@ public static class PartitionTableWriter
     }
 
     /// <summary>בקשה מ-Windows לקרוא מחדש את טבלת המחיצות של הכונן.</summary>
-    private static void RefreshLayout(int diskNumber)
+    internal static void RefreshLayout(int diskNumber)
     {
         if (DevicePaths.IsImage(diskNumber)) return;
 
