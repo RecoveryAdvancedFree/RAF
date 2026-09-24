@@ -1984,6 +1984,14 @@ async function showStrategy(disk, part, modeId) {
       </div>
     </div>
 
+    ${modeId === 3 && part.scannable ? `
+    <label class="switch">
+      <input type="checkbox" id="opt-free-only" checked>
+      <span>לסרוק רק את המקום הפנוי — מהיר בהרבה</span>
+    </label>
+    <p class="switch-note">קבצים שנמחקו נמצאים במקום שמערכת הקבצים סימנה כפנוי, והמקום התפוס מכיל את הקבצים
+      הקיימים. בכונן מלא ברובו הסריקה מהירה פי כמה. כבו אם מבנה המחיצה פגום.</p>` : ''}
+
     <label class="switch">
       <input type="checkbox" id="opt-include-existing"${part.readThrough ? ' checked' : ''}>
       <span>הצג גם קבצים קיימים, ולא רק קבצים שנמחקו</span>
@@ -1999,14 +2007,15 @@ async function showStrategy(disk, part, modeId) {
     </div>`);
 
   el('btn-back').onclick = () => openScanPanel(disk.number, part.index);
-  el('btn-start').onclick = () => startScan(disk, part, modeId, el('opt-include-existing').checked);
+  el('btn-start').onclick = () => startScan(disk, part, modeId, el('opt-include-existing').checked,
+    !!el('opt-free-only')?.checked);
 }
 
 /* =====================================================================
    מסך 2 — סריקה מתבצעת
    ===================================================================== */
 
-async function startScan(disk, part, modeId, includeExisting) {
+async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = false) {
   closePanel();
   Steps.set(2);
   State.scan = { disk, part, mode: modeId };
@@ -2059,7 +2068,7 @@ async function startScan(disk, part, modeId, includeExisting) {
   try {
     // ללא מגבלת זמן: סריקה עמוקה על דיסק גדול עשויה להימשך שעות.
     const summary = await longCall('scan.start', {
-      disk: disk.number, part: part.index, mode: modeId, includeExisting,
+      disk: disk.number, part: part.index, mode: modeId, includeExisting, freeSpaceOnly,
     });
 
     State.summary = summary;

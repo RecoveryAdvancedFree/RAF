@@ -327,6 +327,7 @@ internal sealed partial class Bridge
         int partIndex = p?["part"]?.GetValue<int>() ?? -1;
         var mode = (ScanMode)(p?["mode"]?.GetValue<int>() ?? (int)ScanMode.Quick);
         bool includeExisting = p?["includeExisting"]?.GetValue<bool>() ?? false;
+        bool freeSpaceOnly = p?["freeSpaceOnly"]?.GetValue<bool>() ?? false;
 
         var disk = FindDisk(diskNumber);
         var part = disk.Partitions.FirstOrDefault(x => x.Index == partIndex)
@@ -381,7 +382,8 @@ internal sealed partial class Bridge
             part.FileSystem,
             disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize,
             mode, includeExisting, disk.Trim, progress, token,
-            checkpoint: snapshot => Autosave(Session(snapshot), partial: true));
+            checkpoint: snapshot => Autosave(Session(snapshot), partial: true),
+            freeSpaceOnly: freeSpaceOnly);
 
         _session = Session(result);
         var session = _session;

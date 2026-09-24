@@ -119,6 +119,34 @@ public class CarvingTests : IDisposable
         Assert.Equal(mp4.Length, Resolve(mp4, "mp4").Bytes);
     }
 
+    /// <summary>
+    /// סריקת המקום הפנוי בלבד: קובץ שיושב במקום תפוס (קובץ קיים) אינו מדווח,
+    /// ובלוקים שכולם תפוסים אינם נקראים כלל — משם המהירות.
+    /// </summary>
+    [Fact]
+    public void Free_space_only_skips_occupied_blocks_without_reading_them()
+    {
+        const int gap = 9 * 1024 * 1024;                                // יותר מבלוק קריאה אחד
+
+        long png = Place(RealFormats.Png(3000, 1));
+        _image.Write(new byte[gap]);
+        long bmp = Place(RealFormats.Bmp(40, 30, 2));                   // במקום תפוס — קובץ קיים
+        _image.Write(new byte[gap]);
+        long gif = Place(RealFormats.Gif());
+        var volume = Open();
+
+        // פנוי: סביב ה-PNG וסביב ה-GIF בלבד; כל האמצע תפוס.
+        var map = FreeSpaceMap.FromRanges(new[] { (0L, png + 65536), (gif - 4096, _image.Length) }, _image.Length);
+        var carver = new FileCarver { FreeSpace = map };
+        var result = carver.Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None);
+
+        var found = result.Files.Select(f => f.Extension).OrderBy(e => e).ToArray();
+        Assert.Equal(new[] { "gif", "png" }, found);
+        // הסריקה קוראת בבלוקים של 8MB (ועוד חפיפה קטנה לבלוק הבא): בלוק האמצע, שכולו תפוס, לא נקרא.
+        Assert.True(result.BytesRead <= _image.Length - 8 * 1024 * 1024 + 64 * 1024, $"read {result.BytesRead:N0} of {_image.Length:N0}");
+        _ = bmp;
+    }
+
     [Fact]
     public void Mkv_length_is_where_its_segment_says_it_ends()
     {

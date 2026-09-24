@@ -27,21 +27,30 @@ public sealed class FileCarver
     private const int Overlap = 4096;
 
     private readonly List<string> _warnings = new();
+
+    /// <summary>המקום הפנוי במחיצה, כשסורקים רק אותו. null — סורקים הכול.</summary>
+    private FreeSpaceMap? _free;
     private long _bytesRead;
     private long _candidates;
 
     /// <summary>סריקה מתקדמת של מחיצה.</summary>
+    /// <param name="freeSpaceOnly">
+    /// לסרוק רק את המקום שמערכת הקבצים (fileSystem) מסמנת כפנוי. כשמפת ההקצאה
+    /// אינה נקראת — המחיצה נסרקת כולה, ואזהרה מסבירה זאת.
+    /// </param>
     public static Task<ScanResult> ScanAsync(
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
         IProgress<ScanProgress>? progress, CancellationToken token,
-        Action<ScanResult>? checkpoint = null)
+        Action<ScanResult>? checkpoint = null,
+        FileSystemKind fileSystem = FileSystemKind.Raw, bool freeSpaceOnly = false)
         => Task.Run(() => new FileCarver().Run(
-            diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint), token);
+            diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint,
+            fileSystem, freeSpaceOnly), token);
 
     private ScanResult Run(
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
         IProgress<ScanProgress>? progress, CancellationToken token,
-        Action<ScanResult>? checkpoint)
+        Action<ScanResult>? checkpoint, FileSystemKind fileSystem, bool freeSpaceOnly)
     {
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: true)
@@ -49,7 +58,36 @@ public sealed class FileCarver
                 "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
 
         long length = partitionSize > 0 ? partitionSize : reader.Length;
+        if (freeSpaceOnly) _free = ReadFreeSpace(diskNumber, partitionOffset, length, sectorSize, fileSystem, progress);
+
         return Sweep(RawVolume.Open(reader, sectorSize), length, sectorSize, progress, token, checkpoint);
+    }
+
+    /// <summary>מפת המקום הפנוי, בקורא נפרד — כדי שסגירתו לא תסגור את קורא הסריקה.</summary>
+    private FreeSpaceMap? ReadFreeSpace(
+        int diskNumber, long partitionOffset, long length, int sectorSize, FileSystemKind fileSystem,
+        IProgress<ScanProgress>? progress)
+    {
+        progress?.Report(new ScanProgress { Stage = "קורא את מפת המקום הפנוי" });
+        FreeSpaceMap? map = null;
+        try
+        {
+            using var reader = VolumeReader.TryOpen(diskNumber, partitionOffset, length, sectorSize, sequential: false);
+            if (reader is not null && VolumeScanner.Open(reader, fileSystem, sectorSize) is { } volume)
+                using (volume) map = FreeSpaceMap.Build(volume, length);
+        }
+        catch
+        {
+            map = null;
+        }
+
+        _warnings.Add(map is null
+            ? "מפת המקום הפנוי של מערכת הקבצים אינה נקראת, ולכן נסרקה המחיצה כולה."
+            : $"נסרק רק המקום הפנוי — {Percent(map.FreeBytes, map.TotalBytes)} מהמחיצה. קבצים שנמחקו נמצאים שם; " +
+              "המקום התפוס מכיל את הקבצים הקיימים. אחרי פירמוט, או כשמבנה המחיצה פגום, אפשר לסרוק את כולה.");
+        return map;
+
+        static string Percent(long part, long whole) => whole > 0 ? $"{part * 100.0 / whole:N0}%" : "0%";
     }
 
     /// <summary>
@@ -60,6 +98,9 @@ public sealed class FileCarver
     /// ממשיך — פענוח ה-JPEG שנמצאו על כל הליבות. בסוף מיושמות התוצאות:
     /// דירוג, חיבור מקטעים, וסריקה חוזרת של אזורים שדולגו בגלל קובץ שהתברר כפגום.
     /// </summary>
+    /// <summary>סריקה של המקום הפנוי בלבד, לפי מפה נתונה — לבדיקות.</summary>
+    internal FreeSpaceMap? FreeSpace { set => _free = value; }
+
     internal ScanResult Sweep(
         RawVolume volume, long size, int sectorSize,
         IProgress<ScanProgress>? progress, CancellationToken token,
@@ -99,8 +140,21 @@ public sealed class FileCarver
         {
             if (token.IsCancellationRequested) break;
 
+            // מקום תפוס: דילוג על כל הבלוקים שאין בהם אף בית פנוי — בלי לקרוא אותם.
+            if (_free is not null)
+            {
+                long next = _free.NextFree(at);
+                if (next >= to) break;
+                if (next >= at + BlockSize)
+                {
+                    at = next / BlockSize * BlockSize - BlockSize;          // הלולאה תוסיף בלוק
+                    continue;
+                }
+            }
+
             int read = ahead.Read(at, out byte[] block);
-            if (at + BlockSize < to) ahead.Prefetch(at + BlockSize);
+            if (at + BlockSize < to && (_free is null || _free.NextFree(at + BlockSize) < at + 2 * BlockSize))
+                ahead.Prefetch(at + BlockSize);
 
             if (read <= 0)
             {
@@ -120,6 +174,7 @@ public sealed class FileCarver
 
                 long absolute = at + off;
                 if (absolute < nextAllowedStart || InSkipped(absolute)) continue;
+                if (_free is not null && !_free.IsFree(absolute)) continue;       // קובץ שנמחק מתחיל במקום פנוי
 
                 var signature = FileSignatures.Identify(block.AsSpan(off, Math.Min(64, read - off)));
                 if (signature is null) continue;

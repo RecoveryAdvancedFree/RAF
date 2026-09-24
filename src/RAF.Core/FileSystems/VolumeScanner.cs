@@ -34,13 +34,14 @@ public static class VolumeScanner
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
         ScanMode mode, bool includeExisting, TrimState trim,
         IProgress<ScanProgress>? progress, CancellationToken token,
-        Action<ScanResult>? checkpoint = null)
+        Action<ScanResult>? checkpoint = null, bool freeSpaceOnly = false)
     {
         // סריקה מתקדמת אינה תלויה במערכת הקבצים כלל, ולכן היא זהה
         // בכל מחיצה — כולל כזו שמערכת הקבצים שלה נהרסה.
         if (mode == ScanMode.Advanced)
             return FileCarver.ScanAsync(
-                diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint);
+                diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint,
+                kind, freeSpaceOnly && IsSupported(kind));
 
         return AfterMetadataScan(ScanMetadataAsync(
             kind, diskNumber, partitionOffset, partitionSize, sectorSize, mode, includeExisting, trim, progress, token),
