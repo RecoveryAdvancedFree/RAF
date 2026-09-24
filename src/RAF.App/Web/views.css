@@ -517,6 +517,14 @@
 }
 .target-check { padding: 10px 0; font-size: 12.5px; color: var(--text-dim); }
 
+/* ---------- מיקוד מקלדת ----------
+   מסגרת בולטת סביב מה שבמיקוד — רק כשמגיעים אליו במקלדת, לא בלחיצת עכבר. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.disk-head:focus-visible, .part:focus-visible { outline-offset: -2px; border-radius: var(--radius-sm); }
+.panel-title:focus, .help-title:focus { outline: none; }
+.tree-item:focus-visible { outline-offset: -2px; }
+.filelist:focus-visible { outline-offset: -2px; }
+
 /* ---------- סוגי קבצים שהמשתמש הוסיף ---------- */
 .custom-types-line {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;

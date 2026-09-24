@@ -870,6 +870,7 @@ function toggleDisk(number) {
 
   const card = document.querySelector(`.disk[data-disk-card="${number}"]`);
   if (card) card.classList.toggle('open', State.openDisks.has(number));
+  card?.querySelector('.disk-head')?.setAttribute('aria-expanded', String(State.openDisks.has(number)));
 }
 
 function renderDisk(disk) {
@@ -925,7 +926,8 @@ function renderDisk(disk) {
 
   return `
     <section class="disk ${open ? 'open' : ''}" data-disk-card="${disk.number}">
-      <div class="disk-head" data-toggle-disk="${disk.number}" title="לחצו להצגת המחיצות">
+      <div class="disk-head" data-toggle-disk="${disk.number}" title="לחצו להצגת המחיצות"
+           role="button" tabindex="0" aria-expanded="${open}">
         <div class="disk-toggle">${Icon.chevron}</div>
         <div class="disk-icon ${icon.cls}">${icon.html}</div>
         <div class="disk-meta">
@@ -991,7 +993,7 @@ function renderPartition(disk, p) {
   }
 
   return `
-    <div class="part ${p.found ? 'is-found' : ''}" data-disk="${disk.number}" data-part="${p.index}">
+    <div class="part ${p.found ? 'is-found' : ''}" data-disk="${disk.number}" data-part="${p.index}" role="button" tabindex="0">
       ${letter}
       <div class="part-info">
         <div class="part-title">${name}</div>
@@ -1314,7 +1316,7 @@ async function openRestorePanel(disk, part) {
 
     <div class="section-label">תיקיית גיבוי — על כונן אחר</div>
     <div class="target-row">
-      <input type="text" id="restore-undo" readonly placeholder="לא נבחרה תיקייה">
+      <input type="text" id="restore-undo" readonly placeholder="לא נבחרה תיקייה" aria-label="תיקיית הגיבוי">
       <button class="btn" id="btn-pick-restore-undo">${Icon.folder}<span>בחירה</span></button>
     </div>
     <div id="restore-status"></div>
@@ -1734,7 +1736,7 @@ function confirmRepair(disk, part, diagnosis) {
 
       <div class="section-label">תיקיית גיבוי — על כונן אחר</div>
       <div class="target-row">
-        <input type="text" id="undo-path" readonly placeholder="לא נבחרה תיקייה">
+        <input type="text" id="undo-path" readonly placeholder="לא נבחרה תיקייה" aria-label="תיקיית הגיבוי">
         <button class="btn" id="btn-pick-undo">${Icon.folder}<span>בחירה</span></button>
       </div>
       <div id="undo-status"></div>
@@ -1818,7 +1820,7 @@ function openUndoPanel() {
 
       <div class="section-label">קובץ הביטול</div>
       <div class="target-row">
-        <input type="text" id="undo-file" readonly placeholder="לא נבחר קובץ">
+        <input type="text" id="undo-file" readonly placeholder="לא נבחר קובץ" aria-label="קובץ הביטול">
         <button class="btn" id="btn-pick-undo-file">${Icon.file}<span>בחירה</span></button>
       </div>
       <div id="undo-check"></div>
@@ -1942,7 +1944,7 @@ function openImagePanel(disk, part) {
 
       <div class="section-label">קובץ התמונה</div>
       <div class="target-row">
-        <input type="text" id="image-path" readonly placeholder="לא נבחר קובץ">
+        <input type="text" id="image-path" readonly placeholder="לא נבחר קובץ" aria-label="קובץ התמונה">
         <button class="btn" id="btn-pick-image">${Icon.folder}<span>בחירה</span></button>
       </div>
       <div id="image-status"></div>
@@ -2095,7 +2097,7 @@ Bridge.on('image.progress', (p) => {
   const stage = el('img-stage');
   if (!stage) return;
 
-  stage.textContent = p.stage;
+  if (stage.textContent !== p.stage) stage.textContent = p.stage;
   const pct = Math.min(100, p.percent || 0);
   el('img-fill').style.width = pct + '%';
   el('img-percent').textContent = pct.toFixed(1) + '%';
@@ -2465,7 +2467,8 @@ async function showStrategy(disk, part, modeId) {
           <span>הערכת סיכויי שחזור: <b>${word}</b></span>
           <span style="direction:ltr;color:var(--text-faint)">${profile.outlook}%</span>
         </div>
-        <div class="meter-track"><div class="meter-fill ${cls}" style="width:${profile.outlook}%"></div></div>
+        <div class="meter-track" role="meter" aria-label="הערכת סיכויי שחזור" aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="${profile.outlook}" aria-valuetext="${word}, ${profile.outlook}%"><div class="meter-fill ${cls}" style="width:${profile.outlook}%"></div></div>
       </div>
     </div>
 
@@ -2594,7 +2597,7 @@ async function openCustomTypes(back) {
       <div class="notice ok-notice spaced">${Icon.check}<div>${esc(r.message)}</div></div>
       <div class="section-label">שם לסוג — כך תיקרא התיקייה של הקבצים שיימצאו</div>
       <div class="target-row">
-        <input type="text" class="name-input" id="custom-type-name" maxlength="60" value="${esc(r.name)}">
+        <input type="text" class="name-input" id="custom-type-name" maxlength="60" value="${esc(r.name)}" aria-label="שם לסוג">
         <button class="btn btn-primary" id="btn-save-type">${Icon.check}<span>שמירה</span></button>
       </div>`;
     el('btn-save-type').onclick = async () => {
@@ -2875,7 +2878,7 @@ Bridge.on('scan.progress', (p) => {
   const stage = el('scan-stage');
   if (!stage) return;
 
-  stage.textContent = p.stage || '';
+  if (stage.textContent !== (p.stage || '')) stage.textContent = p.stage || '';
 
   const pct = p.percent === null || p.percent === undefined ? null : Math.min(100, p.percent);
   el('scan-fill').style.width = (pct === null ? 100 : pct) + '%';
@@ -2928,7 +2931,7 @@ async function renderResults() {
 
         <div class="search-box">
           ${Icon.search}
-          <input type="text" id="search-input" placeholder="חיפוש בשם קובץ…" autocomplete="off">
+          <input type="text" id="search-input" placeholder="חיפוש בשם קובץ…" autocomplete="off" aria-label="חיפוש בשם קובץ">
         </div>
       </div>
 
@@ -2941,7 +2944,7 @@ async function renderResults() {
       ${(s.warnings || []).length ? notesHtml(s.warnings.map(esc)) : ''}
 
       <div class="results-grid">
-        <aside class="tree" id="tree"></aside>
+        <aside class="tree" id="tree" role="tree" aria-label="תיקיות — חיצים למעבר, אנטר לפתיחה, רווח לסימון"></aside>
         <div class="filelist-wrap" id="filelist-wrap">
           <div class="list-tools">
             <label class="chk-all" title="סימון כל הקבצים ברשימה, גם אלה שלא נגללו"><input type="checkbox" id="chk-all"><span>הכל</span></label>
@@ -2977,7 +2980,8 @@ async function renderResults() {
             ${SORT_COLUMNS.map((c) => `<button class="col-sort col-${c.id}" data-sort="${c.id}">${c.label}</button>`).join('')}
           </div>
           <div class="list-banner" id="list-banner" hidden></div>
-          <div class="filelist" id="filelist"></div>
+          <div class="filelist" id="filelist" role="listbox" tabindex="0" aria-multiselectable="true"
+               aria-label="הקבצים — חיצים למעבר, רווח לסימון לשחזור, אנטר לתצוגה מקדימה"></div>
         </div>
         <aside class="preview" id="preview">
           <div class="preview-empty">${Icon.image}<p>בחרו קובץ לתצוגה מקדימה</p></div>
@@ -3077,6 +3081,8 @@ const Tree = {
       box.style.visibility = state === -1 ? 'hidden' : '';
       box.checked = state === 2;
       box.indeterminate = state === 1;
+      if (state === -1) item.removeAttribute('aria-checked');
+      else item.setAttribute('aria-checked', state === 2 ? 'true' : state === 1 ? 'mixed' : 'false');
     }
   },
 };
@@ -3089,21 +3095,33 @@ async function makeTreeNode(path, label, depth) {
   item.className = 'tree-item';
   item.style.paddingInlineStart = (8 + depth * 14) + 'px';
   item.dataset.path = path;
+  item.setAttribute('role', 'treeitem');
+  item.setAttribute('aria-level', String(depth + 1));
+  item.setAttribute('aria-expanded', 'false');
+  item.setAttribute('aria-label', label);
+  item.tabIndex = depth === 0 ? 0 : -1;
   item.innerHTML = `<span class="tree-caret">${Icon.chevron}</span>
-                    <input type="checkbox" class="tree-chk" title="סימון התיקייה וכל מה שבתוכה">
+                    <input type="checkbox" class="tree-chk" tabindex="-1" aria-hidden="true" title="סימון התיקייה וכל מה שבתוכה">
                     <span class="tree-icon">${Icon.folder}</span>
                     <span class="tree-label">${esc(label)}</span>`;
 
   const children = document.createElement('div');
   children.className = 'tree-children';
+  children.setAttribute('role', 'group');
   children.hidden = true;
 
   let loaded = false;
 
   /// טעינת תיקיות המשנה פעם אחת, ופתיחת הענף.
   item.expand = async () => {
-    document.querySelectorAll('.tree-item').forEach((n) => n.classList.remove('active'));
+    document.querySelectorAll('.tree-item').forEach((n) => {
+      n.classList.remove('active');
+      n.setAttribute('aria-selected', 'false');
+      n.tabIndex = -1;
+    });
     item.classList.add('active');
+    item.setAttribute('aria-selected', 'true');
+    item.tabIndex = 0;
 
     if (!loaded) {
       loaded = true;
@@ -3111,12 +3129,13 @@ async function makeTreeNode(path, label, depth) {
       for (const folder of data.folders) {
         children.appendChild(await makeTreeNode(folder.path, folder.name, depth + 1));
       }
-      if (data.folders.length === 0) item.classList.add('leaf');
+      if (data.folders.length === 0) { item.classList.add('leaf'); item.removeAttribute('aria-expanded'); }
       Tree.refreshStates();
     }
 
     children.hidden = false;
     item.classList.add('open');
+    if (!item.classList.contains('leaf')) item.setAttribute('aria-expanded', 'true');
 
     el('search-input').value = '';
     await openFolder(path);
@@ -3133,17 +3152,60 @@ async function makeTreeNode(path, label, depth) {
 
     // לחיצה על החץ מקפלת ומרחיבה בלבד; לחיצה על השם פותחת גם את התיקייה.
     if (e.target.closest('.tree-caret') && !children.hidden) {
-      children.hidden = true;
-      item.classList.remove('open');
+      item.collapse();
       return;
     }
 
     await item.expand();
   };
 
+  item.collapse = () => {
+    children.hidden = true;
+    item.classList.remove('open');
+    if (!item.classList.contains('leaf')) item.setAttribute('aria-expanded', 'false');
+  };
+  item.isOpen = () => !children.hidden;
+
   node.appendChild(item);
   node.appendChild(children);
   return node;
+}
+
+/// מקלדת בעץ התיקיות: חיצים למעלה ולמטה בין התיקיות הגלויות; בכיוון הקריאה (מימין
+/// לשמאל) — החץ השמאלי פותח ויורד פנימה, והימני סוגר ועולה להורה; אנטר פותח את
+/// התיקייה ברשימה; רווח מסמן אותה לשחזור.
+function treeKey(e) {
+  const item = e.target.closest('.tree-item');
+  if (!item) return;
+  const visible = [...el('tree').querySelectorAll('.tree-item')].filter((n) => n.getClientRects().length > 0);
+  const at = visible.indexOf(item);
+  const go = (n) => { if (!n) return; visible.forEach((v) => (v.tabIndex = -1)); n.tabIndex = 0; n.focus(); };
+  const parentItem = () => item.parentElement.parentElement.closest('.tree-node')?.querySelector(':scope > .tree-item');
+
+  switch (e.key) {
+    case 'ArrowDown': go(visible[at + 1]); break;
+    case 'ArrowUp': go(visible[at - 1]); break;
+    case 'Home': go(visible[0]); break;
+    case 'End': go(visible[visible.length - 1]); break;
+    case 'ArrowLeft':
+      if (item.classList.contains('leaf')) break;
+      if (!item.isOpen()) item.expand().then(() => item.focus());
+      else go(item.parentElement.querySelector(':scope > .tree-children > .tree-node > .tree-item'));
+      break;
+    case 'ArrowRight':
+      if (item.isOpen() && !item.classList.contains('leaf')) item.collapse();
+      else go(parentItem());
+      break;
+    case 'Enter': item.expand().then(() => item.focus()); break;
+    case ' ': {
+      const box = item.querySelector('.tree-chk');
+      if (box.style.visibility !== 'hidden') box.click();
+      break;
+    }
+    default: return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
 }
 
 /* ---------- רשימת הקבצים ---------- */
@@ -3380,8 +3442,16 @@ const FileList = (() => {
     rows.style.transform = `translateY(${firstRow * layout.rowHeight}px)`;
     rows.style.setProperty('--per-row', perRow);
     rows.innerHTML = html;
+    announceActive(list);
 
     if (prefs.mode === 'grid') Thumbs.fill(rows);
+  }
+
+  /// הקובץ הפעיל — לקורא המסך, שמקריא אותו כשהמיקוד על הרשימה.
+  function announceActive(list) {
+    const row = activeIndex >= 0 && document.getElementById('file-' + activeIndex);
+    if (row) list.setAttribute('aria-activedescendant', row.id);
+    else list.removeAttribute('aria-activedescendant');
   }
 
   // ------------------------------------------------- גלריה עם כותרות חודש
@@ -3443,6 +3513,7 @@ const FileList = (() => {
     rowsEl.style.transform = `translateY(${rows[first].top}px)`;
     rowsEl.style.setProperty('--per-row', perRow);
     rowsEl.innerHTML = html;
+    announceActive(list);
     Thumbs.fill(rowsEl);
   }
 
@@ -3534,13 +3605,22 @@ const FileList = (() => {
   }
 
   function checkbox(f) {
-    return `<input type="checkbox"${f.selected ? ' checked' : ''}${f.recoverable ? '' : ' disabled'}>`;
+    return `<input type="checkbox" tabindex="-1" aria-hidden="true"${f.selected ? ' checked' : ''}${f.recoverable ? '' : ' disabled'}>`;
+  }
+
+  /// הקובץ כפריט ברשימה לקורא מסך: שם, גודל, סיכוי השחזור, ואם סומן לשחזור.
+  function optionAttrs(f, index) {
+    const quality = f.evidence ? 'עדות בלבד' : f.emptyContent ? 'ריק' : f.qualityLabel;
+    const label = `${f.name}, ${formatSize(f.size).replace(/[\u2066\u2069]/g, '')}, ${quality}${f.deleted ? ', נמחק' : ''}` +
+                  (f.recoverable ? '' : ', לא ניתן לשחזור');
+    return `id="file-${index}" role="option" aria-selected="${!!f.selected}" aria-posinset="${index + 1}" ` +
+           `aria-setsize="${total}" aria-label="${esc(label)}"`;
   }
 
   function rowHtml(f, index) {
     return `
       <div class="frow${f.recoverable ? '' : ' unrecoverable'}${isActive(f, index) ? ' active' : ''}"
-           data-id="${f.id}" data-index="${index}">
+           data-id="${f.id}" data-index="${index}" ${optionAttrs(f, index)}>
         <label class="frow-chk">${checkbox(f)}</label>
         <div class="frow-name">
           <span class="frow-icon">${Icon.file}</span>
@@ -3572,7 +3652,7 @@ const FileList = (() => {
 
     return `
       <div class="tile${f.recoverable ? '' : ' unrecoverable'}${isActive(f, index) ? ' active' : ''}"
-           data-id="${f.id}" data-index="${index}"${f.thumb && thumb === undefined ? ' data-thumb="1"' : ''}>
+           data-id="${f.id}" data-index="${index}"${f.thumb && thumb === undefined ? ' data-thumb="1"' : ''} ${optionAttrs(f, index)}>
         <label class="tile-chk">${checkbox(f)}</label>
         <div class="tile-pic">${picture}</div>
         <div class="tile-name" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}"><bdi>${esc(f.name)}</bdi></div>
@@ -3997,7 +4077,7 @@ function openRecoverPanel() {
 
       <div class="section-label">תיקיית יעד</div>
       <div class="target-row">
-        <input type="text" id="target-path" readonly placeholder="לא נבחרה תיקייה">
+        <input type="text" id="target-path" readonly placeholder="לא נבחרה תיקייה" aria-label="תיקיית היעד לשחזור">
         <button class="btn" id="btn-pick">${Icon.folder}<span>בחירה</span></button>
       </div>
       <div id="target-status"></div>
@@ -4208,3 +4288,125 @@ function reportDiagnostics() {
 }
 
 init();
+
+/* =====================================================================
+   נגישות: מקלדת וקוראי מסך
+   ===================================================================== */
+
+/// מה שקורה בכל חלון, בלי שכל חלון יצטרך לדאוג לזה בעצמו:
+/// - בפתיחה המיקוד עובר לכותרת החלון, וקורא המסך מקריא אותה. גם כשתוכן החלון
+///   מתחלף (שלב הבא באותו חלון) — אם המיקוד נשאר על משהו שנמחק.
+/// - Tab מסתובב בתוך החלון, ולא בורח אל המסך שמאחוריו.
+/// - בסגירה המיקוד חוזר למקום שממנו החלון נפתח.
+/// ובכל התוכנה: אנטר ורווח מפעילים גם אלמנט שמתנהג ככפתור בלי להיות כפתור.
+const A11y = (() => {
+  const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), ' +
+                    'textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+  const overlays = [el('help-overlay'), el('overlay')];
+  const returnTo = new Map();
+
+  const openPanel = () => overlays.find((o) => !o.hidden)?.querySelector('.panel');
+
+  function focusTitle(panel) {
+    const title = panel.querySelector('.panel-title, .help-title, h2, h3');
+    if (title) {
+      if (!title.id) title.id = panel.id + '-title';
+      if (!panel.hasAttribute('aria-label')) panel.setAttribute('aria-labelledby', title.id);
+      title.tabIndex = -1;
+      title.focus({ preventScroll: true });
+    } else {
+      panel.tabIndex = -1;
+      panel.focus({ preventScroll: true });
+    }
+  }
+
+  for (const overlay of overlays) {
+    const panel = overlay.querySelector('.panel');
+
+    new MutationObserver(() => {
+      if (!overlay.hidden) {
+        if (!returnTo.has(overlay)) returnTo.set(overlay, document.activeElement);
+        if (!panel.contains(document.activeElement)) focusTitle(panel);
+      } else if (returnTo.has(overlay)) {
+        const back = returnTo.get(overlay);
+        returnTo.delete(overlay);
+        if (back && back.isConnected && typeof back.focus === 'function') back.focus({ preventScroll: true });
+      }
+    }).observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
+
+    // תוכן חדש באותו חלון: המיקוד היה על כפתור שנמחק — חוזר לכותרת החדשה.
+    new MutationObserver(() => {
+      if (overlay.hidden) return;
+      const title = panel.querySelector('.panel-title, .help-title');
+      if (title && !title.id) title.id = panel.id + '-title';
+      if (title && !panel.hasAttribute('aria-label')) panel.setAttribute('aria-labelledby', title.id);
+      if (!panel.contains(document.activeElement)) focusTitle(panel);
+    }).observe(panel, { childList: true });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    // Tab בתוך חלון פתוח
+    if (e.key === 'Tab') {
+      const panel = openPanel();
+      if (!panel) return;
+      const items = [...panel.querySelectorAll(FOCUSABLE)].filter((n) => n.getClientRects().length > 0);
+      if (items.length === 0) { e.preventDefault(); return; }
+      const first = items[0], last = items[items.length - 1];
+      if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || !items.includes(document.activeElement) && document.activeElement.tabIndex === -1)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      return;
+    }
+
+    // אנטר ורווח על אלמנט שמתנהג ככפתור
+    if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+      const t = e.target;
+      if (t instanceof HTMLElement && t.getAttribute('role') === 'button' &&
+          !['BUTTON', 'A', 'INPUT', 'SUMMARY', 'TEXTAREA', 'SELECT'].includes(t.tagName)) {
+        e.preventDefault();
+        t.click();
+      }
+    }
+  });
+
+  // פסי התקדמות: כל פס מזוהה כפס התקדמות, עם האחוז העדכני; השלב שמעליו מוקרא כשהוא מתחלף.
+  let stages = 0;
+  function tagProgress(root) {
+    root.querySelectorAll?.('.progress-track:not([role])').forEach((track) => {
+      track.setAttribute('role', 'progressbar');
+      track.setAttribute('aria-valuemin', '0');
+      track.setAttribute('aria-valuemax', '100');
+      // השם של הפס הוא השלב שמעליו — ומתעדכן איתו.
+      const stage = track.closest('.progress-card')?.querySelector('.progress-stage');
+      if (stage) {
+        if (!stage.id) stage.id = 'progress-stage-' + ++stages;
+        track.setAttribute('aria-labelledby', stage.id);
+      } else {
+        track.setAttribute('aria-label', 'התקדמות');
+      }
+    });
+    root.querySelectorAll?.('.progress-stage:not([aria-live])').forEach((s) => s.setAttribute('aria-live', 'polite'));
+  }
+  new MutationObserver((changes) => {
+    for (const c of changes) {
+      if (c.type === 'childList') { c.addedNodes.forEach((n) => n.nodeType === 1 && tagProgress(n)); continue; }
+      const fill = c.target;
+      if (!fill.classList?.contains('progress-fill')) continue;
+      const track = fill.parentElement;
+      if (!track.hasAttribute('role')) tagProgress(track.parentElement);
+      const pct = Math.round(parseFloat(fill.style.width) || 0);
+      if (fill.classList.contains('indeterminate')) track.removeAttribute('aria-valuenow');
+      else if (track.getAttribute('aria-valuenow') !== String(pct)) track.setAttribute('aria-valuenow', String(pct));
+    }
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+
+  // עץ התיקיות ורשימת הקבצים מתחלפים עם כל תוצאות — החיבור ברמת המסמך.
+  document.addEventListener('keydown', (e) => { if (e.target.closest?.('#tree')) treeKey(e); }, true);
+  document.addEventListener('focusin', (e) => {
+    // מי שמגיע ברשימה במקלדת בלי קובץ פעיל — מתחיל בראשון.
+    if (e.target.id === 'filelist' && !e.target.getAttribute('aria-activedescendant') && FileList.total > 0)
+      FileList.key(new KeyboardEvent('keydown', { key: 'Home' }));
+  });
+
+  return { focusTitle };
+})();
