@@ -72,7 +72,8 @@ public sealed class RecoveredFile
     /// <summary>הנתיב המלא כפי ששוחזר. ריק כשלא ניתן היה לשחזר נתיב.</summary>
     public string Path { get; set; } = "";
 
-    public long Size { get; init; }
+    /// <summary>הגודל בבתים. משתנה אחרי הסריקה רק כשהאורך האמיתי נקרא מתוך הקובץ (ראו ChkFiles).</summary>
+    public long Size { get; set; }
     public bool IsDirectory { get; init; }
     public bool IsDeleted { get; init; }
 

@@ -304,7 +304,8 @@ public sealed class NtfsScanner
 
         if (record.FileNames.Count == 0) return false;
 
-        return includeExisting || !record.InUse;
+        // קבצים שבדיקת הדיסק השאירה (FILE0000.CHK) קיימים, אבל הם שחזור לכל דבר — ראו ChkFiles.
+        return includeExisting || !record.InUse || ChkFiles.IsChkName(record.PreferredName()?.Name);
     }
 
     /// <summary>רישום הרשומה במפת התיקיות, לשימוש בשחזור הנתיבים.</summary>

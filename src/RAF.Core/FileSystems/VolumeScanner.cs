@@ -47,16 +47,19 @@ public static class VolumeScanner
 
         return AfterMetadataScan(ScanMetadataAsync(
             kind, diskNumber, partitionOffset, partitionSize, sectorSize, mode, includeExisting, trim, progress, token),
-            file => FileContentReader.ReadHead(kind, diskNumber, partitionOffset, partitionSize, sectorSize, file, 4096));
+            file => FileContentReader.ReadHead(kind, diskNumber, partitionOffset, partitionSize, sectorSize, file, 4096),
+            files => IdentifyChkFiles(files, kind, diskNumber, partitionOffset, partitionSize, sectorSize));
     }
 
     /// <summary>
     /// אחרי סריקת מטא-דאטה: קבצים מסל המחזור מקבלים את שמם המקורי (ראו RecycleBinNames),
-    /// ואז קבצים מחוקים שקובץ מחוק מאוחר יותר תפס את אשכולותיהם מדורגים מחדש —
+    /// קבצים שבדיקת הדיסק השאירה מקבלים את הסוג שלהם (ראו ChkFiles), ואז קבצים
+    /// מחוקים שקובץ מחוק מאוחר יותר תפס את אשכולותיהם מדורגים מחדש —
     /// מפת ההקצאה לבדה אינה רואה זאת (ראו OverlapCheck). השמות קודם, כדי שגם
     /// ההסבר על דריסה יציג את השם האמיתי של הקובץ שדרס.
     /// </summary>
-    private static async Task<ScanResult> AfterMetadataScan(Task<ScanResult> scan, Func<RecoveredFile, byte[]> read)
+    private static async Task<ScanResult> AfterMetadataScan(
+        Task<ScanResult> scan, Func<RecoveredFile, byte[]> read, Func<List<RecoveredFile>, int> identifyChk)
     {
         var result = await scan.ConfigureAwait(false);
 
@@ -64,11 +67,31 @@ public static class VolumeScanner
         if (named > 0)
             result.Warnings.Add($"{named:N0} קבצים ותיקיות שנמחקו דרך סל המחזור קיבלו בחזרה את השם והתיקייה המקוריים.");
 
+        int typed = identifyChk(result.Files);
+        if (typed > 0)
+            result.Warnings.Add($"{typed:N0} קבצים שבדיקת הדיסק של Windows השאירה בתיקיית FOUND בלי שם " +
+                                "זוהו לפי התוכן שלהם וקיבלו בחזרה את הסוג הנכון.");
+
         int changed = OverlapCheck.Apply(result.Files);
         if (changed > 0)
             result.Warnings.Add($"{changed:N0} קבצים מחוקים דורגו מחדש: קובץ מחוק אחר, שנכתב אחריהם, " +
                                 "נכתב במקום שלהם בכונן — גם אם עכשיו המקום נראה פנוי.");
         return result;
+    }
+
+    /// <summary>זיהוי קבצי CHK מתוך המחיצה, שנפתחת פעם אחת לכולם.</summary>
+    private static int IdentifyChkFiles(
+        List<RecoveredFile> files, FileSystemKind kind,
+        int diskNumber, long partitionOffset, long partitionSize, int sectorSize)
+    {
+        var candidates = ChkFiles.Candidates(files);
+        if (candidates.Count == 0) return 0;
+
+        using var reader = VolumeReader.TryOpen(diskNumber, partitionOffset, partitionSize, sectorSize, sequential: false);
+        if (reader is null) return 0;
+
+        using var volume = Open(reader, kind, sectorSize);
+        return volume is null ? 0 : ChkFiles.Apply(candidates, volume);
     }
 
     private static Task<ScanResult> ScanMetadataAsync(

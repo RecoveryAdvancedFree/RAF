@@ -108,8 +108,10 @@ public sealed class ExFatScanner
                 byte[] child = _volume.ReadChain(extents, 4 * 1024 * 1024);
                 _bytesRead += child.Length;
 
+                // מה שבדיקת הדיסק השאירה ב-FOUND.000 קיים, אבל הוא שחזור לכל דבר — ראו ChkFiles.
                 string childPath = string.IsNullOrEmpty(path) ? entry.Name : path + "\\" + entry.Name;
-                WalkDirectory(child, childPath, files, includeExisting, progress, clock, token, depth + 1);
+                WalkDirectory(child, childPath, files, includeExisting || ChkFiles.IsFoundFolder(entry.Name),
+                              progress, clock, token, depth + 1);
                 continue;
             }
 
