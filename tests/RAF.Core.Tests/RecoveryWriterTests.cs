@@ -138,4 +138,30 @@ public class RecoveryWriterTests : IDisposable
         Assert.True(File.Exists(first.ReportPath));
         Assert.True(File.Exists(second.ReportPath));
     }
+
+    [Fact]
+    public async Task Readme_explains_the_folder_and_a_second_recovery_adds_its_own_section()
+    {
+        byte[] image = new byte[ImageSectors * Sector];
+        Pattern(600, 5).CopyTo(image, 5 * Sector);
+        Pattern(4 * Sector, 6).CopyTo(image, 60 * Sector);
+
+        await Recover(image, File_(1, "x.txt", "", 600, 5, 2));
+        string readme = Path.Combine(_target, RecoveryWriter.ReadmeName);
+        string once = File.ReadAllText(readme, Encoding.UTF8);
+
+        Assert.Contains("שוחזר קובץ אחד (600 בתים).", once);
+        Assert.DoesNotContain(RecoveryWriter.PartialFolderName, once);   // אין חלקיים — אין הסבר עליהם
+        Assert.Contains("RAF-report-", once);
+
+        await Recover(image, File_(1, "y.jpg", "", 10 * Sector, 60, 10));
+        string twice = File.ReadAllText(readme, Encoding.UTF8);
+
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(twice, "הסבר על התיקייה הזו"));
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(twice, "^שחזור מ-", System.Text.RegularExpressions.RegexOptions.Multiline).Count);
+        Assert.Contains("שוחזר קובץ אחד (5 KB), חלקית.", twice);
+        Assert.Contains(RecoveryWriter.PartialFolderName + " —", twice);
+        Assert.True(twice.IndexOf(", חלקית.", StringComparison.Ordinal)
+                    < twice.IndexOf("(600 בתים)", StringComparison.Ordinal), "השחזור החדש אמור להופיע ראשון");
+    }
 }

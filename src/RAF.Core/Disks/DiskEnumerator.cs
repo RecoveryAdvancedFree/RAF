@@ -89,6 +89,16 @@ public static class DiskEnumerator
     private static readonly TimeSpan VolumeLimit = TimeSpan.FromSeconds(3);
 
     /// <summary>מניית כל הדיסקים הפיזיים והמחיצות שעליהם.</summary>
+    /// <summary>
+    /// הדיסק הפיזי שמאחורי מספר דיסק. כונן BitLocker שנפתח דרך האות שלו מקבל
+    /// מספר וירטואלי — אבל הוא יושב על דיסק פיזי, וזה הדיסק שאסור לכתוב אליו.
+    /// -1 אם לא ניתן לדעת.
+    /// </summary>
+    public static int PhysicalDiskOf(int number)
+        => DevicePaths.ImagePathOf(number) is { } path && DevicePaths.IsVolumePath(path)
+            ? GetDiskNumberForPath(path[4..] + "\\")
+            : number;
+
     public static List<PhysicalDiskInfo> EnumerateDisks() => EnumerateDisks(null);
 
     /// <summary>

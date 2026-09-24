@@ -28,6 +28,10 @@ internal static class FileSystemIdentifier
         if (Matches(head, 3, "EXFAT   "))
             return new Result(FileSystemKind.ExFat, "");
 
+        // --- BitLocker: מזהה OEM בהיסט 3. מערכת הקבצים שבפנים מוצפנת ---
+        if (Matches(head, 3, "-FVE-FS-"))
+            return new Result(FileSystemKind.BitLocker, "");
+
         // --- ReFS ---
         if (Matches(head, 3, "ReFS"))
             return new Result(FileSystemKind.ReFS, "");
@@ -116,6 +120,7 @@ internal static class FileSystemIdentifier
         FileSystemKind.Ext => "ext2/3/4",
         FileSystemKind.Apfs => "APFS",
         FileSystemKind.Hfs => "HFS+",
+        FileSystemKind.BitLocker => "BitLocker",
         FileSystemKind.Raw => "לא מזוהה",
         _ => "לא ידוע",
     };

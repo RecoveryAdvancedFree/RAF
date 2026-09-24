@@ -32,10 +32,15 @@ internal sealed partial class Bridge
     private static string? UnsafeFolder(string folder, int sourceDisk)
     {
         if (sourceDisk < 0) return null;
+        // תמונה היא קובץ — העותק, לא הכונן. כונן BitLocker פתוח הוא הכונן עצמו.
+        int physical = DiskEnumerator.PhysicalDiskOf(sourceDisk);
+        bool image = DevicePaths.IsImage(sourceDisk) && physical == sourceDisk;
+        if (physical < 0) return "לא ניתן לוודא שהתיקייה אינה על הדיסק שממנו משחזרים.";
+        sourceDisk = physical;
         int target = DiskEnumerator.GetDiskNumberForPath(folder);
         if (target == sourceDisk)
             return "התיקייה נמצאת על הדיסק שממנו משחזרים — כתיבה אליו עלולה לדרוס קבצים שעוד לא שוחזרו.";
-        if (target < 0 && !DevicePaths.IsImage(sourceDisk))
+        if (target < 0 && !image)
             return "לא ניתן לוודא שהתיקייה אינה על הדיסק שממנו משחזרים.";
         return null;
     }

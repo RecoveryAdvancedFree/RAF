@@ -221,6 +221,8 @@ const Icon = {
   history: '<svg viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4.5h4.5"/><path d="M12 7.5V12l3 2"/></svg>',
   disk: '<svg viewBox="0 0 24 24"><path d="M5 3.5h11l3.5 3.5v12a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5Z"/><path d="M8 3.5v5h7v-5"/><rect x="7.5" y="13" width="9" height="7.5" rx="1"/></svg>',
   list: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><path d="M12 15v2"/></svg>',
+  help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.9"/><path d="M12 17h.01"/></svg>',
   grid: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
 };
 
@@ -291,6 +293,109 @@ el('btn-min').onclick = () => Bridge.call('window.minimize');
 el('btn-tray').onclick = () => Bridge.call('window.toTray');
 el('btn-max').onclick = () => Bridge.call('window.toggleMaximize');
 el('btn-close').onclick = () => Bridge.call('window.close');
+
+/* ------------------------------------------------------- שאלות נפוצות */
+
+/// שאלות נפוצות — בשכבה משלהן, כך שאפשר לפתוח אותן גם באמצע סריקה או
+/// מעל לוח פתוח, בלי לאבד אותו.
+const Help = (() => {
+  const FAQ = [
+    ['מה אסור לעשות עכשיו?', `
+      <ul>
+        <li><b>לא לשמור שום דבר</b> על הכונן שממנו משחזרים — לא קבצים, לא תוכנות. כל קובץ חדש עלול לדרוס קבצים שעוד אפשר להציל.</li>
+        <li><b>לא לפרמט</b>, גם אם Windows מבקש.</li>
+        <li><b>לא להריץ "בדיקת שגיאות"</b> (chkdsk) — היא "מתקנת" על ידי מחיקה של מה שלא מסתדר לה.</li>
+        <li><b>לשחזר תמיד לכונן אחר</b> — התוכנה לא תאפשר לשחזר לאותו כונן.</li>
+      </ul>`],
+    ['באיזו סריקה להתחיל?', `
+      <ol>
+        <li><b>סריקה מהירה</b> — שניות עד דקות. מוצאת קבצים שנמחקו לאחרונה, עם השמות והתיקיות.</li>
+        <li>לא מצאה? <b>סריקה עמוקה</b> — יותר זמן, ומוצאת גם קבצים ישנים יותר. רוב השמות נשמרים.</li>
+        <li>אחרי פירמוט או נזק כבד: <b>סריקה מתקדמת</b> — מחפשת קבצים לפי התוכן שלהם, בכל הכונן. היא מוצאת הכי הרבה, אבל בלי שמות ותיקיות.</li>
+      </ol>`],
+    ['Windows אומר שצריך לפרמט את הכונן. מה עושים?', `
+      לוחצים <b>ביטול</b>. ברוב המקרים הקבצים עדיין שם — רק תחילת המחיצה ניזוקה.
+      ברשימת הכוננים לוחצים על המחיצה, והתוכנה בודקת מה קרה ומציעה את הדרך הבטוחה: קודם העתקת הקבצים עם השמות, בלי לכתוב לכונן,
+      ורק אחר כך, אם רוצים, תיקון של המחיצה עצמה.`],
+    ['למה לקבצים מהסריקה המתקדמת אין שמות?', `
+      השם והתיקייה של קובץ שמורים בטבלה של מערכת הקבצים, לא בתוך הקובץ עצמו. אחרי פירמוט הטבלה הזו נמחקת,
+      והסריקה המתקדמת מוצאת את הקבצים לפי התוכן שלהם — ולכן הם מקבלים מספר במקום שם, ומסודרים בתיקיות לפי הסוג.
+      כדאי לעבור עליהם בתצוגת הגלריה.`],
+    ['קובץ ששוחזר לא נפתח, או נפתח חלקית. למה?', `
+      כנראה שחלק מהמקום שהקובץ תפס כבר נכתב מחדש על ידי קובץ אחר. מה אפשר לעשות:
+      <ul>
+        <li>ברשימת הכוננים: <b>תיקון קבצים שלא נפתחים</b> — גוררים את הקבצים לחלון.</li>
+        <li>סרטון שלא מתנגן אפשר לתקן בעזרת סרטון תקין שצולם באותו מכשיר.</li>
+        <li>בתמונה פגומה נשמרת לפעמים גרסה קטנה ושלמה שלה, ליד הקובץ.</li>
+      </ul>`],
+    ['מה אומרת האיכות שליד כל קובץ?', `
+      <ul>
+        <li><b>מצוין</b> — המקום שהקובץ תפס עדיין פנוי. הוא צפוי לחזור במלואו.</li>
+        <li><b>טוב</b> — ייתכן שחלק קטן נדרס.</li>
+        <li><b>פגום חלקית</b> — חלק ניכר נדרס. הקובץ יחזור, אבל כנראה פגום.</li>
+        <li><b>לא ניתן לשחזור</b> — ידוע שהקובץ היה קיים, אבל לא נשאר מידע איפה התוכן שלו.</li>
+      </ul>`],
+    ['למה בכונן SSD כמעט לא מוצאים קבצים שנמחקו?', `
+      רוב כונני ה-SSD מוחקים בעצמם את התוכן של קבצים שנמחקו, זמן קצר אחרי המחיקה (התכונה נקראת TRIM).
+      אחרי שזה קרה, אף תוכנה לא יכולה להחזיר אותם. ליד כונן כזה מופיע השבב "TRIM פעיל".
+      בדיסק-און-קי, בכרטיס זיכרון ובדיסק קשיח רגיל זה בדרך כלל לא קורה.`],
+    ['הכונן איטי, משמיע רעשים או נתקע', `
+      זה סימן שהכונן נכשל, וכל קריאה נוספת עלולה להחמיר את המצב. במקום לסרוק אותו שוב ושוב:
+      לוחצים <b>יצירת תמונת דיסק</b> — התוכנה מעתיקה את הכונן פעם אחת לקובץ על כונן אחר, קודם את מה שנקרא בקלות,
+      ואז סורקים את ההעתק כמה שרוצים. אם הכונן מדווח על מצב הבריאות שלו, הוא מופיע ליד שמו.`],
+    ['אפשר לעצור סריקה ולהמשיך אחר כך?', `
+      כן. בסריקה מתקדמת יש כפתור <b>השהיה</b>, ואפשר להמשיך גם אחרי שסוגרים את התוכנה — או אם הכונן נותק באמצע.
+      כל סריקה נשמרת אוטומטית, ומופיעה ב<b>סריקות אחרונות</b> במסך הכוננים.`],
+    ['אפשר לשחזר מהטלפון?', `
+      מהזיכרון הפנימי של הטלפון — לא. טלפונים לא מאפשרים למחשב לקרוא את הזיכרון שלהם כמו כונן.
+      אם בטלפון יש <b>כרטיס זיכרון</b>, מוציאים אותו ומחברים למחשב דרך קורא כרטיסים — ואותו אפשר לסרוק.`],
+    ['הכונן נעול ב-BitLocker', `
+      קודם פותחים את הנעילה ב-Windows (לחיצה כפולה על הכונן בסייר הקבצים, עם הסיסמה או מפתח השחזור),
+      ואז לוחצים על המחיצה ברשימה ובוחרים <b>פתיחה לסריקה</b>. בלי הסיסמה או המפתח אין דרך לקרוא את הקבצים.`],
+    ['האם התוכנה כותבת משהו לכונן?', `
+      לא, חוץ משתי פעולות שמבקשים במפורש: <b>תיקון המחיצה</b> ו<b>החזרה לטבלה</b> של מחיצה שנמחקה.
+      לפני כל אחת מהן התוכנה שומרת גיבוי של מה שהיא משנה, ומחזירה אותו אוטומטית אם משהו נכשל.
+      סריקה, שחזור ויצירת תמונת דיסק רק קוראים מהכונן.`],
+  ];
+
+  function open() {
+    el('help-panel').innerHTML = `
+      <div class="panel-head">
+        <div class="grow">
+          <div class="panel-title">שאלות נפוצות</div>
+          <div class="panel-sub">לחצו על שאלה כדי לראות את התשובה</div>
+        </div>
+        <button class="panel-close" id="help-close" aria-label="סגירה">${Icon.close}</button>
+      </div>
+      <div class="panel-body">
+        <div class="faq">
+          ${FAQ.map(([q, a]) => `<details><summary>${q}</summary><div class="faq-a">${a}</div></details>`).join('')}
+        </div>
+      </div>`;
+    el('help-overlay').hidden = false;
+    el('help-close').onclick = close;
+  }
+
+  function close() {
+    el('help-overlay').hidden = true;
+    el('help-panel').innerHTML = '';
+  }
+
+  const isOpen = () => !el('help-overlay').hidden;
+
+  el('btn-help').innerHTML = Icon.help;
+  el('btn-help').onclick = () => (isOpen() ? close() : open());
+  el('help-overlay').addEventListener('mousedown', (e) => {
+    if (e.target === el('help-overlay')) close();
+  });
+  // Escape סוגר קודם את השאלות, ורק בלחיצה נוספת את הלוח שמתחתן.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F1') { e.preventDefault(); isOpen() ? close() : open(); }
+    else if (e.key === 'Escape' && isOpen()) { e.stopImmediatePropagation(); close(); }
+  }, true);
+
+  return { open, close };
+})();
 
 // כפתורים בשורת הכותרת — שליטת חלון ושלבים שאפשר לחזור אליהם — אינם גוררים את החלון.
 const NOT_DRAG = '.win-btn, .step.link';
@@ -765,7 +870,9 @@ function renderDisk(disk) {
   const countText = count === 0 ? 'ללא מחיצות'
     : count === 1 ? 'מחיצה אחת' : `${count} מחיצות`;
 
-  const sub = disk.isImage
+  const sub = disk.isVolume
+    ? `כונן מוצפן שנקרא דרך Windows · ${formatSize(disk.size)}`
+    : disk.isImage
     ? `<span class="ltr-inline">${esc(disk.imagePath)}</span> · ${formatSize(disk.size)} · ${countText}`
     : `דיסק ${disk.number} · ${esc(disk.mediaLabel)} · ${disk.size > 0 ? formatSize(disk.size) : 'גודל לא ידוע'} · ${countText}`;
 
@@ -774,9 +881,9 @@ function renderDisk(disk) {
     actions.push(`<button class="btn btn-sm" data-hunt-disk="${disk.number}" title="חיפוש מחיצות שנמחקו או שאבדו בכל הכונן">${Icon.search}<span>סריקת כונן</span></button>`);
   }
   if (disk.isImage) {
-    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>סגירת התמונה</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>${disk.isVolume ? 'סגירה' : 'סגירת התמונה'}</span></button>`);
   } else if (disk.rawAccessible) {
-    actions.push(`<button class="btn btn-sm" data-image-disk="${disk.number}" title="העתקת הדיסק כולו לקובץ, וסריקה מתוכו">${Icon.copy}<span>יצירת תמונה</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-image-disk="${disk.number}" title="העתקת הדיסק כולו לקובץ, וסריקה מתוכו">${Icon.copy}<span>יצירת תמונת דיסק</span></button>`);
   }
 
   const notes = [];
@@ -845,8 +952,13 @@ function renderPartition(disk, p) {
     tags.push('<span class="chip warn">לא מחוברת</span>');
   }
   if (p.found && p.readThrough) tags.push('<span class="chip ok">נקראת דרך הגיבוי</span>');
+  if (p.fs === 'BitLocker') {
+    tags.push(p.unlocked
+      ? '<span class="chip ok" title="הנעילה נפתחה ב-Windows — אפשר לסרוק">נעילה פתוחה</span>'
+      : '<span class="chip warn" title="הכונן מוצפן. פתחו אותו ב-Windows כדי לסרוק">נעול</span>');
+  }
   if (p.bootable) tags.push('<span class="chip">אתחול</span>');
-  if (!p.found && !p.scannable && p.fs !== 'Unknown') tags.push('<span class="chip">לא נתמכת לסריקה</span>');
+  if (!p.found && !p.scannable && p.fs !== 'Unknown' && p.fs !== 'BitLocker') tags.push('<span class="chip">לא נתמכת לסריקה</span>');
 
   let bar = '<div class="part-bar-wrap"><div class="part-bar-text">נפח לא זמין</div></div>';
   if (p.used !== null && p.used !== undefined && p.size > 0) {
@@ -1267,6 +1379,74 @@ function scanTechDetails() {
     </details>`;
 }
 
+/// מחיצת BitLocker. הדיסק הפיזי מחזיר רק תוכן מוצפן; אחרי שהנעילה נפתחת
+/// ב-Windows, התוכנה קוראת את המחיצה דרך Windows — מפוענחת — כדיסק נוסף ברשימה.
+function openBitLockerPanel(disk, part) {
+  const letter = part.letter ? `<bdi>${esc(part.letter)}</bdi>` : '';
+  const body = part.unlocked
+    ? `${notice('ok-notice', Icon.lock, 'הנעילה פתוחה',
+        `התוכנה תקרא את הכונן ${letter} דרך Windows, שמפענח אותו. הוא יופיע ברשימה ככונן נוסף, ` +
+        'ואפשר יהיה להריץ עליו כל סוג סריקה — גם סריקה מתקדמת.',
+        'BitLocker מצפין את כל המחיצה, כולל המקום שבו יושבים קבצים שנמחקו. קריאה ישירה מהכונן ' +
+        'מחזירה רק תוכן מוצפן; דרך Windows כל אזור נקרא מפוענח.')}
+       ${notice('info', Icon.shield, 'קריאה בלבד',
+        'שום דבר לא ייכתב לכונן. אל תנעלו אותו מחדש ואל תנתקו אותו עד סוף השחזור.')}`
+    : `${notice('warn', Icon.lock, 'הכונן נעול ב-BitLocker',
+        'התוכן שלו מוצפן, ולכן אי אפשר לסרוק אותו לפני שפותחים את הנעילה ב-Windows.')}
+       <div class="section-label" style="margin-top:14px">איך פותחים את הנעילה</div>
+       <ol class="image-steps">
+         ${letter
+           ? `<li>פתחו את <b>סייר הקבצים</b> ולחצו פעמיים על הכונן <b>${letter}</b>. Windows יבקש סיסמה או מפתח שחזור.</li>`
+           : '<li>לכונן אין אות כונן, ולכן Windows לא מציע לפתוח אותו. אם הוא חיצוני — נתקו וחברו אותו מחדש; ' +
+             'אחרת פתחו את <b>ניהול דיסקים</b> של Windows והקצו לו אות.</li>'}
+         <li>אין סיסמה? <b>מפתח השחזור</b> הוא מספר של 48 ספרות. הוא נשמר בדרך כלל בחשבון Microsoft של
+           מי שהגדיר את המחשב (בכתובת <span class="ltr-inline">aka.ms/myrecoverykey</span>), או הודפס ונשמר בקובץ כשההצפנה הופעלה.</li>
+         <li>אחרי שהכונן נפתח, חזרו לכאן ולחצו <b>רענון</b>. ליד המחיצה יופיע "נעילה פתוחה".</li>
+       </ol>
+       ${notice('info', Icon.info, 'בלי המפתח אין דרך לשחזר',
+        'ההצפנה נועדה בדיוק לזה: בלי סיסמה או מפתח שחזור אף תוכנה לא יכולה לקרוא את הקבצים.',
+        'אם Windows לא מצליח לפתוח את הכונן גם עם המפתח הנכון, כנראה שאזור הניהול של ההצפנה ניזוק. ' +
+        'במקרה כזה כדאי ליצור תמונת דיסק ולפנות למעבדת שחזור.', 'spaced')}`;
+
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">${esc(partTitle(part))}</div>
+        <div class="panel-sub">${esc(disk.name)} · BitLocker · ${formatSize(part.size)}</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+    </div>
+    <div class="panel-body">${body}<div id="bitlocker-status"></div></div>
+    <div class="panel-foot">
+      ${part.unlocked
+        ? `<button class="btn btn-primary" id="btn-bitlocker-open">${Icon.lock}<span>פתיחה לסריקה</span></button>`
+        : `<button class="btn btn-primary" id="btn-bitlocker-refresh">${Icon.refresh}<span>רענון</span></button>`}
+      <button class="btn" id="btn-cancel-bitlocker">ביטול</button>
+    </div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-cancel-bitlocker').onclick = closePanel;
+
+  const refresh = el('btn-bitlocker-refresh');
+  if (refresh) refresh.onclick = async () => { closePanel(); await loadDisks(); };
+
+  const open = el('btn-bitlocker-open');
+  if (open) open.onclick = async () => {
+    open.disabled = true;
+    try {
+      const r = await Bridge.call('bitlocker.open', { disk: disk.number, part: part.index }, 0);
+      closePanel();
+      State.openDisks.add(r.number);
+      await loadDisks();
+      openScanPanel(r.number, 0);
+    } catch (err) {
+      open.disabled = false;
+      el('bitlocker-status').innerHTML = errorNotice('לא ניתן לפתוח את הכונן', err, 'spaced');
+    }
+  };
+}
+
 function findPart(diskNumber, partIndex) {
   const disk = State.disks.find((d) => d.number === diskNumber);
   if (!disk) return null;
@@ -1282,6 +1462,12 @@ function openScanPanel(diskNumber, partIndex) {
   const found = findPart(diskNumber, partIndex);
   if (!found) return;
   const { disk, part } = found;
+
+  // מחיצה מוצפנת: אבחון ותיקון לא רלוונטיים — וכתיבה אליה הייתה הורסת אותה.
+  if (part.fs === 'BitLocker' && !part.found) {
+    openBitLockerPanel(disk, part);
+    return;
+  }
 
   // מחיצה שמערכת הקבצים שלה אינה נקראת מקבלת קודם אבחון:
   // ייתכן שניתן לתקן אותה, וזה עדיף על שחזור קבצים בודדים.
@@ -1428,10 +1614,10 @@ async function openRepairPanel(disk, part) {
     ${repairBlock}
 
     <div class="section-label" style="margin-top:18px">
-      ${d.canRepair ? 'אפשרות 3 — ' : ''}חיפוש קבצים לפי סוגם
+      ${d.canRepair ? 'אפשרות 3 — ' : ''}סריקה מתקדמת
     </div>
     <div class="strategy">
-      <p>סריקה מתקדמת עובדת גם במחיצה שאינה נקראת כלל. ${d.canRepair
+      <p>סריקה מתקדמת מחפשת קבצים לפי התוכן שלהם, ועובדת גם במחיצה שאינה נקראת כלל. ${d.canRepair
         ? 'אבל הקבצים יימצאו בלי שמות — השתמשו בה רק אם אפשרות 1 לא מצאה את מה שחיפשתם.'
         : 'לא נמצא עותק גיבוי, ולכן זו הדרך להציל את הקבצים — בלי שמות מקוריים ובלי תיקיות.'}</p>
     </div>
@@ -1442,8 +1628,8 @@ async function openRepairPanel(disk, part) {
     <div class="panel-foot">
       ${d.canRepair ? `<button class="btn btn-primary" id="btn-read-through">${Icon.copy}<span>העתקת קבצים עם שמות</span></button>` : ''}
       ${d.canRepair ? `<button class="btn" id="btn-repair">${Icon.wrench}<span>תיקון המחיצה</span></button>` : ''}
-      <button class="btn ${d.canRepair ? '' : 'btn-primary'}" id="btn-recover-raw">${Icon.radar}<span>חיפוש לפי סוג קובץ</span></button>
-      ${disk.isImage || !disk.rawAccessible ? '' : `<button class="btn" id="btn-image-raw">${Icon.copy}<span>יצירת תמונה</span></button>`}
+      <button class="btn ${d.canRepair ? '' : 'btn-primary'}" id="btn-recover-raw">${Icon.radar}<span>סריקה מתקדמת</span></button>
+      ${disk.isImage || !disk.rawAccessible ? '' : `<button class="btn" id="btn-image-raw">${Icon.copy}<span>יצירת תמונת דיסק</span></button>`}
       ${part.found ? `<button class="btn" id="btn-restore-raw">${Icon.layers}<span>החזרה לטבלה</span></button>` : ''}
       <button class="btn" id="btn-cancel-repair">ביטול</button>
     </div>`);
@@ -1599,7 +1785,7 @@ function openImagePanel(disk, part) {
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
-        <div class="panel-title">יצירת תמונה</div>
+        <div class="panel-title">יצירת תמונת דיסק</div>
         <div class="panel-sub">${esc(title)}${part ? ' · ' + esc(disk.name) : ''} · ${formatSize(size)}</div>
       </div>
       <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
@@ -1627,7 +1813,7 @@ function openImagePanel(disk, part) {
         'spaced')}
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-start-image" disabled>${Icon.copy}<span>יצירת תמונה</span></button>
+      <button class="btn btn-primary" id="btn-start-image" disabled>${Icon.copy}<span>יצירת תמונת דיסק</span></button>
       <button class="btn" id="btn-cancel-image">ביטול</button>
     </div>`;
 
@@ -1707,7 +1893,7 @@ async function startImaging(disk, part, request) {
       <div class="scan-head">
         <div class="scan-icon">${Icon.copy}</div>
         <div>
-          <div class="page-title">יצירת תמונה</div>
+          <div class="page-title">יצירת תמונת דיסק</div>
           <div class="page-desc">${esc(title)} ← <span class="ltr-inline">${esc(request.path)}</span></div>
         </div>
       </div>

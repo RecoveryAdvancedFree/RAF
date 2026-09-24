@@ -16,6 +16,7 @@ internal static class Display
         FileSystemKind.Ext => "ext2/3/4",
         FileSystemKind.Apfs => "APFS",
         FileSystemKind.Hfs => "HFS+",
+        FileSystemKind.BitLocker => "BitLocker",
         FileSystemKind.Raw => "לא מזוהה",
         _ => "לא ידוע",
     };

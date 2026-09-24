@@ -22,6 +22,9 @@ public sealed class RecoveryOptions
 
     /// <summary>האם לדלג על קבצים שההערכה היא שתוכנם נדרס.</summary>
     public bool SkipUnrecoverable { get; init; } = true;
+
+    /// <summary>תיאור המקור לקובץ ההסבר — המחיצה והכונן שמהם שוחזר.</summary>
+    public string Source { get; init; } = "";
 }
 
 /// <summary>דיווח התקדמות שוטף של פעולת השחזור.</summary>
@@ -101,6 +104,12 @@ public static class RecoveryWriter
         }
 
         int targetDisk = DiskEnumerator.GetDiskNumberForPath(full);
+
+        sourceDiskNumber = DiskEnumerator.PhysicalDiskOf(sourceDiskNumber);
+        if (sourceDiskNumber < 0)
+            throw new InvalidOperationException(
+                "לא ניתן לוודא על איזה דיסק יושב הכונן שממנו משחזרים, ולכן גם לא שהיעד אינו עליו. " +
+                "ודאו שהכונן עדיין מחובר ופתוח, ונסו שוב.");
 
         // זהו הכלל החשוב ביותר בשחזור מידע: כתיבה לדיסק המקור
         // דורסת בדיוק את האשכולות שטרם שוחזרו.
@@ -270,6 +279,15 @@ public static class RecoveryWriter
             // הדוח הוא תוספת; כישלון בכתיבתו אינו מבטל שחזור שהצליח.
         }
 
+        try
+        {
+            WriteReadme(options, entries, reportPath, clock.Elapsed, token.IsCancellationRequested);
+        }
+        catch
+        {
+            // גם קובץ ההסבר הוא תוספת בלבד.
+        }
+
         return new RecoveryReport
         {
             Succeeded = succeeded,
@@ -362,6 +380,102 @@ public static class RecoveryWriter
 
         File.WriteAllText(path, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         return path;
+    }
+
+    /// <summary>שם קובץ ההסבר בתיקיית היעד.</summary>
+    public const string ReadmeName = "קרא אותי.txt";
+
+    /// <summary>
+    /// קובץ הסבר בעברית בתיקיית היעד — למי שפותח אותה אחר כך, או מקבל אותה ממישהו
+    /// אחר, ולא יודע מה זו "_חלקיים" או הדוח. כל שחזור מוסיף פרק משלו לראש הקובץ,
+    /// כך ששחזור שני לאותה תיקייה אינו מוחק את מה שנכתב על הראשון.
+    /// </summary>
+    internal static void WriteReadme(
+        RecoveryOptions options, List<RecoveryEntry> entries, string? reportPath, TimeSpan duration, bool cancelled)
+    {
+        var recovered = entries.Where(e => e.Status is RecoveryStatus.Recovered or RecoveryStatus.Partial
+                                           && e.Destination is not null).ToList();
+        if (recovered.Count == 0) return;
+
+        // התמונות המוקטנות נרשמות בדוח כשורה נוספת לאותו קובץ — לא נספרות כקובץ משוחזר.
+        static bool IsPreview(RecoveryEntry e)
+            => Path.GetFileName(e.Destination!).Contains("(תמונה מוקטנת", StringComparison.Ordinal);
+        int previews = recovered.Count(IsPreview);
+        recovered.RemoveAll(IsPreview);
+
+        int partial = recovered.Count(e => e.Status == RecoveryStatus.Partial);
+        int notWritten = entries.Count(e => e.Status is RecoveryStatus.Empty or RecoveryStatus.Failed or RecoveryStatus.Skipped);
+        long bytes = recovered.Sum(e => e.Size);
+
+        var t = new StringBuilder();
+        t.AppendLine($"שחזור מ-{DateTime.Now:dd.MM.yyyy} בשעה {DateTime.Now:HH:mm}");
+        t.AppendLine(new string('-', 40));
+        if (options.Source.Length > 0) t.AppendLine($"המקור: {options.Source}");
+        t.AppendLine((recovered.Count == 1 ? "שוחזר קובץ אחד" : $"שוחזרו {recovered.Count:N0} קבצים")
+                     + $" ({FormatSize(bytes)})"
+                     + (partial == 0 ? "." : recovered.Count == 1 ? ", חלקית." : $", מהם {partial:N0} חלקית."));
+        if (notWritten > 0)
+            t.AppendLine(notWritten == 1 ? "קובץ אחד לא נכתב — הסיבה בדוח."
+                                         : $"{notWritten:N0} קבצים לא נכתבו — הסיבה לכל אחד מהם בדוח.");
+        if (cancelled) t.AppendLine("השחזור נעצר באמצע, ולכן לא כל הקבצים שנבחרו נמצאים כאן.");
+        t.AppendLine($"משך השחזור: {(int)duration.TotalMinutes} דקות ו-{duration.Seconds} שניות.");
+        t.AppendLine();
+
+        t.AppendLine("מה יש בתיקייה");
+        t.AppendLine(options.PreservePaths
+            ? "• הקבצים ששוחזרו במלואם — באותן תיקיות שבהן היו במקור."
+            : "• הקבצים ששוחזרו במלואם — כולם ישירות בתיקייה הזו, בלי מבנה התיקיות המקורי.");
+        t.AppendLine("  קבצים שנמצאו בסריקה מתקדמת מסודרים בתיקיות לפי הסוג שלהם, ובלי השמות המקוריים —");
+        t.AppendLine("  הסריקה הזו מוצאת קבצים לפי התוכן שלהם, והשם לא נשמר בתוכן.");
+        if (partial > 0)
+        {
+            t.AppendLine($"• {PartialFolderName} — קבצים שחלק מהם לא נקרא מהכונן. החלק החסר נכתב כאפסים:");
+            t.AppendLine("  בתמונה זה נראה כפס אפור או כתמונה שנקטעת, בסרטון — כקפיצה או כסוף מוקדם.");
+            t.AppendLine("  לפעמים הם נפתחים בכל זאת. אל תמחקו אותם לפני שבדקתם.");
+        }
+        if (previews > 0)
+            t.AppendLine("• קבצים ששמם מסתיים ב\"(תמונה מוקטנת)\" — גרסה קטנה ושלמה של תמונה פגומה, שנמצאה בתוך התמונה עצמה.");
+        if (reportPath is not null)
+        {
+            t.AppendLine($"• {Path.GetFileName(reportPath)} — דוח מלא: לכל קובץ, מאיפה הגיע, לאן נכתב ומה קרה לו.");
+            t.AppendLine("  נפתח באקסל. העמודה SHA-256 היא \"טביעת אצבע\" של הקובץ — לבדיקה שהוא לא השתנה מאז.");
+        }
+        t.AppendLine();
+
+        t.AppendLine("קובץ לא נפתח?");
+        t.AppendLine("1. נסו לפתוח אותו בתוכנה אחרת — לפעמים תוכנה אחת מוותרת ואחרת מצליחה.");
+        t.AppendLine("2. בתוכנת השחזור, במסך הכוננים: \"תיקון קבצים שלא נפתחים\". אפשר פשוט לגרור את הקבצים לחלון.");
+        t.AppendLine("   שם יש גם תיקון לסרטון שלא מתנגן, בעזרת סרטון תקין שצולם באותו מכשיר.");
+        t.AppendLine("3. עדיין חסרים קבצים? נסו סוג סריקה אחר — עמוקה או מתקדמת.");
+        t.AppendLine();
+        t.AppendLine("חשוב: עד שתסיימו לשחזר, אל תשמרו שום דבר על הכונן שממנו שחזרתם —");
+        t.AppendLine("כל קובץ חדש שנכתב אליו עלול לדרוס קבצים שעוד אפשר להציל.");
+        t.AppendLine();
+        t.AppendLine();
+
+        string path = Path.Combine(options.TargetFolder, ReadmeName);
+        string previous = "";
+        try
+        {
+            if (File.Exists(path)) previous = File.ReadAllText(path, Encoding.UTF8);
+        }
+        catch (IOException) { }
+        const string title = "שחזור מתקדם חינם — הסבר על התיקייה הזו";
+        if (previous.StartsWith(title, StringComparison.Ordinal))
+            previous = previous[title.Length..].TrimStart('\r', '\n', '=');
+        previous = previous.TrimStart('\r', '\n');
+
+        string header = title + Environment.NewLine + new string('=', 40) + Environment.NewLine + Environment.NewLine;
+        File.WriteAllText(path, header + t + previous, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        string[] units = { "בתים", "KB", "MB", "GB", "TB" };
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return unit == 0 ? $"{bytes:N0} בתים" : $"{value:0.#} {units[unit]}";
     }
 
     /// <summary>

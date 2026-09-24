@@ -61,6 +61,67 @@ public static class ImageDisk
     public static void Close(int number) => DevicePaths.UnregisterImage(number);
 
     /// <summary>
+    /// מחיצת BitLocker שנפתחה ב-Windows, כדיסק וירטואלי שנקרא דרך האות שלה.
+    /// קריאה מהדיסק הפיזי מחזירה תוכן מוצפן; דרך <c>\\.\E:</c> Windows מפענח
+    /// כל סקטור — גם במקום הפנוי, שבו יושבים הקבצים שנמחקו. כך כל הסריקות,
+    /// כולל סריקה מתקדמת, עובדות עליה כרגיל. הכתיבה אליה חסומה ב-<see cref="RawWriter"/>.
+    /// </summary>
+    public static PhysicalDiskInfo OpenUnlockedVolume(string letter, long size, int sectorSize, string title)
+    {
+        string path = DevicePaths.VolumePathOf(letter);
+        int number = DevicePaths.RegisterImage(path);
+
+        try
+        {
+            using var device = RawDevice.TryOpen(path, sectorSize)
+                ?? throw new IOException(RawDevice.OpenFailure("הכונן"));
+
+            var fs = FileSystemIdentifier.Identify(device.ReadBlock(0, Math.Max(2048, sectorSize)));
+            if (fs.Kind == FileSystemKind.BitLocker)
+                throw new InvalidOperationException("הכונן עדיין נעול. פתחו אותו קודם ב-Windows, עם הסיסמה או מפתח השחזור.");
+
+            var kind = fs.Kind == FileSystemKind.Unknown ? FileSystemKind.Raw : fs.Kind;
+            string drive = path[4..];
+
+            return new PhysicalDiskInfo
+            {
+                DiskNumber = number,
+                Model = $"{title} — BitLocker פתוח",
+                BusType = "דרך Windows",
+                SizeBytes = size,
+                LogicalSectorSize = sectorSize,
+                PhysicalSectorSize = sectorSize,
+                Media = MediaKind.Image,
+                Trim = TrimState.NotSupported,
+                Scheme = PartitionScheme.SuperFloppy,
+                RawAccessible = true,
+                Partitions = new List<PartitionInfo>
+                {
+                    new()
+                    {
+                        Index = 0,
+                        DiskNumber = number,
+                        OffsetBytes = 0,
+                        SizeBytes = size,
+                        FileSystem = kind,
+                        Label = fs.Label,
+                        DriveLetter = drive,
+                        TypeName = FileSystemIdentifier.DisplayName(kind),
+                    },
+                },
+                ImagePath = path,
+                ImageNote = $"הכונן המוצפן {drive} נקרא דרך Windows, שמפענח אותו. " +
+                            "הקריאה בלבד — שום דבר לא נכתב אליו. אל תנעלו אותו מחדש עד סוף השחזור.",
+            };
+        }
+        catch
+        {
+            DevicePaths.UnregisterImage(number);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// תמונה של מחיצה בודדת נקראת כמחיצה אחת. זה חשוב: מגזר האתחול של
     /// מחיצה נושא את החתימה 55 AA כמו MBR, וקריאתו כטבלת מחיצות הייתה
     /// מפענחת קוד אתחול כאילו היו אלה רשומות מחיצה.

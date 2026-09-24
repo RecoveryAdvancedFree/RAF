@@ -20,7 +20,7 @@ public static class DevicePaths
     /// <summary>רישום קובץ תמונה. קובץ שכבר נרשם מקבל את אותו מספר.</summary>
     public static int RegisterImage(string imagePath)
     {
-        string full = Path.GetFullPath(imagePath);
+        string full = IsDevicePath(imagePath) ? imagePath : Path.GetFullPath(imagePath);
 
         foreach (var pair in Images)
             if (string.Equals(pair.Value, full, StringComparison.OrdinalIgnoreCase))
@@ -48,4 +48,11 @@ public static class DevicePaths
 
     /// <summary>האם הנתיב הוא התקן (ולא קובץ רגיל).</summary>
     internal static bool IsDevicePath(string path) => path.StartsWith(@"\\.\", StringComparison.Ordinal);
+
+    /// <summary>נתיב של מחיצה מחוברת לפי האות שלה (\\.\E:) — נקראת דרך Windows, אחרי פענוח BitLocker.</summary>
+    public static bool IsVolumePath(string path)
+        => path.Length == 6 && IsDevicePath(path) && char.IsAsciiLetter(path[4]) && path[5] == ':';
+
+    /// <summary>הנתיב שדרכו Windows מציג מחיצה מחוברת, לפי אות הכונן ("E:" או "E:\").</summary>
+    public static string VolumePathOf(string letter) => $@"\\.\{char.ToUpperInvariant(letter.TrimStart()[0])}:";
 }

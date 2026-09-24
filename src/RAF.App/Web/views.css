@@ -757,7 +757,7 @@
 .part-letter.is-image { font-size: 11px; color: var(--violet); background: var(--violet-soft); border-color: var(--violet-line); }
 
 /* ---------- מתג ערכת נושא ---------- */
-.theme-btn svg { width: 15px; height: 15px; }
+.theme-btn svg, .help-btn svg { width: 15px; height: 15px; }
 .theme-btn { margin-inline-end: 8px; }
 
 /* ---------- כוננים מקופלים ---------- */
@@ -853,3 +853,25 @@
 .type-pick svg { width: 13px; height: 13px; opacity: 0; }
 .type-pick.on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--text); }
 .type-pick.on svg { opacity: 1; color: var(--accent); }
+
+/* ---------- שאלות נפוצות ---------- */
+.help-overlay { z-index: 600; }
+.faq { border-top: 1px solid var(--border); }
+.faq details { border-bottom: 1px solid var(--border); }
+.faq summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 2px; font-weight: 650; font-size: 13.5px;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::before {
+  content: '▾'; font-size: 11px; color: var(--text-faint);
+  transform: rotate(90deg); transition: transform 0.15s;
+}
+.faq details[open] summary::before { transform: none; }
+.faq summary:hover { color: var(--accent); }
+.faq .faq-a {
+  padding: 0 20px 14px; line-height: 1.7; font-size: 13px; color: var(--text-dim);
+}
+.faq .faq-a ul, .faq .faq-a ol { margin: 4px 0; padding-inline-start: 20px; }
+.faq .faq-a b { color: var(--text); }

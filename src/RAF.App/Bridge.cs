@@ -5,6 +5,7 @@ using RAF.Core.Disks;
 using RAF.Core.FileSystems;
 using RAF.Core.FileSystems.Ntfs;
 using RAF.Core.Imaging;
+using RAF.Core.Native;
 using RAF.Core.Model;
 using RAF.Core.Recovery;
 using RAF.Core.Repair;
@@ -101,6 +102,7 @@ internal sealed partial class Bridge
         "image.cancel" => Cancel(_imageCancel),
         "image.open" => OpenImage(p),
         "image.close" => CloseImage(p),
+        "bitlocker.open" => OpenUnlockedVolume(p),
 
         "scan.start" => await Tracked(LongOperation.Scan, () => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
@@ -262,6 +264,7 @@ internal sealed partial class Bridge
         problem = d.Problem,
         isImage = d.ImagePath is not null,
         imagePath = d.ImagePath,
+        isVolume = d.ImagePath is { } path && DevicePaths.IsVolumePath(path),
         imageNote = d.ImageNote,
         imageDamaged = d.ImageDamaged,
         partitions = d.Partitions.Select(PartitionDto).ToList(),
@@ -285,6 +288,8 @@ internal sealed partial class Bridge
         bootable = p.IsBootable,
         hidden = p.IsHidden,
         unmounted = p.IsUnmounted,
+        // מחיצת BitLocker שנפתחה ב-Windows: יש לה אות, ו-Windows מדווח על המקום הפנוי בה.
+        unlocked = p.FileSystem == FileSystemKind.BitLocker && p.DriveLetter.Length > 0 && p.FreeBytes.HasValue,
         readThrough = _readThrough.ContainsKey((p.DiskNumber, p.OffsetBytes)),
         found = p.Index >= FoundIndexBase,
         foundInfo = FoundInfo(p),
@@ -905,7 +910,13 @@ internal sealed partial class Bridge
         var report = await RecoveryWriter.RecoverAsync(
             session.FileSystem,
             session.DiskNumber, session.PartitionOffset, session.PartitionSize, session.SectorSize,
-            files, new RecoveryOptions { TargetFolder = target, PreservePaths = preservePaths },
+            files, new RecoveryOptions
+            {
+                TargetFolder = target, PreservePaths = preservePaths,
+                Source = session.Disk.ImagePath is { } image && !DevicePaths.IsVolumePath(image)
+                    ? $"{session.PartitionTitle} · תמונת דיסק {Path.GetFileName(image)}"
+                    : $"{session.PartitionTitle} · {session.Disk.Model}",
+            },
             progress, _recoverCancel.Token);
 
         return new
@@ -1234,6 +1245,24 @@ internal sealed partial class Bridge
         _images.Add(disk);
 
         return new { number = (int?)disk.DiskNumber };
+    }
+
+    /// <summary>
+    /// מחיצת BitLocker שנפתחה ב-Windows — כדיסק נוסף ברשימה, שנקרא דרך Windows
+    /// ולכן מפוענח. אם הוא כבר פתוח, מוחזר אותו מספר.
+    /// </summary>
+    private object OpenUnlockedVolume(JsonObject? p)
+    {
+        var (disk, part) = FindPartition(p);
+        if (part.FileSystem != FileSystemKind.BitLocker || part.DriveLetter.Length == 0)
+            throw new InvalidOperationException("המחיצה אינה כונן BitLocker עם אות כונן.");
+
+        string title = string.IsNullOrWhiteSpace(part.Label) ? $"כונן {part.DriveLetter}" : $"{part.Label} ({part.DriveLetter})";
+        var volume = ImageDisk.OpenUnlockedVolume(part.DriveLetter, part.SizeBytes, disk.LogicalSectorSize, title);
+        _images.RemoveAll(d => d.DiskNumber == volume.DiskNumber);
+        _images.Add(volume);
+
+        return new { number = volume.DiskNumber };
     }
 
     private object? CloseImage(JsonObject? p)

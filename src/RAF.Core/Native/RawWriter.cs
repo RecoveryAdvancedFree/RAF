@@ -26,6 +26,11 @@ internal sealed class RawWriter : IDisposable
     /// <summary>פתיחת התקן לכתיבה. מחזיר null אם אין הרשאה או שההתקן נעול.</summary>
     internal static RawWriter? TryOpen(string devicePath, int sectorSize)
     {
+        // כונן BitLocker פתוח נקרא דרך האות שלו (\\.\E:) — לעולם לא כותבים אליו:
+        // כתיבה שם הייתה עוברת הצפנה ונוחתת על הנתונים שמנסים להציל.
+        if (DevicePaths.IsVolumePath(devicePath))
+            throw new InvalidOperationException("כונן שנפתח דרך Windows הוא לקריאה בלבד — התוכנה אינה כותבת אליו.");
+
         IntPtr handle = Win32.CreateFile(
             devicePath,
             Win32.GENERIC_READ | Win32.GENERIC_WRITE,
