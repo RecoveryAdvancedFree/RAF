@@ -30,6 +30,12 @@ public sealed class FileCarver
 
     /// <summary>המקום הפנוי במחיצה, כשסורקים רק אותו. null — סורקים הכול.</summary>
     private FreeSpaceMap? _free;
+
+    /// <summary>
+    /// אילו סוגים נכנסים לתוצאות — רעיון מהתוכנה "משיב". null — כל הסוגים. סוג שלא
+    /// נבחר עדיין מזוהה ומדולג, כדי שתמונה שבתוך מסמך לא תדווח כתמונה נפרדת.
+    /// </summary>
+    internal Func<FileSignature, bool>? Accept { get; set; }
     private long _bytesRead;
     private long _candidates;
 
@@ -42,8 +48,9 @@ public sealed class FileCarver
         int diskNumber, long partitionOffset, long partitionSize, int sectorSize,
         IProgress<ScanProgress>? progress, CancellationToken token,
         Action<ScanResult>? checkpoint = null,
-        FileSystemKind fileSystem = FileSystemKind.Raw, bool freeSpaceOnly = false)
-        => Task.Run(() => new FileCarver().Run(
+        FileSystemKind fileSystem = FileSystemKind.Raw, bool freeSpaceOnly = false,
+        Func<FileSignature, bool>? accept = null)
+        => Task.Run(() => new FileCarver { Accept = accept }.Run(
             diskNumber, partitionOffset, partitionSize, sectorSize, progress, token, checkpoint,
             fileSystem, freeSpaceOnly), token);
 
@@ -184,15 +191,17 @@ public sealed class FileCarver
                 var resolved = FileLength.Resolve(signature, volume, absolute, size - absolute);
                 if (resolved.Bytes < 64) continue;
 
+                bool wanted = Accept is null || Accept(signature);
+
                 // JPEG נשלח לפענוח ברקע. עד שהתוצאה חוזרת, הקובץ נרשם לפי המבנה.
-                if (signature.Extensions.FirstOrDefault() == "jpg")
+                if (wanted && signature.Extensions.FirstOrDefault() == "jpg")
                 {
                     var check = StartJpegCheck(volume, absolute, resolved.Bytes);
                     if (check is not null)
                         pending.Add(new PendingJpeg(files.Count, absolute, resolved, signature, check));
                 }
 
-                files.Add(Materialize(signature, resolved, absolute, sectorSize, files.Count));
+                if (wanted) files.Add(Materialize(signature, resolved, absolute, sectorSize, files.Count));
 
                 // דילוג על גוף הקובץ רק כשגבולו ודאי. ניחוש אורך היה מסתיר
                 // את כל מה שיושב אחרי הקובץ — ובסריקה על כונן אמיתי כך

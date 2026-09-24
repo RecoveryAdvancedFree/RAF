@@ -147,6 +147,33 @@ public class CarvingTests : IDisposable
         _ = bmp;
     }
 
+    /// <summary>
+    /// סריקה לפי סוגים: רק הסוג שנבחר נכנס לתוצאות — אבל גם השאר מזוהים ומדולגים,
+    /// כדי שתמונה שבתוך ארכיון לא תדווח כתמונה נפרדת.
+    /// </summary>
+    [Fact]
+    public void Only_the_chosen_types_are_reported_and_the_others_are_still_skipped()
+    {
+        Place(RealFormats.Png(3000, 1));
+        Place(RealFormats.Wav(20_000, 2));
+        // PNG שארוז בתוך ZIP, בלי דחיסה, בגבול סקטור: אם גוף הארכיון לא היה מדולג,
+        // הוא היה נמצא כתמונה נפרדת.
+        byte[] inner = RealFormats.Png(2000, 3);
+        byte[] zip = [0x50, 0x4B, 0x03, 0x04, .. new byte[SectorSize - 4], .. inner,
+                      0x50, 0x4B, 0x05, 0x06, .. new byte[16], 5, 0, .. "hello"u8];
+        Place(zip);
+        Place(RealFormats.Gif());
+
+        var volume = Open();
+        var carver = new FileCarver
+        {
+            Accept = s => s.Extensions.Any(e => e is "png" or "gif" or "jpg" or "bmp"),
+        };
+        var files = carver.Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None).Files;
+
+        Assert.Equal(new[] { "gif", "png" }, files.Select(f => f.Extension).OrderBy(e => e).ToArray());
+    }
+
     [Fact]
     public void Mkv_length_is_where_its_segment_says_it_ends()
     {

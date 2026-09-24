@@ -1984,6 +1984,14 @@ async function showStrategy(disk, part, modeId) {
       </div>
     </div>
 
+    ${modeId === 3 ? `
+    <div class="section-label" style="margin-top:16px">אילו סוגי קבצים לחפש</div>
+    <div class="type-picks" id="type-picks">
+      ${CATEGORIES.filter((c) => c.id !== 'all').map((c) => `
+        <button type="button" class="type-pick on" data-type="${c.id}">${Icon.check}<span>${c.label}</span></button>`).join('')}
+    </div>
+    <p class="switch-note">בחירה של סוגים מסוימים מקצרת את רשימת התוצאות ומתמקדת במה שמחפשים.</p>` : ''}
+
     ${modeId === 3 && part.scannable ? `
     <label class="switch">
       <input type="checkbox" id="opt-free-only" checked>
@@ -2007,15 +2015,24 @@ async function showStrategy(disk, part, modeId) {
     </div>`);
 
   el('btn-back').onclick = () => openScanPanel(disk.number, part.index);
+  // סוגי הקבצים: לחיצה מדליקה ומכבה; אי אפשר לכבות את כולם.
+  document.querySelectorAll('.type-pick').forEach((b) => {
+    b.onclick = () => {
+      if (b.classList.contains('on') && document.querySelectorAll('.type-pick.on').length === 1) return;
+      b.classList.toggle('on');
+    };
+  });
+
   el('btn-start').onclick = () => startScan(disk, part, modeId, el('opt-include-existing').checked,
-    !!el('opt-free-only')?.checked);
+    !!el('opt-free-only')?.checked,
+    [...document.querySelectorAll('.type-pick.on')].map((b) => b.dataset.type));
 }
 
 /* =====================================================================
    מסך 2 — סריקה מתבצעת
    ===================================================================== */
 
-async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = false) {
+async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = false, types = null) {
   closePanel();
   Steps.set(2);
   State.scan = { disk, part, mode: modeId };
@@ -2068,7 +2085,7 @@ async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = fa
   try {
     // ללא מגבלת זמן: סריקה עמוקה על דיסק גדול עשויה להימשך שעות.
     const summary = await longCall('scan.start', {
-      disk: disk.number, part: part.index, mode: modeId, includeExisting, freeSpaceOnly,
+      disk: disk.number, part: part.index, mode: modeId, includeExisting, freeSpaceOnly, types,
     });
 
     State.summary = summary;

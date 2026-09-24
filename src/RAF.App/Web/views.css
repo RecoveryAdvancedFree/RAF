@@ -804,3 +804,15 @@
 .preview-media.audio { margin: 18px 0; }
 
 .switch-note { font-size: 12px; color: var(--text-dim); margin: 6px 4px 0; line-height: 1.6; }
+
+/* ---------- בחירת סוגי קבצים לסריקה המתקדמת ---------- */
+.type-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.type-pick {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--surface-2);
+  font-family: inherit; font-size: 13px; color: var(--text-dim); cursor: pointer;
+}
+.type-pick svg { width: 13px; height: 13px; opacity: 0; }
+.type-pick.on { border-color: var(--accent-line); background: var(--accent-soft); color: var(--text); }
+.type-pick.on svg { opacity: 1; color: var(--accent); }

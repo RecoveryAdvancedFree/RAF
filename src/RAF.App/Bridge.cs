@@ -329,6 +329,13 @@ internal sealed partial class Bridge
         bool includeExisting = p?["includeExisting"]?.GetValue<bool>() ?? false;
         bool freeSpaceOnly = p?["freeSpaceOnly"]?.GetValue<bool>() ?? false;
 
+        // סוגי הקבצים שנבחרו (קטגוריות של FileCategories). חסר, או כולן — הכול.
+        var types = p?["types"]?.AsArray()?.Select(n => n!.GetValue<string>()).ToHashSet();
+        Func<RAF.Core.Signatures.FileSignature, bool>? accept =
+            types is null || types.Count == 0 || types.Count >= FileCategories.Ordered.Length + 1
+                ? null
+                : signature => signature.Extensions.Any(e => types.Contains(FileCategories.Of(e)));
+
         var disk = FindDisk(diskNumber);
         var part = disk.Partitions.FirstOrDefault(x => x.Index == partIndex)
                    ?? throw new InvalidOperationException("המחיצה לא נמצאה. רענן את רשימת הדיסקים.");
@@ -383,7 +390,7 @@ internal sealed partial class Bridge
             disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize,
             mode, includeExisting, disk.Trim, progress, token,
             checkpoint: snapshot => Autosave(Session(snapshot), partial: true),
-            freeSpaceOnly: freeSpaceOnly);
+            freeSpaceOnly: freeSpaceOnly, accept: accept);
 
         _session = Session(result);
         var session = _session;
