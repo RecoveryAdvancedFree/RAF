@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -116,6 +117,7 @@ internal sealed partial class Bridge
         "scan.list" => ListView(p),
         "scan.select" => Select(p),
         "scan.folderStates" => FolderStates(p),
+        "scan.duplicates" => await HideDuplicatesAsync(p),
         "scan.preview" => await Task.Run(() => Preview(p)),
         "scan.thumb" => await Task.Run(() => Thumbnail(p)),
         "scan.summary" => Summary(),
@@ -555,7 +557,14 @@ internal sealed partial class Bridge
         o["category"]?.GetValue<string>() ?? FileCategories.All,
         o["recoverableOnly"]?.GetValue<bool>() ?? false,
         Enum.TryParse<ViewSort>(o["sort"]?.GetValue<string>(), true, out var sort) ? sort : ViewSort.Name,
-        o["desc"]?.GetValue<bool>() ?? false);
+        o["desc"]?.GetValue<bool>() ?? false,
+        Day(o["from"]), Day(o["to"]),
+        o["minSize"]?.GetValue<long>() ?? 0);
+
+    /// <summary>תאריך מהממשק ("yyyy-MM-dd"), או null.</summary>
+    private static DateTime? Day(JsonNode? n)
+        => DateTime.TryParseExact(n?.GetValue<string>(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+               DateTimeStyles.None, out var d) ? d : null;
 
     /// <summary>
     /// טווח שורות מתוך הרשימה המוצגת. הממשק מבקש רק את מה שנראה על המסך,
@@ -577,6 +586,38 @@ internal sealed partial class Bridge
             files = view.Skip(offset).Take(count).Select(f => FileDto(session, f)),
             counts = offset == 0 ? session.CategoryCounts(query) : null,
             selection = offset == 0 ? SelectionDto(session.Summary(query)) : null,
+            groups = offset == 0 ? session.Groups(query).Select(g => new { label = g.Label, start = g.Start, count = g.Count }) : null,
+            // קבצים בלי תאריך אינם נכנסים לסינון לפי תאריך — בסריקה מתקדמת אלה כמעט כולם.
+            undated = offset == 0 ? session.UndatedCount(query) : 0,
+        };
+    }
+
+    /// <summary>
+    /// הסתרת כפילויות. בפעם הראשונה המנוע משווה קבצים באותו גודל בדיוק, ולכן
+    /// זו פעולה ארוכה (longCall); אחר כך התוצאה שמורה.
+    /// </summary>
+    private async Task<object> HideDuplicatesAsync(JsonObject? p)
+    {
+        var session = RequireSession();
+        bool on = p?["on"]?.GetValue<bool>() ?? true;
+
+        Func<RecoveredFile, byte[]?> readHead = session.Offline
+            ? _ => null
+            : f =>
+            {
+                try
+                {
+                    return FileContentReader.ReadHead(session.FileSystem, session.DiskNumber, session.PartitionOffset,
+                        session.PartitionSize, session.SectorSize, f, Duplicates.HeadBytes);
+                }
+                catch (Exception) { return null; }
+            };
+
+        var (hidden, bytes, deselected) = await Task.Run(() => session.SetHideDuplicates(on, readHead, CancellationToken.None));
+        return new
+        {
+            hidden, bytes, deselected,
+            selection = SelectionDto(session.Summary(null)),
         };
     }
 

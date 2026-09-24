@@ -222,6 +222,37 @@
 
 .toggle.small { padding: 4px 9px; }
 
+/* שורת סינון שנייה: תאריך, גודל, ניתנים לשחזור, כפילויות */
+.list-filters {
+  flex-basis: 100%;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px;
+}
+.filter-select,
+.date-range input {
+  height: 28px; padding: 0 8px;
+  font-family: inherit; font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color-scheme: light dark;
+  cursor: pointer;
+}
+.filter-select:hover, .date-range input:hover { border-color: var(--border-strong); color: var(--text); }
+.date-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-faint); }
+.date-range[hidden] { display: none; }
+
+/* כותרת חודש בגלריה, כשממיינים לפי תאריך */
+.grid-group {
+  grid-column: 1 / -1;
+  height: 32px;
+  display: flex; align-items: flex-end; gap: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.grid-group b { font-size: 14px; font-weight: 650; }
+.grid-group span { font-size: 12px; color: var(--text-faint); }
+
 .view-switch {
   display: flex; flex-shrink: 0;
   border: 1px solid var(--border); border-radius: var(--radius-sm);

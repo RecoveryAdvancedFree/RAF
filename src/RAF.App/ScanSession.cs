@@ -9,11 +9,19 @@ namespace RAF.App;
 /// </summary>
 internal sealed record ViewQuery(
     string Path, string? Search, bool Evidence,
-    string Category, bool RecoverableOnly, ViewSort Sort, bool Descending)
+    string Category, bool RecoverableOnly, ViewSort Sort, bool Descending,
+    DateTime? From = null, DateTime? To = null, long MinSize = 0)
 {
     /// <summary>החלק שקובע אילו קבצים נכנסים לרשימה, לפני סינון לפי קטגוריה ומיון.</summary>
-    internal (string, string?, bool, bool) Source => (Path, Search, Evidence, RecoverableOnly);
+    internal (string, string?, bool, bool, DateTime?, DateTime?, long) Source
+        => (Path, Search, Evidence, RecoverableOnly, From, To, MinSize);
+
+    /// <summary>סינון לפי תאריך פעיל — קבצים בלי תאריך אינם נכנסים אליו.</summary>
+    internal bool FiltersDate => From is not null || To is not null;
 }
+
+/// <summary>כותרת בגלריה: חודש, והטווח שלו ברשימה הממוינת לפי תאריך.</summary>
+internal readonly record struct ViewGroup(string Label, int Start, int Count);
 
 internal enum ViewSort { Name, Size, Date, Quality }
 
@@ -231,13 +239,30 @@ internal sealed class ScanSession
     }
 
     private (ViewQuery Query, List<RecoveredFile> Files)? _view;
-    private ((string, string?, bool, bool) Key, List<RecoveredFile> Files)? _source;
+    private ((string, string?, bool, bool, DateTime?, DateTime?, long) Key, List<RecoveredFile> Files)? _source;
 
     /// <summary>הקבצים שנכנסים לרשימה לפני סינון הקטגוריה — גם הבסיס לספירות שבשבבים.</summary>
     private List<RecoveredFile> Source(ViewQuery query)
     {
         if (_source is { } cached && cached.Key == query.Source) return cached.Files;
 
+        var list = Collect(query).ToList();
+        _source = (query.Source, list);
+        return list;
+    }
+
+    /// <summary>
+    /// כמה קבצים נשארו מחוץ לסינון לפי תאריך כי אין להם תאריך — בסריקה מתקדמת
+    /// אלה כמעט כולם, והממשק צריך לומר זאת. בלי לגעת במטמון הרשימה המוצגת.
+    /// </summary>
+    internal int UndatedCount(ViewQuery query)
+        => !query.FiltersDate ? 0
+           : Collect(query with { From = null, To = null })
+               .Count(f => f.Modified is null &&
+                           (query.Category == FileCategories.All || FileCategories.Of(f.Extension) == query.Category));
+
+    private IEnumerable<RecoveredFile> Collect(ViewQuery query)
+    {
         IEnumerable<RecoveredFile> files = string.IsNullOrWhiteSpace(query.Search)
             ? FilesIn(query.Path, query.Evidence)
             : Result.Files.Where(f => !f.IsDirectory &&
@@ -245,10 +270,71 @@ internal sealed class ScanSession
                                       f.Name.Contains(query.Search, StringComparison.OrdinalIgnoreCase));
 
         if (query.RecoverableOnly) files = files.Where(f => f.IsWorthRecovering);
+        if (query.MinSize > 0) files = files.Where(f => f.Size >= query.MinSize);
+        if (query.From is { } from) files = files.Where(f => f.Modified >= from);
+        if (query.To is { } to) files = files.Where(f => f.Modified < to);
+        if (_hidden is { } hidden) files = files.Where(f => !hidden.ContainsKey(f.Id));
+        return files;
+    }
 
-        var list = files.ToList();
-        _source = (query.Source, list);
-        return list;
+    /// <summary>
+    /// חודשים ברשימה הממוינת לפי תאריך — לכותרות בגלריה. קבצים בלי תאריך
+    /// מקובצים יחד (בסוף, כמו במיון). בכל מיון אחר אין קבוצות.
+    /// </summary>
+    internal List<ViewGroup> Groups(ViewQuery query)
+    {
+        var groups = new List<ViewGroup>();
+        if (query.Sort != ViewSort.Date) return groups;
+
+        var view = View(query);
+        var hebrew = System.Globalization.CultureInfo.GetCultureInfo("he-IL");
+        int start = 0;
+        for (int i = 1; i <= view.Count; i++)
+        {
+            if (i < view.Count && SameMonth(view[i].Modified, view[start].Modified)) continue;
+            groups.Add(new ViewGroup(
+                view[start].Modified is { } d ? d.ToString("MMMM yyyy", hebrew) : "ללא תאריך", start, i - start));
+            start = i;
+        }
+        return groups;
+
+        static bool SameMonth(DateTime? a, DateTime? b)
+            => a is null ? b is null : b is not null && a.Value.Year == b.Value.Year && a.Value.Month == b.Value.Month;
+    }
+
+    // ------------------------------------------------------------- כפילויות
+
+    /// <summary>קבצים כפולים שמוסתרים, ולכל אחד — העותק שנשאר. null כשההסתרה כבויה.</summary>
+    private Dictionary<long, long>? _hidden;
+    private Dictionary<long, long>? _duplicates;
+
+    /// <summary>עותקים מוסתרים תחת כל תיקייה — אינם נספרים במצב הסימון שלה.</summary>
+    private readonly Dictionary<string, int> _hiddenUnder = new(StringComparer.OrdinalIgnoreCase);
+
+    internal bool HidingDuplicates => _hidden is not null;
+
+    /// <summary>
+    /// הסתרת כפילויות או ביטולה. החיפוש נעשה פעם אחת ונשמר. עותק שמוסתר יוצא
+    /// גם מהבחירה — אחרת השחזור היה כותב אותו בכל זאת, וזה בדיוק מה שנועד למנוע.
+    /// </summary>
+    internal (int Hidden, long Bytes, int Deselected) SetHideDuplicates(
+        bool on, Func<RecoveredFile, byte[]?> readHead, CancellationToken token)
+    {
+        if (on) _duplicates ??= Duplicates.Find(Result.Files, readHead, token);
+        _hidden = on ? _duplicates : null;
+        _view = null;
+        _source = null;
+        if (!on) return (0, 0, 0);
+
+        var copies = _duplicates!.Keys.Select(ById).OfType<RecoveredFile>().ToList();
+        _hiddenUnder.Clear();
+        foreach (var f in copies)
+            foreach (string folder in Ancestors(f.Path ?? ""))
+                _hiddenUnder[folder] = _hiddenUnder.GetValueOrDefault(folder) + 1;
+        int deselected;
+        lock (_selectionGate) deselected = copies.Count(f => _selected.Contains(f.Id));
+        Select(copies, false);
+        return (copies.Count, copies.Sum(f => f.Size), deselected);
     }
 
     /// <summary>מספר הקבצים בכל קטגוריה, לשבבי הסינון.</summary>
@@ -323,6 +409,7 @@ internal sealed class ScanSession
         foreach (var file in files)
         {
             if (!file.IsWorthRecovering) continue;
+            if (on && _hidden is { } hidden && hidden.ContainsKey(file.Id)) continue;   // עותק מוסתר
             if (on ? !_selected.Add(file.Id) : !_selected.Remove(file.Id)) continue;
 
             _selectedBytes += on ? file.Size : -file.Size;
@@ -345,7 +432,8 @@ internal sealed class ScanSession
     /// <summary>מצב תיקייה בעץ: 0 — לא מסומנת, 1 — חלקית, 2 — כולה. ‎-1 — אין בה מה לסמן.</summary>
     internal int FolderState(string folder)
     {
-        int total = _recoverableUnder.GetValueOrDefault(folder);
+        int total = _recoverableUnder.GetValueOrDefault(folder)
+                    - (HidingDuplicates ? _hiddenUnder.GetValueOrDefault(folder) : 0);
         int marked = _selectedUnder.GetValueOrDefault(folder);
         return total == 0 ? -1 : marked == 0 ? 0 : marked == total ? 2 : 1;
     }

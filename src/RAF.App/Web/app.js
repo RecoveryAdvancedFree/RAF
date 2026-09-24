@@ -352,6 +352,16 @@ const Help = (() => {
     ['הכונן נעול ב-BitLocker', `
       קודם פותחים את הנעילה ב-Windows (לחיצה כפולה על הכונן בסייר הקבצים, עם הסיסמה או מפתח השחזור),
       ואז לוחצים על המחיצה ברשימה ובוחרים <b>פתיחה לסריקה</b>. בלי הסיסמה או המפתח אין דרך לקרוא את הקבצים.`],
+    ['קיצורי מקלדת', `
+      במסך בחירת הקבצים:
+      <ul>
+        <li><b>חיצים</b> — מעבר בין הקבצים (בגלריה גם ימינה ושמאלה). <b>Page Up / Page Down</b>, <b>Home / End</b> — קפיצה.</li>
+        <li><b>אנטר</b> — תצוגה מקדימה של הקובץ.</li>
+        <li><b>רווח</b> — סימון הקובץ לשחזור, או ביטול הסימון.</li>
+        <li><b>קונטרול + A</b> — סימון כל הקבצים ברשימה, ובלחיצה נוספת ביטול.</li>
+        <li><b>קונטרול + F</b> — חיפוש לפי שם. <b>יציאה (Esc)</b> מנקה את החיפוש.</li>
+      </ul>
+      ובכל מקום: <b>F1</b> — השאלות האלה.`],
     ['האם התוכנה כותבת משהו לכונן?', `
       לא, חוץ משתי פעולות שמבקשים במפורש: <b>תיקון המחיצה</b> ו<b>החזרה לטבלה</b> של מחיצה שנמחקה.
       לפני כל אחת מהן התוכנה שומרת גיבוי של מה שהיא משנה, ומחזירה אותו אוטומטית אם משהו נכשל.
@@ -2713,10 +2723,30 @@ async function renderResults() {
           <div class="list-tools">
             <label class="chk-all" title="סימון כל הקבצים ברשימה, גם אלה שלא נגללו"><input type="checkbox" id="chk-all"><span>הכל</span></label>
             <div class="cat-chips" id="cat-chips"></div>
-            <label class="toggle small"><input type="checkbox" id="chk-recoverable"><span>רק ניתנים לשחזור</span></label>
             <div class="view-switch" role="group" aria-label="אופן התצוגה">
               <button class="icon-btn" data-view="list" title="רשימה" aria-label="רשימה">${Icon.list}</button>
               <button class="icon-btn" data-view="grid" title="גלריה" aria-label="גלריה">${Icon.grid}</button>
+            </div>
+            <div class="list-filters">
+              <select class="filter-select" id="grid-sort" aria-label="מיון">
+                <option value="date:1">מהחדש לישן, לפי חודשים</option>
+                <option value="date:0">מהישן לחדש, לפי חודשים</option>
+                <option value="name:0">לפי שם</option>
+                <option value="size:1">מהגדול לקטן</option>
+                <option value="quality:0">לפי איכות</option>
+              </select>
+              <select class="filter-select" id="flt-date" aria-label="סינון לפי תאריך">
+                ${DATE_FILTERS.map((f) => `<option value="${f.id}">${f.label}</option>`).join('')}
+              </select>
+              <span class="date-range" id="flt-range" hidden>
+                <input type="date" id="flt-from" aria-label="מתאריך"><span>עד</span><input type="date" id="flt-to" aria-label="עד תאריך">
+              </span>
+              <select class="filter-select" id="flt-size" aria-label="סינון לפי גודל">
+                ${SIZE_FILTERS.map((f) => `<option value="${f.min}">${f.label}</option>`).join('')}
+              </select>
+              <label class="toggle small"><input type="checkbox" id="chk-recoverable"><span>רק ניתנים לשחזור</span></label>
+              <label class="toggle small" title="קבצים עם תוכן זהה בדיוק מוצגים פעם אחת — העותק הטוב ביותר. העותקים שמוסתרים גם לא ישוחזרו.">
+                <input type="checkbox" id="chk-dups"><span>הסתר כפילויות</span></label>
             </div>
           </div>
           <div class="filelist-head">
@@ -2912,6 +2942,48 @@ const SORT_COLUMNS = [
   { id: 'quality', label: 'איכות', firstDesc: false },
 ];
 
+/// סינון לפי תאריך השינוי. הטווח מחושב בכל פתיחה, כך ש"השנה" נשארת נכונה גם אחרי סוף השנה.
+const DATE_FILTERS = [
+  { id: 'all', label: 'כל התאריכים' },
+  { id: 'month', label: '30 הימים האחרונים' },
+  { id: 'year', label: 'השנה' },
+  { id: 'lastYear', label: 'השנה שעברה' },
+  { id: 'custom', label: 'טווח לבחירה…' },
+];
+
+/// סינון לפי גודל מינימלי. קבצים זעירים הם בדרך כלל סמלים ותמונות מוקטנות של מערכת ההפעלה.
+const SIZE_FILTERS = [
+  { min: 0, label: 'כל הגדלים' },
+  { min: 10 * 1024, label: 'מעל 10KB' },
+  { min: 100 * 1024, label: 'מעל 100KB' },
+  { min: 1024 * 1024, label: 'מעל 1MB' },
+  { min: 10 * 1024 * 1024, label: 'מעל 10MB' },
+];
+
+/// תאריך מקומי בפורמט שהמנוע מקבל (yyyy-MM-dd).
+function isoDay(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/// הטווח של סינון התאריך: from כולל, to לא כולל.
+function dateRange(prefs) {
+  const now = new Date();
+  const year = now.getFullYear();
+  switch (prefs.date) {
+    case 'month': return { from: isoDay(new Date(year, now.getMonth(), now.getDate() - 30)), to: null };
+    case 'year': return { from: `${year}-01-01`, to: null };
+    case 'lastYear': return { from: `${year - 1}-01-01`, to: `${year}-01-01` };
+    case 'custom': {
+      // "עד" כולל את היום שנבחר, ולכן הגבול הוא היום שאחריו.
+      let to = null;
+      if (prefs.to) { const d = new Date(prefs.to + 'T00:00'); d.setDate(d.getDate() + 1); to = isoDay(d); }
+      return { from: prefs.from || null, to };
+    }
+    default: return { from: null, to: null };
+  }
+}
+
 /// שבבי הסינון, בסדר ההצגה. המזהים תואמים ל-FileCategories במנוע.
 const CATEGORIES = [
   { id: 'all', label: 'כל הסוגים' },
@@ -2940,8 +3012,12 @@ const FileList = (() => {
   };
 
   // העדפות תצוגה — נשמרות בין תיקיות ובין סריקות.
-  const prefs = { category: 'all', recoverableOnly: false, sort: 'name', desc: false, mode: 'list' };
+  const prefs = {
+    category: 'all', recoverableOnly: false, sort: 'name', desc: false, mode: 'list',
+    date: 'all', from: '', to: '', minSize: 0,
+  };
   try { prefs.mode = localStorage.getItem('raf-view') === 'grid' ? 'grid' : 'list'; } catch (e) {}
+  if (prefs.mode === 'grid') { prefs.sort = 'date'; prefs.desc = true; }
 
   let target = null;       // { path, query }
   let total = 0;
@@ -2950,12 +3026,16 @@ const FileList = (() => {
   let byId = new Map();    // קבצים שנטענו, לתצוגה מקדימה ולסימון
   let generation = 0;      // תשובה מתצוגה קודמת נזרקת
   let activeId = null;
+  let activeIndex = -1;    // מיקום הקובץ הפעיל ברשימה — לניווט במקלדת
+  let groups = [];         // חודשים לכותרות בגלריה, כשממיינים לפי תאריך
+  let model = null;        // פריסת הגלריה עם כותרות: שורות בגבהים שונים
 
   /// התצוגה כפי שהמנוע מכיר אותה (ViewQuery).
   const view = () => ({
     path: target.path, query: target.query, evidence: State.showEvidence,
     category: prefs.category, recoverableOnly: prefs.recoverableOnly,
     sort: prefs.sort, desc: prefs.desc,
+    ...dateRange(prefs), minSize: prefs.minSize,
   });
 
   async function open(next) {
@@ -2967,6 +3047,8 @@ const FileList = (() => {
     pages = new Map();
     pending = new Set();
     byId = new Map();
+    activeIndex = -1;
+    model = null;
 
     const list = el('filelist');
     list.scrollTop = 0;
@@ -2975,6 +3057,7 @@ const FileList = (() => {
     if (gen !== generation) return;
 
     total = first.total;
+    groups = first.groups || [];
     store(0, first.files);
     applySelection(first.selection);
     renderChips(first.counts);
@@ -2986,17 +3069,21 @@ const FileList = (() => {
       ? `<div class="empty small"><h3>אין קבצים להצגה</h3><p>${emptyReason()}</p></div>`
       : `<div class="vlist"><div class="vlist-rows"></div></div>`;
 
-    const banner = el('list-banner');
-    banner.hidden = !target.query;
-    if (target.query) {
-      banner.textContent = `נמצאו ${total.toLocaleString('he-IL')} תוצאות עבור "${target.query}"`;
+    const notes = [];
+    if (target.query) notes.push(`נמצאו ${total.toLocaleString('he-IL')} תוצאות עבור "${target.query}".`);
+    if (first.undated > 0) {
+      notes.push(`${first.undated.toLocaleString('he-IL')} ${plural(first.undated, 'קובץ', 'קבצים')} בלי תאריך ` +
+                 `${plural(first.undated, 'אינו מוצג', 'אינם מוצגים')} בסינון לפי תאריך.`);
     }
+    if (dupNote) notes.push(dupNote);
+    setBanner(notes.join(' '));
 
     render();
   }
 
   function emptyReason() {
-    if (prefs.category !== 'all' || prefs.recoverableOnly) return 'אין קבצים שמתאימים לסינון.';
+    if (prefs.category !== 'all' || prefs.recoverableOnly || prefs.date !== 'all' || prefs.minSize > 0)
+      return 'אין קבצים שמתאימים לסינון.';
     if (target.query) return 'לא נמצאו תוצאות לחיפוש.';
 
     // בסריקה מתקדמת כל הקבצים בתיקיות לפי סוג, והשורש ריק — "התיקייה ריקה" נשמע
@@ -3046,6 +3133,7 @@ const FileList = (() => {
 
     const layout = LAYOUT[prefs.mode];
     const perRow = layout.perRow(list.clientWidth);
+    if (grouped()) { renderGrouped(list, vlist, perRow); return; }
     const rowCount = Math.ceil(total / perRow);
     vlist.style.height = rowCount * layout.rowHeight + 'px';
 
@@ -3073,6 +3161,143 @@ const FileList = (() => {
     if (prefs.mode === 'grid') Thumbs.fill(rows);
   }
 
+  // ------------------------------------------------- גלריה עם כותרות חודש
+
+  const HEAD_PITCH = 44;   // כותרת (32) + רווח (12), תואם ל-.grid-group
+  const grouped = () => prefs.mode === 'grid' && prefs.sort === 'date' && groups.length > 0;
+
+  /// שורות הגלריה: כותרת לכל חודש ואחריה שורות האריחים שלו. נבנה מחדש רק כשרוחב השורה משתנה.
+  function rowModel(perRow) {
+    if (model && model.perRow === perRow) return model;
+    const rows = [];
+    let top = 0;
+    for (const g of groups) {
+      rows.push({ top, head: g });
+      top += HEAD_PITCH;
+      for (let i = 0; i < g.count; i += perRow) {
+        rows.push({ top, start: g.start + i, n: Math.min(perRow, g.count - i) });
+        top += LAYOUT.grid.rowHeight;
+      }
+    }
+    model = { perRow, rows, height: top };
+    return model;
+  }
+
+  /// השורה האחרונה שמתחילה מעל גובה נתון (חיפוש בינארי).
+  function rowAt(rows, y) {
+    let lo = 0, hi = rows.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (rows[mid].top <= y) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+  }
+
+  function renderGrouped(list, vlist, perRow) {
+    const { rows, height } = rowModel(perRow);
+    vlist.style.height = height + 'px';
+
+    const overscan = 3 * LAYOUT.grid.rowHeight;
+    const first = rowAt(rows, Math.max(0, list.scrollTop - overscan));
+    const last = rowAt(rows, list.scrollTop + list.clientHeight + overscan);
+
+    // שורה חלקית בסוף חודש אינה בעיה: הכותרת הבאה תופסת שורה שלמה (grid-column: 1 / -1).
+    let html = '';
+    for (let r = first; r <= last; r++) {
+      const row = rows[r];
+      if (row.head) {
+        html += `<div class="grid-group"><b>${esc(row.head.label)}</b><span>${countFiles(row.head.count)}</span></div>`;
+        continue;
+      }
+      for (let i = row.start; i < row.start + row.n; i++) {
+        const f = fileAt(i);
+        if (f) html += tileHtml(f, i);
+        else { html += `<div class="tile placeholder" data-index="${i}"></div>`; fetchPage(Math.floor(i / PAGE)); }
+      }
+    }
+
+    const rowsEl = vlist.querySelector('.vlist-rows');
+    rowsEl.style.transform = `translateY(${rows[first].top}px)`;
+    rowsEl.style.setProperty('--per-row', perRow);
+    rowsEl.innerHTML = html;
+    Thumbs.fill(rowsEl);
+  }
+
+  /// המיקום (למעלה) של קובץ ברשימה — לגלילה אליו מהמקלדת.
+  function topOf(index, perRow) {
+    if (grouped()) {
+      const row = rowModel(perRow).rows.find((r) => !r.head && index >= r.start && index < r.start + r.n);
+      return row ? row.top : 0;
+    }
+    return Math.floor(index / perRow) * LAYOUT[prefs.mode].rowHeight;
+  }
+
+  const isActive = (f, index) => (activeIndex >= 0 ? index === activeIndex : f.id === activeId);
+
+  // ---------------------------------------------------------------- מקלדת
+
+  let previewTimer;
+
+  /// מעבר לקובץ אחר ברשימה: סימון, גלילה אליו, ותצוגה מקדימה אחרי עצירה קצרה —
+  /// כדי שמעבר מהיר על עשרות קבצים לא יקרא כל אחד מהם מהדיסק.
+  function moveTo(index, previewNow) {
+    const list = el('filelist');
+    if (!list || total === 0) return;
+    index = Math.max(0, Math.min(total - 1, index));
+    activeIndex = index;
+    activeId = fileAt(index)?.id ?? null;
+
+    const perRow = LAYOUT[prefs.mode].perRow(list.clientWidth);
+    const height = LAYOUT[prefs.mode].rowHeight;
+    const top = topOf(index, perRow);
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (top + height > list.scrollTop + list.clientHeight) list.scrollTop = top + height - list.clientHeight;
+    render();
+
+    clearTimeout(previewTimer);
+    const show = () => { const f = fileAt(activeIndex); if (f) showPreview(f.id); };
+    if (previewNow) show(); else previewTimer = setTimeout(show, 350);
+  }
+
+  /// מקשי הרשימה. מחזיר true אם המקש טופל.
+  function key(e) {
+    const list = el('filelist');
+    const perRow = LAYOUT[prefs.mode].perRow(list.clientWidth);
+    const page = Math.max(1, Math.floor(list.clientHeight / LAYOUT[prefs.mode].rowHeight)) * perRow;
+    const at = activeIndex;
+    const grid = prefs.mode === 'grid';
+
+    switch (e.key) {
+      case 'ArrowDown': moveTo(at < 0 ? 0 : at + perRow); return true;
+      case 'ArrowUp': moveTo(at < 0 ? 0 : at - perRow); return true;
+      // מימין לשמאל: החץ השמאלי מתקדם לקובץ הבא.
+      case 'ArrowLeft': if (!grid) return false; moveTo(at + 1); return true;
+      case 'ArrowRight': if (!grid) return false; moveTo(Math.max(0, at - 1)); return true;
+      case 'PageDown': moveTo(at + page); return true;
+      case 'PageUp': moveTo(at - page); return true;
+      case 'Home': moveTo(0); return true;
+      case 'End': moveTo(total - 1); return true;
+      case 'Enter': if (at >= 0) moveTo(at, true); return at >= 0;
+      case ' ': {
+        const f = at >= 0 && fileAt(at);
+        if (!f || !f.recoverable) return at >= 0;
+        f.selected = !f.selected;
+        render();
+        select({ ids: [f.id], on: f.selected }, false);
+        return true;
+      }
+      default: return false;
+    }
+  }
+
+  /// קונטרול+A: כמו תיבת "הכל" — מסמן את כל הרשימה, ובלחיצה נוספת מבטל.
+  function toggleAll() {
+    const all = el('chk-all');
+    if (!all || all.disabled) return;
+    all.checked = !all.checked;
+    select({ all: true, on: all.checked }, true);
+  }
+
   function qualityChip(f) {
     const q = f.quality === 'Excellent' ? 'ok' : f.quality === 'Good' ? '' :
               f.quality === 'Poor' ? 'warn' : 'danger';
@@ -3091,7 +3316,7 @@ const FileList = (() => {
 
   function rowHtml(f, index) {
     return `
-      <div class="frow${f.recoverable ? '' : ' unrecoverable'}${f.id === activeId ? ' active' : ''}"
+      <div class="frow${f.recoverable ? '' : ' unrecoverable'}${isActive(f, index) ? ' active' : ''}"
            data-id="${f.id}" data-index="${index}">
         <label class="frow-chk">${checkbox(f)}</label>
         <div class="frow-name">
@@ -3123,7 +3348,7 @@ const FileList = (() => {
       : `<span class="tile-icon${f.thumb && thumb !== false ? ' loading' : ''}">${f.thumb ? Icon.image : Icon.file}</span>`;
 
     return `
-      <div class="tile${f.recoverable ? '' : ' unrecoverable'}${f.id === activeId ? ' active' : ''}"
+      <div class="tile${f.recoverable ? '' : ' unrecoverable'}${isActive(f, index) ? ' active' : ''}"
            data-id="${f.id}" data-index="${index}"${f.thumb && thumb === undefined ? ' data-thumb="1"' : ''}>
         <label class="tile-chk">${checkbox(f)}</label>
         <div class="tile-pic">${picture}</div>
@@ -3155,6 +3380,52 @@ const FileList = (() => {
     document.querySelectorAll('.view-switch [data-view]').forEach((b) =>
       b.classList.toggle('on', b.dataset.view === prefs.mode));
     el('chk-recoverable').checked = prefs.recoverableOnly;
+    el('flt-date').value = prefs.date;
+    el('flt-range').hidden = prefs.date !== 'custom';
+    el('flt-from').value = prefs.from;
+    el('flt-to').value = prefs.to;
+    el('flt-size').value = String(prefs.minSize);
+    const sortBox = el('grid-sort');
+    sortBox.hidden = prefs.mode !== 'grid';
+    const current = `${prefs.sort}:${prefs.desc ? 1 : 0}`;
+    if (![...sortBox.options].some((o) => o.value === current)) {
+      sortBox.insertAdjacentHTML('beforeend', `<option value="${current}">מיון מהרשימה</option>`);
+    }
+    sortBox.value = current;
+  }
+
+  function setBanner(text) {
+    const banner = el('list-banner');
+    banner.hidden = !text;
+    banner.textContent = text || '';
+  }
+
+  /// הודעת הכפילויות נשארת מעל הרשימה גם כשעוברים תיקייה, עד שמכבים את ההסתרה.
+  let dupNote = '';
+
+  /// הסתרת כפילויות: בפעם הראשונה המנוע משווה קבצים, וזה עשוי לקחת זמן.
+  async function hideDuplicates(on) {
+    const box = el('chk-dups');
+    box.disabled = true;
+    if (on) setBanner('מחפש קבצים כפולים…');
+    try {
+      const r = await longCall('scan.duplicates', { on });
+      dupNote = !on ? ''
+        : r.hidden === 0 ? 'לא נמצאו קבצים כפולים.'
+        : `הוסתרו ${countFiles(r.hidden)} כפולים (${formatSize(r.bytes)}) — מכל קובץ מוצג העותק הטוב ביותר.` +
+          (r.deselected === 1 ? ' עותק אחד שסומן הוסר מהבחירה.'
+            : r.deselected > 1 ? ` ${r.deselected.toLocaleString('he-IL')} עותקים שסומנו הוסרו מהבחירה.` : '');
+      applySelection(r.selection);
+      await open();
+    } catch (err) {
+      box.checked = !on;
+      const banner = el('list-banner');
+      banner.hidden = false;
+      banner.innerHTML = errorNotice('לא ניתן לחפש כפילויות', err, 'tiny-notice');
+    } finally {
+      box.disabled = false;
+      Tree.refreshStates();
+    }
   }
 
   /// האזנה אחת לכל הרשימה: השורות נבנות מחדש בכל גלילה, ולכן אין טעם לחבר אירועים לכל שורה.
@@ -3168,6 +3439,7 @@ const FileList = (() => {
       const item = e.target.closest('[data-id]');
       if (!item || e.target.closest('.frow-chk, .tile-chk')) return;
       activeId = +item.dataset.id;
+      activeIndex = +item.dataset.index;
       list.querySelectorAll('.active').forEach((r) => r.classList.remove('active'));
       item.classList.add('active');
       showPreview(activeId);
@@ -3192,6 +3464,22 @@ const FileList = (() => {
 
     el('chk-recoverable').onchange = (e) => { prefs.recoverableOnly = e.target.checked; open(); };
 
+    el('flt-date').onchange = (e) => {
+      prefs.date = e.target.value;
+      el('flt-range').hidden = prefs.date !== 'custom';
+      if (prefs.date !== 'custom' || prefs.from || prefs.to) open();
+    };
+    el('flt-from').onchange = (e) => { prefs.from = e.target.value; open(); };
+    el('flt-to').onchange = (e) => { prefs.to = e.target.value; open(); };
+    el('flt-size').onchange = (e) => { prefs.minSize = +e.target.value; open(); };
+    el('chk-dups').onchange = (e) => hideDuplicates(e.target.checked);
+    el('grid-sort').onchange = (e) => {
+      const [sort, desc] = e.target.value.split(':');
+      prefs.sort = sort;
+      prefs.desc = desc === '1';
+      open();
+    };
+
     document.querySelectorAll('.col-sort').forEach((b) => {
       b.onclick = () => {
         const col = SORT_COLUMNS.find((c) => c.id === b.dataset.sort);
@@ -3205,6 +3493,8 @@ const FileList = (() => {
       b.onclick = () => {
         if (prefs.mode === b.dataset.view) return;
         prefs.mode = b.dataset.view;
+        // הגלריה נפתחת לפי תאריך, עם כותרת לכל חודש — אלא אם כבר נבחר מיון אחר מלבד השם.
+        if (prefs.mode === 'grid' && prefs.sort === 'name') { prefs.sort = 'date'; prefs.desc = true; }
         try { localStorage.setItem('raf-view', prefs.mode); } catch (e) {}
         open();
       };
@@ -3237,12 +3527,47 @@ const FileList = (() => {
   }
 
   return {
-    open, attach, select,
+    open, attach, select, key, toggleAll,
     get: (id) => byId.get(id),
     get total() { return total; },
     render,
   };
 })();
+
+/// קיצורי המקלדת במסך התוצאות. לא כשלוח או חלון השאלות פתוחים, ולא בזמן הקלדה —
+/// חוץ מקונטרול+F, ומקש היציאה שמנקה את החיפוש.
+document.addEventListener('keydown', (e) => {
+  if (!el('filelist') || !el('overlay').hidden || !el('help-overlay').hidden) return;
+
+  const search = el('search-input');
+  const ctrl = e.ctrlKey || e.metaKey;
+
+  if (ctrl && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+    e.preventDefault();
+    search.focus();
+    search.select();
+    return;
+  }
+  const target = e.target instanceof Element ? e.target : document.body;
+  if (target === search) {
+    if (e.key === 'Escape' && search.value) {
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+    }
+    if (e.key === 'Escape' || e.key === 'ArrowDown') { search.blur(); if (e.key === 'ArrowDown') FileList.key(e); }
+    return;
+  }
+  if (target.closest('input[type="text"], input[type="date"], select, textarea')) return;
+  // רווח ואנטר על כפתור או תיבת סימון שבפוקוס — הפעולה הרגילה שלהם, לא של הרשימה.
+  if ((e.key === ' ' || e.key === 'Enter') && target.closest('button, input, label')) return;
+
+  if (ctrl && (e.key === 'a' || e.key === 'A' || e.code === 'KeyA')) {
+    e.preventDefault();
+    FileList.toggleAll();
+    return;
+  }
+  if (!ctrl && !e.altKey && FileList.key(e)) e.preventDefault();
+});
 
 /// תמונות ממוזערות לגלריה. המנוע מקטין כל תמונה, ולכן הבקשות מוגבלות
 /// לשלוש במקביל ורק לאריחים שעל המסך — גלילה מהירה לא תציף את הדיסק.
