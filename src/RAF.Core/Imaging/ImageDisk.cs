@@ -28,9 +28,22 @@ public static class ImageDisk
         {
             int sectorSize = map?.SectorSize ?? DetectSectorSize(full);
 
-            using var device = RawDevice.TryOpen(full, sectorSize)
+            var device = RawDevice.TryOpen(full, sectorSize)
                 ?? throw new IOException("לא ניתן לפתוח את קובץ התמונה לקריאה. ייתכן שהוא בשימוש בתוכנה אחרת.");
 
+            // כונן וירטואלי: הגודל וגודל הסקטור הם של הדיסק שבתוכו, לא של הקובץ.
+            if (device.Virtual is { } virtualDisk)
+            {
+                size = virtualDisk.Size;
+                if (virtualDisk.SectorSize != sectorSize)
+                {
+                    device.Dispose();
+                    sectorSize = virtualDisk.SectorSize;
+                    device = RawDevice.TryOpen(full, sectorSize)!;
+                }
+            }
+
+            using var _ = device;
             var (scheme, partitions) = ReadLayout(device, number, size, map);
 
             return new PhysicalDiskInfo
@@ -47,7 +60,10 @@ public static class ImageDisk
                 RawAccessible = true,
                 Partitions = partitions,
                 ImagePath = full,
-                ImageNote = Describe(map),
+                ImageNote = device.Virtual is { } vd
+                    ? $"כונן וירטואלי ({vd.Format}) — נקרא ישירות מהקובץ, בלי לחבר אותו ל-Windows, ושום דבר לא נכתב אליו." +
+                      (vd.Dirty ? " הכונן לא נסגר כראוי בפעם האחרונה, ולכן ייתכן שהשינויים האחרונים שנעשו בו חסרים." : "")
+                    : Describe(map),
                 ImageDamaged = map is not null && (map.UnreadableBytes > 0 || !map.Complete),
             };
         }

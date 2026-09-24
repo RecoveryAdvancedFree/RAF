@@ -49,8 +49,29 @@ internal sealed class RawDevice : IDisposable
             return null;
         }
 
-        return new RawDevice(h, devicePath, sectorSize);
+        var device = new RawDevice(h, devicePath, sectorSize);
+
+        // קובץ כונן וירטואלי (VHD/VHDX): הקריאות מתורגמות למקום בקובץ. כונן פגום או
+        // מסוג "הפרשים" — ההסבר עולה למשתמש, במקום "לא ניתן לפתוח".
+        if (!DevicePaths.IsDevicePath(devicePath))
+        {
+            try
+            {
+                long length = new FileInfo(devicePath).Length;
+                device.Virtual = VirtualDisk.TryOpen((at, count) => device.ReadBlockPhysical(at, count), length);
+            }
+            catch
+            {
+                device.Dispose();
+                throw;
+            }
+        }
+
+        return device;
     }
+
+    /// <summary>הכונן הווירטואלי שהקובץ מכיל, או null — תמונה רגילה או התקן.</summary>
+    public VirtualDisk? Virtual { get; private set; }
 
     [ThreadStatic] private static int _openError;
 
@@ -99,6 +120,36 @@ internal sealed class RawDevice : IDisposable
     /// (דרישת FILE_FLAG_NO_BUFFERING), והתוצאה נחתכת חזרה לטווח המבוקש.
     /// </summary>
     public int Read(long offset, Span<byte> destination)
+    {
+        if (Virtual is not { } disk) return ReadPhysical(offset, destination);
+
+        // כונן וירטואלי: קטע אחרי קטע, כל אחד בתוך בלוק אחד. בלוק שלא הוקצה — אפסים.
+        if (offset >= disk.Size) return 0;
+        int total = (int)Math.Min(destination.Length, disk.Size - offset);
+        for (int done = 0; done < total; )
+        {
+            long? at = disk.Locate(offset + done, out long contiguous);
+            int part = (int)Math.Min(total - done, contiguous);
+            var target = destination.Slice(done, part);
+            if (at is null) target.Clear();
+            else
+            {
+                int read = ReadPhysical(at.Value, target);
+                if (read < part) return done + read;
+            }
+            done += part;
+        }
+        return total;
+    }
+
+    private byte[] ReadBlockPhysical(long offset, int length)
+    {
+        byte[] result = new byte[length];
+        int read = ReadPhysical(offset, result);
+        return read == length ? result : result.AsSpan(0, Math.Max(0, read)).ToArray();
+    }
+
+    private int ReadPhysical(long offset, Span<byte> destination)
     {
         if (!IsValid || destination.Length == 0) return 0;
 
