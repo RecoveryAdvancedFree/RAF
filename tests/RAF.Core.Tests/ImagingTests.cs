@@ -541,4 +541,78 @@ public sealed class ImagingTests : IDisposable
     {
         public void Report(T value) => report(value);
     }
+
+    // ------------------------------------------------------------ תמונה כונן וירטואלי (VHD)
+
+    [Fact]
+    public void A_vhd_image_is_the_same_data_with_a_footer_windows_can_attach()
+    {
+        byte[] data = Pattern(3 * DiskImager.ChunkSize, 41);
+        string path = TempPath(".vhd");
+
+        var result = DiskImager.Create(new FaultySource(data, [100]), "disk", "בדיקה", path, null, CancellationToken.None);
+        Assert.True(result.Complete);
+
+        byte[] file = File.ReadAllBytes(path);
+        Assert.Equal(data.Length + 512, file.Length);
+        Assert.Equal(data.AsSpan(0, 100 * Sector).ToArray(), file.AsSpan(0, 100 * Sector).ToArray());
+
+        // הכותרת: חתימה, גודל קבוע, וסכום ביקורת נכון.
+        var footer = file.AsSpan(data.Length);
+        Assert.True(footer.StartsWith("conectix"u8));
+        Assert.Equal(2u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(footer[60..]));
+        Assert.Equal(data.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt64BigEndian(footer[48..]));
+        uint sum = 0;
+        for (int i = 0; i < 512; i++) if (i < 64 || i >= 68) sum += footer[i];
+        Assert.Equal(~sum, System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(footer[64..]));
+
+        // והתוכנה פותחת אותה כמו כל תמונה — בגודל של הכונן, לא של הקובץ.
+        var disk = ImageDisk.Open(path);
+        try
+        {
+            Assert.Equal(data.Length, disk.SizeBytes);
+            Assert.Contains("VHD", disk.ImageNote);
+        }
+        finally { ImageDisk.Close(disk.DiskNumber); }
+    }
+
+    [Fact]
+    public void A_stopped_vhd_image_resumes_and_keeps_its_footer()
+    {
+        int chunk = DiskImager.ChunkSize;
+        byte[] data = Pattern(8 * chunk, 42);
+        string path = TempPath(".vhd");
+        using var cancel = new CancellationTokenSource();
+        var first = new FaultySource(data, []) { OnRead = offset => { if (offset >= 3L * chunk) cancel.Cancel(); } };
+
+        Assert.False(DiskImager.Create(first, "disk", "בדיקה", path, null, cancel.Token).Complete);
+        Assert.True(DiskImager.Inspect(path, data.Length, "disk")!.CanResume);
+
+        var resumed = DiskImager.Resume(new FaultySource(data, []), "disk", "בדיקה", path, false, null, CancellationToken.None);
+        Assert.True(resumed.Complete);
+
+        byte[] file = File.ReadAllBytes(path);
+        Assert.Equal(data, file.AsSpan(0, data.Length).ToArray());
+        Assert.True(file.AsSpan(data.Length).StartsWith("conectix"u8));
+    }
+
+    [Fact]
+    public void A_vhd_is_offered_only_for_a_whole_disk_and_up_to_its_size_limit()
+    {
+        string folder = Path.GetTempPath();
+        var partition = Assert.Throws<InvalidOperationException>(
+            () => DiskImager.ValidateDestination(Path.Combine(folder, "p.vhd"), 999, 1024 * 1024, "partition"));
+        Assert.Contains("כונן שלם", partition.Message);
+
+        var huge = Assert.Throws<InvalidOperationException>(
+            () => DiskImager.ValidateDestination(Path.Combine(folder, "big.vhd"), 999, 3L * 1024 * 1024 * 1024 * 1024));
+        Assert.Contains("2040GB", huge.Message);
+    }
+
+    [Theory]
+    [InlineData(64L * 1024 * 1024, 963, 8, 17)]           // כמו ש-Windows יוצר כונן של 64MB
+    [InlineData(4L * 1024 * 1024 * 1024, 8322, 16, 63)]
+    [InlineData(1024L * 1024 * 1024 * 1024, 65535, 16, 255)]
+    public void The_vhd_geometry_follows_the_specification(long size, int cylinders, int heads, int sectors)
+        => Assert.Equal(((ushort)cylinders, (byte)heads, (byte)sectors), VhdFooter.Geometry(size));
 }

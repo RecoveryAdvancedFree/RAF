@@ -88,10 +88,21 @@ public static class DiskImager
     /// <summary>
     /// בדיקת היעד לפני התחלה. זורק חריגה עם הסבר בעברית אם אינו מתאים.
     /// </summary>
-    public static void ValidateDestination(string imagePath, int sourceDisk, long size)
+    public static void ValidateDestination(string imagePath, int sourceDisk, long size, string kind = "disk")
     {
         if (string.IsNullOrWhiteSpace(imagePath))
             throw new InvalidOperationException("לא נבחר קובץ יעד לתמונה.");
+
+        // VHD: Windows מחבר אותו ככונן — אבל רק כונן שלם, עם טבלת מחיצות, ועד 2040GB.
+        bool vhd = VhdFooter.IsVhdPath(imagePath);
+        if (vhd && kind != "disk")
+            throw new InvalidOperationException(
+                "כונן וירטואלי (VHD) אפשר ליצור רק מכונן שלם — Windows לא יודע לחבר מחיצה בודדת בלי טבלת מחיצות. " +
+                "בחרו תמונה רגילה, או צרו תמונה של הכונן כולו.");
+        if (vhd && size > VhdFooter.MaxSize)
+            throw new InvalidOperationException(
+                $"כונן וירטואלי (VHD) מוגבל ל-2040GB, והכונן הזה בגודל {Size(size)}. בחרו תמונה רגילה.");
+        if (vhd) size += VhdFooter.Length;
 
         if (DevicePaths.IsImage(sourceDisk))
             throw new InvalidOperationException("זו כבר תמונת דיסק. ניתן לסרוק ולשחזר ממנה ישירות.");
@@ -181,6 +192,7 @@ public static class DiskImager
     /// </summary>
     public static ExistingImage? Inspect(string imagePath, long size, string kind)
     {
+        long fileLength = size + (VhdFooter.IsVhdPath(imagePath) ? VhdFooter.Length : 0);
         if (!File.Exists(imagePath)) return null;
         var map = ImageMap.TryLoad(ImageMap.PathFor(imagePath));
         if (map is null) return null;
@@ -188,7 +200,7 @@ public static class DiskImager
         string? reason =
             map.Size != size || map.Kind != kind
                 ? "בנתיב הזה יש תמונה של מקור אחר (בגודל שונה). התחלה מחדש תדרוס אותה."
-            : new FileInfo(imagePath).Length != size
+            : new FileInfo(imagePath).Length != fileLength
                 ? "קובץ התמונה קצר מהצפוי — ייתכן שנקטע. אי אפשר להמשיך ממנו."
             : map.NotCopied.Count == 0 && map.Unreadable.Count == 0
                 ? "התמונה הזו כבר שלמה, והכונן כולו נקרא."
@@ -273,7 +285,17 @@ public static class DiskImager
         using (var output = new FileStream(imagePath, plan.Existing ? FileMode.Open : FileMode.Create,
                                            FileAccess.ReadWrite, FileShare.Read, 1 << 20))
         {
-            if (!plan.Existing) output.SetLength(length);
+            // VHD: הכותרת נכתבת כבר עכשיו, בסוף — גם תמונה שנעצרה באמצע היא כונן שאפשר לחבר.
+            bool vhd = VhdFooter.IsVhdPath(imagePath);
+            if (!plan.Existing)
+            {
+                output.SetLength(length + (vhd ? VhdFooter.Length : 0));
+                if (vhd)
+                {
+                    output.Position = length;
+                    output.Write(VhdFooter.Build(length, Guid.NewGuid(), DateTime.UtcNow));
+                }
+            }
 
             void Write(long at, int count)
             {

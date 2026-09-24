@@ -1173,7 +1173,10 @@ internal sealed partial class Bridge
             {
                 Title = "שמירת תמונת הדיסק — בחרו כונן אחר מהכונן המקורי",
                 FileName = suggested,
-                Filter = "תמונת דיסק גולמית (*.img)|*.img",
+                // כונן שלם: אפשר גם VHD, ש-Windows מחבר ככונן בלחיצה כפולה.
+                Filter = part is null
+                    ? "תמונת דיסק גולמית (*.img)|*.img|כונן וירטואלי שאפשר לחבר ב-Windows (*.vhd)|*.vhd"
+                    : "תמונת דיסק גולמית (*.img)|*.img",
                 DefaultExt = "img",
                 // תמונה קיימת אינה בהכרח דריסה — אפשר להמשיך ממנה. הלוח מסביר מה יקרה.
                 OverwritePrompt = false,
@@ -1193,7 +1196,7 @@ internal sealed partial class Bridge
 
         try
         {
-            DiskImager.ValidateDestination(path, disk.DiskNumber, size);
+            DiskImager.ValidateDestination(path, disk.DiskNumber, size, part is null ? "disk" : "partition");
             var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path))!);
 
             // תמונה קודמת באותו נתיב — אפשר להמשיך ממנה במקום להתחיל מחדש.
@@ -1223,7 +1226,7 @@ internal sealed partial class Bridge
         var (disk, part, offset, size, description) = ImageSource(p);
         string path = p?["path"]?.GetValue<string>() ?? "";
 
-        DiskImager.ValidateDestination(path, disk.DiskNumber, size);
+        DiskImager.ValidateDestination(path, disk.DiskNumber, size, part is null ? "disk" : "partition");
 
         _imageCancel?.Cancel();
         _imageCancel = new CancellationTokenSource();

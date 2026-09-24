@@ -1943,6 +1943,7 @@ function openImagePanel(disk, part) {
           <li><b>מעבר 2 — ניסיון חוזר.</b> חוזרים לאזורים שדולגו, וקוראים אותם בחלקים קטנים ככל האפשר.</li>
           <li><b>מעבר 3 — מהכיוון ההפוך.</b> מה שעדיין לא נקרא נקרא שוב מהסוף להתחלה — כך מצליחים לפעמים להציל עוד סקטורים בקצה של אזור פגום.</li>
         </ol>
+        ${part ? '' : '<p>בשמירה אפשר לבחור גם <b>כונן וירטואלי (VHD)</b> — Windows יודע לחבר אותו בלחיצה כפולה, ואז מעתיקים ממנו קבצים בסייר.</p>'}
       </div>
 
       <div class="section-label">קובץ התמונה</div>
@@ -1978,7 +1979,8 @@ function openImagePanel(disk, part) {
       ? `<div class="notice danger tiny-notice">${Icon.alert}<div>${esc(v.error)}</div></div>`
       : v.existing ? existingImageChoice(v.existing)
       : `<div class="notice ok-notice tiny-notice">${Icon.check}
-           <div>התמונה תתפוס ${formatSize(v.size)}. פנויים בכונן היעד ${formatSize(v.freeSpace)}.</div></div>`;
+           <div>התמונה תתפוס ${formatSize(v.size)}. פנויים בכונן היעד ${formatSize(v.freeSpace)}.${
+             /\.vhd$/i.test(path) ? ' זה כונן וירטואלי: אחרי ההעתקה אפשר לחבר אותו ב-Windows בלחיצה כפולה.' : ''}</div></div>`;
   };
 
   el('btn-start-image').onclick = () => {
@@ -2142,6 +2144,11 @@ function showImageResult(title, r) {
         <div><span>מפה</span><span class="ltr-inline">${esc(r.map)}</span></div>
       </div>
     </div>
+
+    ${/\.vhd$/i.test(r.path) ? notice('info', Icon.info, 'לחבר את התמונה ב-Windows',
+      'לחיצה כפולה על קובץ התמונה בסייר הקבצים מחברת אותו ככונן, והקבצים שבו נפתחים כרגיל — ' +
+      'אפשר להעתיק מהם בלי לגעת שוב בכונן המקורי. כשמסיימים: לחיצה ימנית על הכונן בסייר ← הוצאה.',
+      'Windows מחבר את התמונה לקריאה ולכתיבה. כדי לשמור אותה כמו שהיא, עדיף להעתיק ממנה ולא לשנות בה דבר.', 'spaced') : ''}
 
     <div class="scan-actions">
       <button class="btn btn-primary" id="btn-open-created">${Icon.open}<span>פתיחת התמונה לסריקה</span></button>
