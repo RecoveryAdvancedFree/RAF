@@ -29,6 +29,24 @@
     <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
+    <!--
+      גיזום: חלקי ‎.NET שהתוכנה לא משתמשת בהם לא נכנסים לקובץ — 47MB ← כ-25MB.
+      "חלקי" — נגזמות רק ספריות שסומנו כבטוחות לגיזום; הקוד של התוכנה, WinForms
+      ו-WebView2 נשארים שלמים. WinForms מסמן גיזום כלא נתמך בגלל שימוש בהשתקפות
+      בתוך עצמו — ולכן הוא עצמו אינו נגזם.
+      BuiltInComInteropSupport: WebView2 ושורת המשימות מדברים עם Windows דרך COM,
+      שגיזום מכבה כברירת מחדל. JsonSerializerIsReflectionEnabledByDefault: הגשר
+      ממיר לממשק טיפוסים אנונימיים — בלעדיו הגיזום מכבה את ההמרה הזו.
+    -->
+    <PublishTrimmed Condition="'$(Configuration)' == 'Release'">true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+
+    <!-- בניית בדיקה של גרסת ההפצה, עם שליטה מרחוק לבדיקות ממשק: dotnet publish -p:RafUiTest=true -->
+    <DefineConstants Condition="'$(RafUiTest)' == 'true'">$(DefineConstants);REMOTE_UI_TEST</DefineConstants>
+
     <Product>שחזור מתקדם חינם</Product>
     <AssemblyTitle>RAF — Recovery Advanced Free</AssemblyTitle>
     <Company>RAF</Company>
