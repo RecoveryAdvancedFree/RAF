@@ -517,6 +517,21 @@
 }
 .target-check { padding: 10px 0; font-size: 12.5px; color: var(--text-dim); }
 
+/* ---------- מילת אישור לפני כתיבה לכונן ---------- */
+.confirm-hint { margin: 0 0 8px; font-size: 13px; color: var(--text-dim); }
+.confirm-hint b { color: var(--text); }
+.confirm-word {
+  width: 160px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit; font-size: 14px;
+  outline: 0;
+}
+.confirm-word:focus-visible { border-color: var(--accent); }
+
 .notice.ok-notice {
   background: var(--ok-soft);
   border: 1px solid var(--ok-line);

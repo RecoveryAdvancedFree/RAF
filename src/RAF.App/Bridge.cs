@@ -1105,6 +1105,7 @@ internal sealed partial class Bridge
         string undoFolder = p?["undoFolder"]?.GetValue<string>() ?? "";
         if (string.IsNullOrWhiteSpace(undoFolder))
             throw new InvalidOperationException("יש לבחור תיקייה לגיבוי לפני הכתיבה.");
+        RequireConfirmWord(p);
 
         var result = PartitionTableWriter.Restore(disk, found, undoFolder);
 
@@ -1404,6 +1405,7 @@ internal sealed partial class Bridge
 
         if (string.IsNullOrWhiteSpace(undoFolder))
             throw new InvalidOperationException("יש לבחור תיקייה לגיבוי לפני התיקון.");
+        RequireConfirmWord(p);
 
         var diagnosis = PartitionDiagnosis.Diagnose(
             disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize);
@@ -1663,6 +1665,20 @@ internal sealed partial class Bridge
 
     private static string Ok(string id, object? data) =>
         JsonSerializer.Serialize(new { id, ok = true, data }, JsonOptions);
+
+    /// <summary>המילה שהמשתמש מקליד לפני כתיבה לכונן — חייבת להתאים ל-CONFIRM_WORD שבממשק.</summary>
+    private const string ConfirmWord = "מאשר";
+
+    /// <summary>
+    /// בדיקה כפולה למילת האישור: הממשק לא מאפשר ללחוץ בלעדיה, אבל הכתיבה לכונן
+    /// היא הפעולה המסוכנת היחידה בתוכנה — ולכן גם כאן, ולא רק בכפתור.
+    /// </summary>
+    private static void RequireConfirmWord(JsonObject? p)
+    {
+        string typed = p?["confirm"]?.GetValue<string>()?.Trim() ?? "";
+        if (typed != ConfirmWord)
+            throw new InvalidOperationException($"כדי לכתוב לכונן יש להקליד את המילה \"{ConfirmWord}\". שום דבר לא נכתב.");
+    }
 
     /// <summary>הפעולות היחידות שכותבות לכונן המקור. בכל השאר, שגיאה אינה נוגעת בו.</summary>
     private static readonly HashSet<string> WritesToSource = new() { "repair.apply", "partition.restore" };

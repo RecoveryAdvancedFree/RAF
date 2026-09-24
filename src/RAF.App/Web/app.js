@@ -1310,7 +1310,9 @@ async function openRestorePanel(disk, part) {
       <input type="text" id="restore-undo" readonly placeholder="לא נבחרה תיקייה">
       <button class="btn" id="btn-pick-restore-undo">${Icon.folder}<span>בחירה</span></button>
     </div>
-    <div id="restore-status"></div>`;
+    <div id="restore-status"></div>
+
+    ${confirmWordField('restore-confirm')}`;
 
   el('panel').insertAdjacentHTML('beforeend', `
     <div class="panel-foot">
@@ -1320,24 +1322,28 @@ async function openRestorePanel(disk, part) {
 
   el('btn-back-restore').onclick = () => openScanPanel(disk.number, part.index);
 
+  const ready = () => { el('btn-do-restore').disabled = !el('restore-undo').value || !confirmTyped('restore-confirm'); };
+  el('restore-confirm').oninput = ready;
+
   el('btn-pick-restore-undo').onclick = async () => {
     const { path } = await Bridge.call('repair.pickFolder', {}, 0);
     if (!path) return;
     el('restore-undo').value = path;
-    el('btn-do-restore').disabled = false;
+    ready();
     el('restore-status').innerHTML =
       `<div class="notice ok-notice tiny-notice">${Icon.check}<div>הגיבוי יישמר כאן.</div></div>`;
   };
 
   el('btn-do-restore').onclick = async () => {
     const undoFolder = el('restore-undo').value;
+    const confirm = el('restore-confirm').value.trim();
     el('panel').querySelector('.panel-body').innerHTML =
       `<div class="loading" style="height:180px"><div class="spinner"></div><p>מחזיר את המחיצה לטבלה…</p></div>`;
     el('panel').querySelector('.panel-foot').innerHTML = '';
 
     let r;
     try {
-      r = await Bridge.call('partition.restore', { disk: disk.number, part: part.index, undoFolder }, 0);
+      r = await Bridge.call('partition.restore', { disk: disk.number, part: part.index, undoFolder, confirm }, 0);
     } catch (err) {
       r = { succeeded: false, error: err };
     }
@@ -1692,6 +1698,20 @@ async function startReadThrough(disk, part) {
   openScanPanel(disk.number, part.index);
 }
 
+/// המילה שמקלידים לפני כתיבה לכונן — חייבת להתאים ל-ConfirmWord שבגשר.
+const CONFIRM_WORD = 'מאשר';
+
+/// שדה מילת האישור: לחיצה אחת בטעות לא תכתוב לכונן.
+function confirmWordField(id) {
+  return `
+    <div class="section-label">אישור אחרון</div>
+    <p class="confirm-hint" id="${id}-hint">כדי לכתוב לכונן, הקלידו את המילה <b>${CONFIRM_WORD}</b>:</p>
+    <input type="text" class="confirm-word" id="${id}" autocomplete="off" spellcheck="false"
+           aria-describedby="${id}-hint">`;
+}
+
+const confirmTyped = id => el(id).value.trim() === CONFIRM_WORD;
+
 /// אישור אחרון לפני כתיבה לדיסק, כולל בחירת תיקיית הגיבוי.
 function confirmRepair(disk, part, diagnosis) {
   el('panel').innerHTML = `
@@ -1715,6 +1735,8 @@ function confirmRepair(disk, part, diagnosis) {
       ${notice('info', Icon.shield, 'אפשר לחזור אחורה',
         'לפני הכתיבה יישמר כאן עותק של כל מה שעומד להשתנות בכונן. אם התיקון ייכשל, המצב הקודם יוחזר אוטומטית.',
         '', 'spaced')}
+
+      ${confirmWordField('repair-confirm')}
     </div>
     <div class="panel-foot">
       <button class="btn btn-primary" id="btn-do-repair" disabled>ביצוע התיקון</button>
@@ -1724,12 +1746,15 @@ function confirmRepair(disk, part, diagnosis) {
   el('panel-close').onclick = closePanel;
   el('btn-back-repair').onclick = () => openRepairPanel(disk, part);
 
+  const ready = () => { el('btn-do-repair').disabled = !el('undo-path').value || !confirmTyped('repair-confirm'); };
+  el('repair-confirm').oninput = ready;
+
   el('btn-pick-undo').onclick = async () => {
     const { path } = await Bridge.call('repair.pickFolder', {}, 0);
     if (!path) return;
 
     el('undo-path').value = path;
-    el('btn-do-repair').disabled = false;
+    ready();
     el('undo-status').innerHTML =
       `<div class="notice ok-notice tiny-notice">${Icon.check}<div>הגיבוי יישמר כאן.</div></div>`;
   };
@@ -1739,6 +1764,7 @@ function confirmRepair(disk, part, diagnosis) {
 
 async function runRepair(disk, part) {
   const undoFolder = el('undo-path').value;
+  const confirm = el('repair-confirm').value.trim();
 
   el('panel').querySelector('.panel-body').innerHTML =
     `<div class="loading" style="height:180px"><div class="spinner"></div><p>מתקן את המחיצה…</p></div>`;
@@ -1747,7 +1773,7 @@ async function runRepair(disk, part) {
   let r;
   try {
     r = await Bridge.call('repair.apply',
-      { disk: disk.number, part: part.index, undoFolder }, 0);
+      { disk: disk.number, part: part.index, undoFolder, confirm }, 0);
   } catch (err) {
     r = { succeeded: false, error: err };
   }
