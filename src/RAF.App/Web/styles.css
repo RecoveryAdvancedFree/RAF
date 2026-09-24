@@ -165,7 +165,7 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-right: 14px;
+  padding-inline-start: 14px;
 }
 
 /* הסמל כהה, ולכן הוא יושב על אריח בהיר — על רקע הכותרת הכהה הוא היה נבלע. */
@@ -456,7 +456,7 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
   width: min(560px, 92vw);
   height: 100%;
   background: var(--surface-1);
-  border-left: 1px solid var(--border-strong);
+  border-inline-end: 1px solid var(--border-strong);
   box-shadow: var(--shadow);
   display: flex; flex-direction: column;
   animation: slide 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
@@ -504,7 +504,7 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
 /* ---------- אפשרויות סריקה ---------- */
 .scan-opt {
   display: flex; gap: 14px; align-items: flex-start;
-  width: 100%; text-align: right;
+  width: 100%; text-align: start;
   padding: 16px;
   margin-bottom: 10px;
   background: var(--surface-2);
@@ -573,5 +573,5 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
 .meter-fill.mid  { background: var(--warn); }
 .meter-fill.low  { background: var(--danger); }
 
-/* ערך במילים (למשל "כ-7 דקות", "מחשב…") — מימין לשמאל, בניגוד למספרים */
-.kv dd.words { direction: rtl; }
+/* ערך במילים (למשל "כ-7 דקות", "מחשב…") — בכיוון השפה, בניגוד למספרים */
+.kv dd.words { direction: inherit; text-align: start; }

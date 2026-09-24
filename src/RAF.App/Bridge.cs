@@ -1729,8 +1729,10 @@ internal sealed partial class Bridge
     private static string Ok(string id, object? data) =>
         JsonSerializer.Serialize(new { id, ok = true, data }, JsonOptions);
 
-    /// <summary>המילה שהמשתמש מקליד לפני כתיבה לכונן — חייבת להתאים ל-CONFIRM_WORD שבממשק.</summary>
-    private const string ConfirmWord = "מאשר";
+    /// <summary>
+    /// המילה שהמשתמש מקליד לפני כתיבה לכונן — בכל שפת ממשק המילה שלה (confirmWord בממשק).
+    /// </summary>
+    private static readonly string[] ConfirmWords = { "מאשר", "CONFIRM" };
 
     /// <summary>
     /// בדיקה כפולה למילת האישור: הממשק לא מאפשר ללחוץ בלעדיה, אבל הכתיבה לכונן
@@ -1739,8 +1741,8 @@ internal sealed partial class Bridge
     private static void RequireConfirmWord(JsonObject? p)
     {
         string typed = p?["confirm"]?.GetValue<string>()?.Trim() ?? "";
-        if (typed != ConfirmWord)
-            throw new InvalidOperationException($"כדי לכתוב לכונן יש להקליד את המילה \"{ConfirmWord}\". שום דבר לא נכתב.");
+        if (!ConfirmWords.Any(w => string.Equals(typed, w, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException($"כדי לכתוב לכונן יש להקליד את המילה \"{ConfirmWords[0]}\". שום דבר לא נכתב.");
     }
 
     /// <summary>הפעולות היחידות שכותבות לכונן המקור. בכל השאר, שגיאה אינה נוגעת בו.</summary>

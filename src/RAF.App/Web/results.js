@@ -16,93 +16,93 @@ async function renderResults() {
   el('content').innerHTML = `
     <div class="results">
       <div class="results-bar">
-        <button class="btn" id="btn-home">${Icon.back}<span>מחיצות</span></button>
+        <button class="btn" id="btn-home">${Icon.back}<span>${t('מחיצות')}</span></button>
 
         <div class="result-stats">
-          <span><b>${(s.deleted || 0).toLocaleString('he-IL')}</b> ${plural(s.deleted, 'מחוק', 'מחוקים')}</span>
+          <span><b>${num(s.deleted)}</b> ${plural(s.deleted, 'מחוק', 'מחוקים')}</span>
           <span class="sep">·</span>
-          <span><b class="ok-text">${(s.recoverable || 0).toLocaleString('he-IL')}</b> ${plural(s.recoverable, 'ניתן', 'ניתנים')} לשחזור</span>
+          <span><b class="ok-text">${num(s.recoverable)}</b> ${plural(s.recoverable, 'ניתן לשחזור', 'ניתנים לשחזור')}</span>
           ${s.emptied > 0 ? `<span class="sep">·</span>
-            <span><b class="danger-text">${s.emptied.toLocaleString('he-IL')}</b> ריקים</span>` : ''}
+            <span><b class="danger-text">${num(s.emptied)}</b> ${t('ריקים')}</span>` : ''}
           ${s.evidence > 0 ? `<span class="sep">·</span>
-            <span title="קבצים שאותרו ביומני מערכת הקבצים: שמם ידוע, תוכנם אינו ניתן לאיתור">
-              <b>${s.evidence.toLocaleString('he-IL')}</b> עדות בלבד</span>` : ''}
+            <span title="${t('קבצים שאותרו ביומני מערכת הקבצים: שמם ידוע, תוכנם אינו ניתן לאיתור')}">
+              <b>${num(s.evidence)}</b> ${t('עדות בלבד')}</span>` : ''}
           <span class="sep">·</span>
-          <span>${esc(s.mode)} · ${formatDuration(s.duration)}</span>
-          ${s.cancelled ? '<span class="chip warn">נעצרה</span>' : ''}
+          <span>${esc(t(s.mode))} · ${formatDuration(s.duration)}</span>
+          ${s.cancelled ? `<span class="chip warn">${t('נעצרה')}</span>` : ''}
         </div>
 
         ${s.evidence > 0 ? `
-          <label class="toggle" title="רשומות שאותרו ביומני מערכת הקבצים: שמן ידוע, אך תוכנן אינו ניתן לאיתור ולא ניתן לשחזר אותן">
+          <label class="toggle" title="${t('רשומות שאותרו ביומני מערכת הקבצים: שמן ידוע, אך תוכנן אינו ניתן לאיתור ולא ניתן לשחזר אותן')}">
             <input type="checkbox" id="chk-evidence">
-            <span>הצג ${s.evidence.toLocaleString('he-IL')} רשומות יומן</span>
+            <span>${t('הצג {0} רשומות יומן', num(s.evidence))}</span>
           </label>` : ''}
 
-        <button class="btn icon-only" id="btn-save-scan" title="שמירת הסריקה לקובץ — כדי לחזור אליה בלי לסרוק שוב"
-                aria-label="שמירת הסריקה">${Icon.disk}</button>
+        <button class="btn icon-only" id="btn-save-scan" title="${t('שמירת הסריקה לקובץ — כדי לחזור אליה בלי לסרוק שוב')}"
+                aria-label="${t('שמירת הסריקה')}">${Icon.disk}</button>
 
         <div class="search-box">
           ${Icon.search}
-          <input type="text" id="search-input" placeholder="חיפוש בשם קובץ…" autocomplete="off" aria-label="חיפוש בשם קובץ">
+          <input type="text" id="search-input" placeholder="${t('חיפוש בשם קובץ…')}" autocomplete="off" aria-label="${t('חיפוש בשם קובץ')}">
         </div>
       </div>
 
       ${s.resumePercent != null ? `<div class="resume-strip">
-        ${notice('warn', Icon.pause, `הסריקה נעצרה אחרי ${s.resumePercent.toFixed(1)}% מהמחיצה`,
-          'מוצג מה שנמצא עד כה. אפשר להמשיך את הסריקה מאותה נקודה.')}
-        <button class="btn btn-primary" id="btn-resume-scan">${Icon.play}<span>המשך הסריקה</span></button>
+        ${notice('warn', Icon.pause, t('הסריקה נעצרה אחרי {0}% מהמחיצה', s.resumePercent.toFixed(1)),
+          t('מוצג מה שנמצא עד כה. אפשר להמשיך את הסריקה מאותה נקודה.'))}
+        <button class="btn btn-primary" id="btn-resume-scan">${Icon.play}<span>${t('המשך הסריקה')}</span></button>
       </div>` : ''}
 
       ${(s.warnings || []).length ? notesHtml(s.warnings.map(esc)) : ''}
 
       <div class="results-grid">
-        <aside class="tree" id="tree" role="tree" aria-label="תיקיות — חיצים למעבר, אנטר לפתיחה, רווח לסימון"></aside>
+        <aside class="tree" id="tree" role="tree" aria-label="${t('תיקיות — חיצים למעבר, אנטר לפתיחה, רווח לסימון')}"></aside>
         <div class="filelist-wrap" id="filelist-wrap">
           <div class="list-tools">
-            <label class="chk-all" title="סימון כל הקבצים ברשימה, גם אלה שלא נגללו"><input type="checkbox" id="chk-all"><span>הכל</span></label>
+            <label class="chk-all" title="${t('סימון כל הקבצים ברשימה, גם אלה שלא נגללו')}"><input type="checkbox" id="chk-all"><span>${t('הכל')}</span></label>
             <div class="cat-chips" id="cat-chips"></div>
-            <div class="view-switch" role="group" aria-label="אופן התצוגה">
-              <button class="icon-btn" data-view="list" title="רשימה" aria-label="רשימה">${Icon.list}</button>
-              <button class="icon-btn" data-view="grid" title="גלריה" aria-label="גלריה">${Icon.grid}</button>
+            <div class="view-switch" role="group" aria-label="${t('אופן התצוגה')}">
+              <button class="icon-btn" data-view="list" title="${t('רשימה')}" aria-label="${t('רשימה')}">${Icon.list}</button>
+              <button class="icon-btn" data-view="grid" title="${t('גלריה')}" aria-label="${t('גלריה')}">${Icon.grid}</button>
             </div>
             <div class="list-filters">
-              <select class="filter-select" id="grid-sort" aria-label="מיון">
-                <option value="date:1">מהחדש לישן, לפי חודשים</option>
-                <option value="date:0">מהישן לחדש, לפי חודשים</option>
-                <option value="name:0">לפי שם</option>
-                <option value="size:1">מהגדול לקטן</option>
-                <option value="quality:0">לפי איכות</option>
+              <select class="filter-select" id="grid-sort" aria-label="${t('מיון')}">
+                <option value="date:1">${t('מהחדש לישן, לפי חודשים')}</option>
+                <option value="date:0">${t('מהישן לחדש, לפי חודשים')}</option>
+                <option value="name:0">${t('לפי שם')}</option>
+                <option value="size:1">${t('מהגדול לקטן')}</option>
+                <option value="quality:0">${t('לפי איכות')}</option>
               </select>
-              <select class="filter-select" id="flt-date" aria-label="סינון לפי תאריך">
-                ${DATE_FILTERS.map((f) => `<option value="${f.id}">${f.label}</option>`).join('')}
+              <select class="filter-select" id="flt-date" aria-label="${t('סינון לפי תאריך')}">
+                ${DATE_FILTERS.map((f) => `<option value="${f.id}">${t(f.label)}</option>`).join('')}
               </select>
               <span class="date-range" id="flt-range" hidden>
-                <input type="date" id="flt-from" aria-label="מתאריך"><span>עד</span><input type="date" id="flt-to" aria-label="עד תאריך">
+                <input type="date" id="flt-from" aria-label="${t('מתאריך')}"><span>${t('עד')}</span><input type="date" id="flt-to" aria-label="${t('עד תאריך')}">
               </span>
-              <select class="filter-select" id="flt-size" aria-label="סינון לפי גודל">
-                ${SIZE_FILTERS.map((f) => `<option value="${f.min}">${f.label}</option>`).join('')}
+              <select class="filter-select" id="flt-size" aria-label="${t('סינון לפי גודל')}">
+                ${SIZE_FILTERS.map((f) => `<option value="${f.min}">${t(f.label)}</option>`).join('')}
               </select>
-              <label class="toggle small"><input type="checkbox" id="chk-recoverable"><span>רק ניתנים לשחזור</span></label>
-              <label class="toggle small" title="קבצים עם תוכן זהה בדיוק מוצגים פעם אחת — העותק הטוב ביותר. העותקים שמוסתרים גם לא ישוחזרו.">
-                <input type="checkbox" id="chk-dups"><span>הסתר כפילויות</span></label>
+              <label class="toggle small"><input type="checkbox" id="chk-recoverable"><span>${t('רק ניתנים לשחזור')}</span></label>
+              <label class="toggle small" title="${t('קבצים עם תוכן זהה בדיוק מוצגים פעם אחת — העותק הטוב ביותר. העותקים שמוסתרים גם לא ישוחזרו.')}">
+                <input type="checkbox" id="chk-dups"><span>${t('הסתר כפילויות')}</span></label>
             </div>
           </div>
           <div class="filelist-head">
             <span></span>
-            ${SORT_COLUMNS.map((c) => `<button class="col-sort col-${c.id}" data-sort="${c.id}">${c.label}</button>`).join('')}
+            ${SORT_COLUMNS.map((c) => `<button class="col-sort col-${c.id}" data-sort="${c.id}">${t(c.label)}</button>`).join('')}
           </div>
           <div class="list-banner" id="list-banner" hidden></div>
           <div class="filelist" id="filelist" role="listbox" tabindex="0" aria-multiselectable="true"
-               aria-label="הקבצים — חיצים למעבר, רווח לסימון לשחזור, אנטר לתצוגה מקדימה"></div>
+               aria-label="${t('הקבצים — חיצים למעבר, רווח לסימון לשחזור, אנטר לתצוגה מקדימה')}"></div>
         </div>
         <aside class="preview" id="preview">
-          <div class="preview-empty">${Icon.image}<p>בחרו קובץ לתצוגה מקדימה</p></div>
+          <div class="preview-empty">${Icon.image}<p>${t('בחרו קובץ לתצוגה מקדימה')}</p></div>
         </aside>
       </div>
 
       <div class="recover-bar">
-        <div class="recover-info" id="recover-info">לא נבחרו קבצים</div>
-        <button class="btn btn-primary" id="btn-recover" disabled>${Icon.save}<span>שחזור לכונן אחר</span></button>
+        <div class="recover-info" id="recover-info">${t('לא נבחרו קבצים')}</div>
+        <button class="btn btn-primary" id="btn-recover" disabled>${Icon.save}<span>${t('שחזור לכונן אחר')}</span></button>
       </div>
     </div>`;
 
@@ -141,7 +141,7 @@ async function buildTree(restorePath) {
   el('tree').innerHTML = '';
   el('tree').appendChild(root);
 
-  root.appendChild(await makeTreeNode('', 'כל הקבצים', 0));
+  root.appendChild(await makeTreeNode('', t('כל הקבצים'), 0));
 
   // פתיחת השורש מיד, אחרת מסך התוצאות נראה ריק עד שהמשתמש לוחץ.
   const first = root.querySelector('.tree-item');
@@ -213,7 +213,7 @@ async function makeTreeNode(path, label, depth) {
   item.setAttribute('aria-label', label);
   item.tabIndex = depth === 0 ? 0 : -1;
   item.innerHTML = `<span class="tree-caret">${Icon.chevron}</span>
-                    <input type="checkbox" class="tree-chk" tabindex="-1" aria-hidden="true" title="סימון התיקייה וכל מה שבתוכה">
+                    <input type="checkbox" class="tree-chk" tabindex="-1" aria-hidden="true" title="${t('סימון התיקייה וכל מה שבתוכה')}">
                     <span class="tree-icon">${Icon.folder}</span>
                     <span class="tree-label">${esc(label)}</span>`;
 
@@ -239,7 +239,8 @@ async function makeTreeNode(path, label, depth) {
       loaded = true;
       const data = await Bridge.call('scan.children', { path, evidence: State.showEvidence });
       for (const folder of data.folders) {
-        children.appendChild(await makeTreeNode(folder.path, folder.name, depth + 1));
+        // בסריקה מתקדמת התיקיות הן סוגי קבצים ("מסמך PDF") — מתורגמות; שם תיקייה אמיתי לא במילון, ונשאר.
+        children.appendChild(await makeTreeNode(folder.path, t(folder.name), depth + 1));
       }
       if (data.folders.length === 0) { item.classList.add('leaf'); item.removeAttribute('aria-expanded'); }
       Tree.refreshStates();
@@ -289,12 +290,14 @@ async function makeTreeNode(path, label, depth) {
 function treeKey(e) {
   const item = e.target.closest('.tree-item');
   if (!item) return;
+  // החיצים לפי כיוון הקריאה: "פנימה" הוא שמאלה בעברית וימינה באנגלית.
+  const key = I18n.rtl ? e.key : ({ ArrowLeft: 'ArrowRight', ArrowRight: 'ArrowLeft' }[e.key] || e.key);
   const visible = [...el('tree').querySelectorAll('.tree-item')].filter((n) => n.getClientRects().length > 0);
   const at = visible.indexOf(item);
   const go = (n) => { if (!n) return; visible.forEach((v) => (v.tabIndex = -1)); n.tabIndex = 0; n.focus(); };
   const parentItem = () => item.parentElement.parentElement.closest('.tree-node')?.querySelector(':scope > .tree-item');
 
-  switch (e.key) {
+  switch (key) {
     case 'ArrowDown': go(visible[at + 1]); break;
     case 'ArrowUp': go(visible[at - 1]); break;
     case 'Home': go(visible[0]); break;
@@ -332,7 +335,7 @@ async function runSearch(query) {
 }
 
 /// עמודות הרשימה שניתן למיין לפיהן. מיון ראשון לפי גודל, תאריך או איכות — מהגדול, החדש והטוב.
-const SORT_COLUMNS = [
+const SORT_COLUMNS = [   // מתורגם בהצגה: מכאן
   { id: 'name', label: 'שם הקובץ', firstDesc: false },
   { id: 'size', label: 'גודל', firstDesc: true },
   { id: 'date', label: 'שונה', firstDesc: true },
@@ -355,7 +358,7 @@ const SIZE_FILTERS = [
   { min: 100 * 1024, label: 'מעל 100KB' },
   { min: 1024 * 1024, label: 'מעל 1MB' },
   { min: 10 * 1024 * 1024, label: 'מעל 10MB' },
-];
+];                        // מתורגם בהצגה: עד כאן
 
 /// תאריך מקומי בפורמט שהמנוע מקבל (yyyy-MM-dd).
 function isoDay(d) {
@@ -381,8 +384,16 @@ function dateRange(prefs) {
   }
 }
 
+/// כותרת חודש בגלריה מהמנוע ("ספטמבר 2026") — באנגלית: "September 2026".
+const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר']; // לא לתרגום
+function monthLabel(label) {
+  if (I18n.rtl) return label;
+  const i = MONTHS_HE.findIndex((m) => label.startsWith(m));
+  return i < 0 ? t(label) : new Date(2000, i, 1).toLocaleString('en-US', { month: 'long' }) + label.slice(MONTHS_HE[i].length);
+}
+
 /// שבבי הסינון, בסדר ההצגה. המזהים תואמים ל-FileCategories במנוע.
-const CATEGORIES = [
+const CATEGORIES = [   // מתורגם בהצגה: מכאן
   { id: 'all', label: 'כל הסוגים' },
   { id: 'images', label: 'תמונות' },
   { id: 'documents', label: 'מסמכים' },
@@ -390,7 +401,7 @@ const CATEGORIES = [
   { id: 'audio', label: 'שמע' },
   { id: 'archives', label: 'ארכיונים' },
   { id: 'other', label: 'אחר' },
-];
+];                     // מתורגם בהצגה: עד כאן
 
 /// רשימת קבצים וירטואלית, ברשימה או בגלריה: רק מה שעל המסך קיים ב-DOM,
 /// והנתונים נמשכים מהמנוע בעמודים לפי הגלילה. כך תיקייה של מאות אלפי
@@ -463,14 +474,15 @@ const FileList = (() => {
     list.classList.toggle('is-grid', prefs.mode === 'grid');
     el('filelist-wrap').classList.toggle('is-grid', prefs.mode === 'grid');
     list.innerHTML = total === 0
-      ? `<div class="empty small"><h3>אין קבצים להצגה</h3><p>${emptyReason()}</p></div>`
+      ? `<div class="empty small"><h3>${t('אין קבצים להצגה')}</h3><p>${emptyReason()}</p></div>`
       : `<div class="vlist"><div class="vlist-rows"></div></div>`;
 
     const notes = [];
-    if (target.query) notes.push(`נמצאו ${total.toLocaleString('he-IL')} תוצאות עבור "${target.query}".`);
+    if (target.query) notes.push(t('נמצאו {0} תוצאות עבור "{1}".', num(total), esc(target.query)));
     if (first.undated > 0) {
-      notes.push(`${first.undated.toLocaleString('he-IL')} ${plural(first.undated, 'קובץ', 'קבצים')} בלי תאריך ` +
-                 `${plural(first.undated, 'אינו מוצג', 'אינם מוצגים')} בסינון לפי תאריך.`);
+      notes.push(first.undated === 1
+        ? t('קובץ אחד בלי תאריך אינו מוצג בסינון לפי תאריך.')
+        : t('{0} קבצים בלי תאריך אינם מוצגים בסינון לפי תאריך.', num(first.undated)));
     }
     if (dupNote) notes.push(dupNote);
     setBanner(notes.join(' '));
@@ -483,15 +495,15 @@ const FileList = (() => {
 
   function emptyReason() {
     if (prefs.category !== 'all' || prefs.recoverableOnly || prefs.date !== 'all' || prefs.minSize > 0)
-      return 'אין קבצים שמתאימים לסינון.';
-    if (target.query) return 'לא נמצאו תוצאות לחיפוש.';
+      return t('אין קבצים שמתאימים לסינון.');
+    if (target.query) return t('לא נמצאו תוצאות לחיפוש.');
 
     // בסריקה מתקדמת כל הקבצים בתיקיות לפי סוג, והשורש ריק — "התיקייה ריקה" נשמע
     // כמו "לא נמצא כלום".
     const node = [...document.querySelectorAll('#tree .tree-item')].find((n) => n.dataset.path === target.path);
     return node && !node.classList.contains('leaf')
-      ? 'הקבצים נמצאים בתיקיות המשנה — בחרו תיקייה בעץ.'
-      : 'התיקייה הזו ריקה.';
+      ? t('הקבצים נמצאים בתיקיות המשנה — בחרו תיקייה בעץ.')
+      : t('התיקייה הזו ריקה.');
   }
 
   /// רענון הנתונים באותה תצוגה, בלי לאבד את מיקום הגלילה — אחרי סימון תיקייה או "הכל".
@@ -614,7 +626,7 @@ const FileList = (() => {
     for (let r = first; r <= last; r++) {
       const row = rows[r];
       if (row.head) {
-        html += `<div class="grid-group"><b>${esc(row.head.label)}</b><span>${countFiles(row.head.count)}</span></div>`;
+        html += `<div class="grid-group"><b>${esc(monthLabel(row.head.label))}</b><span>${countFiles(row.head.count)}</span></div>`;
         continue;
       }
       for (let i = row.start; i < row.start + row.n; i++) {
@@ -680,8 +692,9 @@ const FileList = (() => {
       case 'ArrowDown': moveTo(at < 0 ? 0 : at + perRow); return true;
       case 'ArrowUp': moveTo(at < 0 ? 0 : at - perRow); return true;
       // מימין לשמאל: החץ השמאלי מתקדם לקובץ הבא.
-      case 'ArrowLeft': if (!grid) return false; moveTo(at + 1); return true;
-      case 'ArrowRight': if (!grid) return false; moveTo(Math.max(0, at - 1)); return true;
+      // החץ שבכיוון הקריאה מתקדם לקובץ הבא: שמאלה בעברית, ימינה באנגלית.
+      case 'ArrowLeft': if (!grid) return false; moveTo(I18n.rtl ? at + 1 : Math.max(0, at - 1)); return true;
+      case 'ArrowRight': if (!grid) return false; moveTo(I18n.rtl ? Math.max(0, at - 1) : at + 1); return true;
       case 'PageDown': moveTo(at + page); return true;
       case 'PageUp': moveTo(at - page); return true;
       case 'Home': moveTo(0); return true;
@@ -713,9 +726,9 @@ const FileList = (() => {
 
     // קובץ שאומת כריק מקבל תווית מפורשת, ולא דירוג איכות שמרמז על אפשרות שחזור.
     // רשומה שמקורה ביומן היא עדות לקיום הקובץ בלבד, ללא מיקום תוכן.
-    const label = f.evidence ? 'עדות בלבד'
+    const label = t(f.evidence ? 'עדות בלבד'
       : f.emptyContent ? 'ריק — נמחק'
-      : f.qualityLabel;
+      : f.qualityLabel);
     return `<span class="chip ${q} tiny" title="${esc(f.qualityReason || '')}">${esc(label)}</span>`;
   }
 
@@ -725,9 +738,9 @@ const FileList = (() => {
 
   /// הקובץ כפריט ברשימה לקורא מסך: שם, גודל, סיכוי השחזור, ואם סומן לשחזור.
   function optionAttrs(f, index) {
-    const quality = f.evidence ? 'עדות בלבד' : f.emptyContent ? 'ריק' : f.qualityLabel;
-    const label = `${f.name}, ${formatSize(f.size).replace(/[\u2066\u2069]/g, '')}, ${quality}${f.deleted ? ', נמחק' : ''}` +
-                  (f.recoverable ? '' : ', לא ניתן לשחזור');
+    const quality = t(f.evidence ? 'עדות בלבד' : f.emptyContent ? 'ריק' : f.qualityLabel);
+    const label = `${f.name}, ${formatSize(f.size).replace(/[\u2066\u2069]/g, '')}, ${quality}${f.deleted ? ', ' + t('נמחק') : ''}` +
+                  (f.recoverable ? '' : ', ' + t('לא ניתן לשחזור'));
     return `id="file-${index}" role="option" aria-selected="${!!f.selected}" aria-posinset="${index + 1}" ` +
            `aria-setsize="${total}" aria-label="${esc(label)}"`;
   }
@@ -740,18 +753,18 @@ const FileList = (() => {
         <div class="frow-name">
           <span class="frow-icon">${Icon.file}</span>
           <span class="frow-text" title="${esc(f.path ? f.path + '\\' + f.name : f.name)}"><bdi>${esc(f.name)}</bdi></span>
-          ${f.deleted ? '<span class="chip warn tiny">נמחק</span>' : ''}
-          ${f.compressed ? '<span class="chip tiny">דחוס</span>' : ''}
+          ${f.deleted ? `<span class="chip warn tiny">${t('נמחק')}</span>` : ''}
+          ${f.compressed ? `<span class="chip tiny">${t('דחוס')}</span>` : ''}
           ${f.verified && f.recoverable
             // קובץ שנדרס מכיל נתונים — אבל של קובץ אחר. "אומת" ליד "לא ניתן לשחזור" היה סותר.
-            ? '<span class="chip ok tiny" title="נדגם תוכן אמיתי מהדיסק">אומת</span>' : ''}
-          ${f.evidence ? `<span class="chip tiny" title="${esc(f.source)}">${esc(f.source)}</span>` : ''}
+            ? `<span class="chip ok tiny" title="${t('נדגם תוכן אמיתי מהדיסק')}">${t('אומת')}</span>` : ''}
+          ${f.evidence ? `<span class="chip tiny" title="${esc(t(f.source))}">${esc(t(f.source))}</span>` : ''}
           ${f.recycledAt ? `<span class="chip accent tiny"
-            title="נמחק דרך סל המחזור ב-${esc(f.recycledAt)}. השם והתיקייה המקוריים הוחזרו מתוך הסל."
-            >מסל המחזור</span>` : ''}
+            title="${t('נמחק דרך סל המחזור ב-{0}. השם והתיקייה המקוריים הוחזרו מתוך הסל.', esc(f.recycledAt))}"
+            >${t('מסל המחזור')}</span>` : ''}
           ${f.namePartial ? `<span class="chip warn tiny"
-            title="ב-FAT מחיקה דורסת את האות הראשונה של שם קצר. התוכן שלם, השם חסר אות אחת."
-            >שם חלקי</span>` : ''}
+            title="${t('ב-FAT מחיקה דורסת את האות הראשונה של שם קצר. התוכן שלם, השם חסר אות אחת.')}"
+            >${t('שם חלקי')}</span>` : ''}
         </div>
         <div class="frow-size">${formatSize(f.size)}</div>
         <div class="frow-date">${esc(f.modified || '—')}</div>
@@ -784,7 +797,7 @@ const FileList = (() => {
       .filter((c) => c.id === 'all' || counts[c.id] > 0 || c.id === prefs.category)
       .map((c) => `
         <button class="cat-chip${c.id === prefs.category ? ' on' : ''}" data-category="${c.id}">
-          ${c.label}<span>${(counts[c.id] || 0).toLocaleString('he-IL')}</span>
+          ${t(c.label)}<span>${num(counts[c.id])}</span>
         </button>`).join('');
   }
 
@@ -807,7 +820,7 @@ const FileList = (() => {
     sortBox.hidden = prefs.mode !== 'grid';
     const current = `${prefs.sort}:${prefs.desc ? 1 : 0}`;
     if (![...sortBox.options].some((o) => o.value === current)) {
-      sortBox.insertAdjacentHTML('beforeend', `<option value="${current}">מיון מהרשימה</option>`);
+      sortBox.insertAdjacentHTML('beforeend', `<option value="${current}">${t('מיון מהרשימה')}</option>`);
     }
     sortBox.value = current;
   }
@@ -825,21 +838,21 @@ const FileList = (() => {
   async function hideDuplicates(on) {
     const box = el('chk-dups');
     box.disabled = true;
-    if (on) setBanner('מחפש קבצים כפולים…');
+    if (on) setBanner(t('מחפש קבצים כפולים…'));
     try {
       const r = await longCall('scan.duplicates', { on });
       dupNote = !on ? ''
-        : r.hidden === 0 ? 'לא נמצאו קבצים כפולים.'
-        : `הוסתרו ${countFiles(r.hidden)} כפולים (${formatSize(r.bytes)}) — מכל קובץ מוצג העותק הטוב ביותר.` +
-          (r.deselected === 1 ? ' עותק אחד שסומן הוסר מהבחירה.'
-            : r.deselected > 1 ? ` ${r.deselected.toLocaleString('he-IL')} עותקים שסומנו הוסרו מהבחירה.` : '');
+        : r.hidden === 0 ? t('לא נמצאו קבצים כפולים.')
+        : t('הוסתרו {0} כפולים ({1}) — מכל קובץ מוצג העותק הטוב ביותר.', countFiles(r.hidden), formatSize(r.bytes)) +
+          (r.deselected === 1 ? ' ' + t('עותק אחד שסומן הוסר מהבחירה.')
+            : r.deselected > 1 ? ' ' + t('{0} עותקים שסומנו הוסרו מהבחירה.', num(r.deselected)) : '');
       applySelection(r.selection);
       await open();
     } catch (err) {
       box.checked = !on;
       const banner = el('list-banner');
       banner.hidden = false;
-      banner.innerHTML = errorNotice('לא ניתן לחפש כפילויות', err, 'tiny-notice');
+      banner.innerHTML = errorNotice(t('לא ניתן לחפש כפילויות'), err, 'tiny-notice');
     } finally {
       box.disabled = false;
       Tree.refreshStates();
@@ -1038,9 +1051,9 @@ const Thumbs = (() => {
 async function saveScanAs() {
   try {
     const r = await Bridge.call('scan.save', {}, 0);
-    if (r.path) setStatus('הסריקה נשמרה: ' + r.path);
+    if (r.path) setStatus(t('הסריקה נשמרה: {0}', r.path));
   } catch (err) {
-    showResultsNotice(errorNotice('הסריקה לא נשמרה', err));
+    showResultsNotice(errorNotice(t('הסריקה לא נשמרה'), err));
   }
 }
 
@@ -1063,7 +1076,7 @@ function notesHtml(items) {
     <div class="results-warnings" id="notes-list">${items.map(noteItem).join('')}</div>
   </details>`;
 }
-const notesTitle = (n) => n === 1 ? 'הערה אחת על הסריקה' : `${n.toLocaleString('he-IL')} הערות על הסריקה`;
+const notesTitle = (n) => n === 1 ? t('הערה אחת על הסריקה') : t('{0} הערות על הסריקה', num(n));
 const noteItem = (html) => `<div class="results-warning">${Icon.alert}<div>${html}</div></div>`;
 
 /// הערה שמגיעה אחרי שהמסך הוצג (למשל: השמירה האוטומטית דולגה).
@@ -1080,43 +1093,43 @@ function addResultsNote(html) {
 // השמירה האוטומטית רצה ברקע אחרי הסריקה, ומודיעה כשהסתיימה — או למה לא נשמרה.
 Bridge.on('scan.saved', (s) => {
   if (s.path) {
-    setStatus(s.partial ? 'נקודת ביניים של הסריקה נשמרה' : 'הסריקה נשמרה אוטומטית');
+    setStatus(t(s.partial ? 'נקודת ביניים של הסריקה נשמרה' : 'הסריקה נשמרה אוטומטית'));
   } else if (!s.partial) {
-    setStatus('הסריקה לא נשמרה אוטומטית');
-    addResultsNote(`<b>הסריקה לא נשמרה אוטומטית:</b> ${esc(s.skipped)} ` +
-      'כדי לחזור אליה בלי לסרוק שוב, שמרו אותה בכפתור השמירה לכונן אחר.');
+    setStatus(t('הסריקה לא נשמרה אוטומטית'));
+    addResultsNote(`<b>${t('הסריקה לא נשמרה אוטומטית:')}</b> ${esc(s.skipped)} ` +
+      t('כדי לחזור אליה בלי לסרוק שוב, שמרו אותה בכפתור השמירה לכונן אחר.'));
   }
 });
 
 function updateRecoverBar() {
   const { count, bytes } = State.selection;
   el('recover-info').textContent = count === 0
-    ? 'לא נבחרו קבצים'
-    : `${plural(count, 'נבחר', 'נבחרו')} ${countFiles(count)} · ${formatSize(Math.max(0, bytes))}`;
+    ? t('לא נבחרו קבצים')
+    : `${I18n.lang === 'en' ? `${countFiles(count)} selected` : `${plural(count, 'נבחר', 'נבחרו')} ${countFiles(count)}`} · ${formatSize(Math.max(0, bytes))}`;
   // סריקה שנפתחה מקובץ בלי שהכונן שלה מחובר — אפשר לסמן, אבל לא לשחזר.
   const offline = !!(State.summary && State.summary.offline);
   el('btn-recover').disabled = count === 0 || offline;
-  el('btn-recover').title = offline ? 'הכונן שנסרק אינו מחובר' : '';
+  el('btn-recover').title = offline ? t('הכונן שנסרק אינו מחובר') : '';
 }
 
 /* ---------- תצוגה מקדימה ---------- */
 
 async function showPreview(id) {
   const panel = el('preview');
-  panel.innerHTML = `<div class="loading" style="height:160px"><div class="spinner"></div><p>קורא…</p></div>`;
+  panel.innerHTML = `<div class="loading" style="height:160px"><div class="spinner"></div><p>${t('קורא…')}</p></div>`;
 
   let p;
   try {
     p = await Bridge.call('scan.preview', { id });
   } catch (err) {
-    panel.innerHTML = `<div style="margin:12px">${errorNotice('לא ניתן להציג את הקובץ', err)}</div>`;
+    panel.innerHTML = `<div style="margin:12px">${errorNotice(t('לא ניתן להציג את הקובץ'), err)}</div>`;
     return;
   }
 
   // אי-התאמה בין הסיומת לתוכן היא סימן מובהק לקובץ פגום או לשם שגוי.
   const mismatch = p.matchesExtension === false
     ? `<div class="notice warn tiny-notice">${Icon.alert}
-         <div>תוכן הקובץ אינו תואם לסיומת שלו. זוהה בפועל: <b>${esc(p.signature || 'לא ידוע')}</b></div>
+         <div>${t('תוכן הקובץ אינו תואם לסיומת שלו. זוהה בפועל:')} <b>${esc(t(p.signature || 'לא ידוע'))}</b></div>
        </div>` : '';
 
   let body;
@@ -1135,7 +1148,7 @@ async function showPreview(id) {
   } else if (p.kind === 'none') {
     body = `<div class="preview-empty">${Icon.alert}<p>${esc(p.reason)}</p></div>`;
   } else {
-    body = `<div class="preview-empty">${Icon.file}<p>אין תצוגה מקדימה לסוג קובץ זה</p></div>`;
+    body = `<div class="preview-empty">${Icon.file}<p>${t('אין תצוגה מקדימה לסוג קובץ זה')}</p></div>`;
   }
 
   const meta = FileList.get(id);
@@ -1148,14 +1161,14 @@ async function showPreview(id) {
   panel.innerHTML = `
     <div class="preview-head">
       <div class="preview-name" title="${esc(p.name)}"><bdi>${esc(p.name)}</bdi></div>
-      ${p.signature ? `<div class="preview-sig">${esc(p.signature)}</div>` : ''}
+      ${p.signature ? `<div class="preview-sig">${esc(t(p.signature))}</div>` : ''}
     </div>
     ${reason}
     ${mismatch}
     <div class="preview-body">${body}</div>
     ${p.hex ? `
       <details class="hex-box">
-        <summary>${Icon.hash}<span>התוכן הגולמי (HEX)</span></summary>
+        <summary>${Icon.hash}<span>${t('התוכן הגולמי (HEX)')}</span></summary>
         <pre class="hex-dump">${esc(p.hex)}</pre>
       </details>` : ''}`;
 
@@ -1165,8 +1178,7 @@ async function showPreview(id) {
   if (player) {
     player.addEventListener('error', () => {
       player.outerHTML = `<div class="preview-empty">${Icon.alert}
-        <p>הנגן לא מצליח לנגן את הקובץ. ייתכן שהוא פגום, או שהוא בפורמט שהנגן המובנה אינו מכיר
-        (למשל חלק מקובצי MKV ו-MOV). אפשר לשחזר אותו ולנסות לפתוח אותו בנגן אחר.</p></div>`;
+        <p>${t('הנגן לא מצליח לנגן את הקובץ. ייתכן שהוא פגום, או שהוא בפורמט שהנגן המובנה אינו מכיר (למשל חלק מקובצי MKV ו-MOV). אפשר לשחזר אותו ולנסות לפתוח אותו בנגן אחר.')}</p></div>`;
     }, { once: true });
   }
 }

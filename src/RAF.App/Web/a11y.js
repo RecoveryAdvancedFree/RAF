@@ -98,7 +98,7 @@ const A11y = (() => {
         if (!stage.id) stage.id = 'progress-stage-' + ++stages;
         track.setAttribute('aria-labelledby', stage.id);
       } else {
-        track.setAttribute('aria-label', 'התקדמות');
+        track.setAttribute('aria-label', t('התקדמות'));
       }
     });
     root.querySelectorAll?.('.progress-stage:not([aria-live])').forEach((s) => s.setAttribute('aria-live', 'polite'));

@@ -14,10 +14,10 @@ async function openDoctorPanel(source) {
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
-        <div class="panel-title">תיקון קבצים שלא נפתחים</div>
-        <div class="panel-sub">הבדיקה לפי מה שיש בתוך הקובץ, לא לפי השם שלו</div>
+        <div class="panel-title">${t('תיקון קבצים שלא נפתחים')}</div>
+        <div class="panel-sub">${t('הבדיקה לפי מה שיש בתוך הקובץ, לא לפי השם שלו')}</div>
       </div>
-      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
     </div>
     <div class="panel-body" id="doctor-body"></div>
     <div class="panel-foot" id="doctor-foot"></div>`;
@@ -38,7 +38,7 @@ async function openDoctorPanel(source) {
 /// פתוחה הם מצטרפים לרשימה; באמצע סריקה או שחזור — הגרירה אינה מפריעה.
 Bridge.on('files.dropped', async ({ paths }) => {
   if (Steps.busy) {
-    setStatus('אי אפשר לבדוק קבצים באמצע פעולה. נסו שוב כשהיא תסתיים.');
+    setStatus(t('אי אפשר לבדוק קבצים באמצע פעולה. נסו שוב כשהיא תסתיים.'));
     return;
   }
 
@@ -61,25 +61,19 @@ document.addEventListener('drop', (e) => e.preventDefault());
 
 function renderDoctorEmpty() {
   el('doctor-body').innerHTML = `
-    ${notice('info', Icon.shield, 'הקבצים המקוריים לא משתנים',
-      'התיקון נכתב לעותק חדש, ונבדק שוב אחרי הכתיבה.',
-      'הבדיקה משווה בין חתימת הפתיחה של כל קובץ (הבתים הראשונים שמזהים את סוגו), הסיומת שלו, ' +
-      'והאורך שמבנה הקובץ מצהיר עליו. כל פער ביניהם הוא בעיה מזוהה.')}
-    <div class="section-label">מה אפשר לתקן</div>
+    ${notice('info', Icon.shield, t('הקבצים המקוריים לא משתנים'),
+      t('התיקון נכתב לעותק חדש, ונבדק שוב אחרי הכתיבה.'),
+      t('הבדיקה משווה בין חתימת הפתיחה של כל קובץ (הבתים הראשונים שמזהים את סוגו), הסיומת שלו, ' +
+      'והאורך שמבנה הקובץ מצהיר עליו. כל פער ביניהם הוא בעיה מזוהה.'))}
+    <div class="section-label">${t('מה אפשר לתקן')}</div>
     <div class="strategy"><p>
-      תחילת קובץ שנמחקה או נפגעה · נתונים מיותרים בסוף הקובץ · סוף קובץ חסר ·
-      סיומת שגויה (למשל תמונה שנשמרה בשם ‎.doc) ·
-      מסמך Word, Excel או PowerPoint (או ZIP) שלא נפתח — תוכן העניינים שלו נבנה מחדש ·
-      מסמך PDF שלא נפתח, או נפתח רק עם אזהרה — טבלת המיקומים שלו נבנית מחדש ·
-      סרטון שההקלטה שלו נקטעה ולא נפתח — בעזרת סרטון תקין אחד מאותו מכשיר ·
-      הקלטת WAV שנקטעה ומתנגנת ריקה · שיר MP3 שנגנים לא מזהים בגלל נתונים זרים בתחילתו ·
-      מסד נתונים SQLite שהכותרת שלו נפגעה.</p>
-      <p>קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.</p></div>
-    <p class="doc-hint">אפשר גם לגרור קבצים או תיקייה אל החלון.</p>`;
+      ${t('תחילת קובץ שנמחקה או נפגעה · נתונים מיותרים בסוף הקובץ · סוף קובץ חסר · סיומת שגויה (למשל תמונה שנשמרה בשם ‎.doc) · מסמך Word, Excel או PowerPoint (או ZIP) שלא נפתח — תוכן העניינים שלו נבנה מחדש · מסמך PDF שלא נפתח, או נפתח רק עם אזהרה — טבלת המיקומים שלו נבנית מחדש · סרטון שההקלטה שלו נקטעה ולא נפתח — בעזרת סרטון תקין אחד מאותו מכשיר · הקלטת WAV שנקטעה ומתנגנת ריקה · שיר MP3 שנגנים לא מזהים בגלל נתונים זרים בתחילתו · מסד נתונים SQLite שהכותרת שלו נפגעה.')}</p>
+      <p>${t('קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.')}</p></div>
+    <p class="doc-hint">${t('אפשר גם לגרור קבצים או תיקייה אל החלון.')}</p>`;
 
   el('doctor-foot').innerHTML = `
-    <button class="btn btn-primary" id="btn-doctor-pick">${Icon.file}<span>בחירת קבצים</span></button>
-    <button class="btn" id="btn-doctor-close">סגירה</button>`;
+    <button class="btn btn-primary" id="btn-doctor-pick">${Icon.file}<span>${t('בחירת קבצים')}</span></button>
+    <button class="btn" id="btn-doctor-close">${t('סגירה')}</button>`;
 
   el('btn-doctor-pick').onclick = pickDoctorFiles;
   el('btn-doctor-close').onclick = closePanel;
@@ -93,7 +87,7 @@ async function pickDoctorFiles() {
 
 async function diagnoseInto(request) {
   el('doctor-body').innerHTML =
-    `<div class="loading" style="height:180px"><div class="spinner"></div><p>בודק את הקבצים…</p></div>`;
+    `<div class="loading" style="height:180px"><div class="spinner"></div><p>${t('בודק את הקבצים…')}</p></div>`;
   el('doctor-foot').innerHTML = '';
 
   try {
@@ -101,7 +95,7 @@ async function diagnoseInto(request) {
     Doctor.files = data.files || [];
     renderDoctorList();
   } catch (err) {
-    el('doctor-body').innerHTML = errorNotice('לא ניתן לבדוק את הקבצים', err);
+    el('doctor-body').innerHTML = errorNotice(t('לא ניתן לבדוק את הקבצים'), err);
   }
 }
 
@@ -113,9 +107,9 @@ function renderDoctorList() {
   const hopeless = files.length - healthy - fixable.length - videos.filter((f) => !f.canRepair).length;
 
   const rows = files.map((f) => {
-    const [cls, label] = f.healthy ? ['ok', 'תקין']
-      : f.canRepair ? ['warn', 'ניתן לתקן']
-      : f.needsReference ? ['warn', 'צריך סרטון לדוגמה'] : ['danger', 'לא ניתן לתקן'];
+    const [cls, label] = f.healthy ? ['ok', 'תקין']                                  // מתורגם בהצגה
+      : f.canRepair ? ['warn', 'ניתן לתקן']                                              // מתורגם בהצגה
+      : f.needsReference ? ['warn', 'צריך סרטון לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
 
     const issues = f.issues.length
       ? `<ul class="doc-issues">${f.issues.map((i) =>
@@ -127,31 +121,31 @@ function renderDoctorList() {
         <div class="doc-top">
           <span class="doc-name" title="${esc(f.path)}"><bdi>${esc(f.name)}</bdi></span>
           <span class="doc-size">${formatSize(f.size)}</span>
-          <span class="chip ${cls} tiny">${label}</span>
+          <span class="chip ${cls} tiny">${t(label)}</span>
         </div>
-        ${f.detected ? `<div class="doc-meta">זוהה: ${esc(f.detected)}</div>` : ''}
+        ${f.detected ? `<div class="doc-meta">${t('זוהה:')} ${esc(t(f.detected))}</div>` : ''}
         ${issues}
         ${f.needsReference ? `
-          <button class="btn btn-sm doc-action" data-rebuild="${esc(f.path)}">${Icon.play}<span>בחירת סרטון תקין מאותו מכשיר…</span></button>` : ''}
+          <button class="btn btn-sm doc-action" data-rebuild="${esc(f.path)}">${Icon.play}<span>${t('בחירת סרטון תקין מאותו מכשיר…')}</span></button>` : ''}
       </div>`;
   }).join('');
 
   el('doctor-body').innerHTML = `
     <div class="doc-summary">
-      <span><b class="ok-text">${healthy}</b> תקינים</span>
+      <span><b class="ok-text">${healthy}</b> ${t('תקינים')}</span>
       <span class="sep">·</span>
-      <span><b>${fixable.length}</b> ניתנים לתיקון</span>
+      <span><b>${fixable.length}</b> ${t('ניתנים לתיקון')}</span>
       ${videos.length ? `<span class="sep">·</span>
-      <span><b>${videos.length}</b> ${plural(videos.length, 'סרטון שצריך', 'סרטונים שצריכים')} סרטון לדוגמה</span>` : ''}
+      <span><b>${videos.length}</b> ${plural(videos.length, 'סרטון שצריך סרטון לדוגמה', 'סרטונים שצריכים סרטון לדוגמה')}</span>` : ''}
       <span class="sep">·</span>
-      <span><b class="danger-text">${hopeless}</b> לא ניתנים לתיקון</span>
+      <span><b class="danger-text">${hopeless}</b> ${t('לא ניתנים לתיקון')}</span>
     </div>
-    <div class="doc-list">${rows || '<div class="empty small"><h3>אין קבצים</h3></div>'}</div>`;
+    <div class="doc-list">${rows || `<div class="empty small"><h3>${t('אין קבצים')}</h3></div>`}</div>`;
 
   el('doctor-foot').innerHTML = `
-    ${fixable.length ? `<button class="btn btn-primary" id="btn-doctor-fix">${Icon.wrench}<span>תיקון ${countFiles(fixable.length)}</span></button>` : ''}
-    <button class="btn" id="btn-doctor-more">בחירת קבצים אחרים</button>
-    <button class="btn" id="btn-doctor-close">סגירה</button>`;
+    ${fixable.length ? `<button class="btn btn-primary" id="btn-doctor-fix">${Icon.wrench}<span>${t('תיקון')} ${countFiles(fixable.length)}</span></button>` : ''}
+    <button class="btn" id="btn-doctor-more">${t('בחירת קבצים אחרים')}</button>
+    <button class="btn" id="btn-doctor-close">${t('סגירה')}</button>`;
 
   const fix = el('btn-doctor-fix');
   if (fix) fix.onclick = () => runDoctorRepair(fixable.map((f) => f.path));
@@ -167,14 +161,14 @@ async function runDoctorRepair(paths) {
   if (!output) return;
 
   el('doctor-body').innerHTML =
-    `<div class="loading" style="height:180px"><div class="spinner"></div><p>מתקן ובודק מחדש…</p></div>`;
+    `<div class="loading" style="height:180px"><div class="spinner"></div><p>${t('מתקן ובודק מחדש…')}</p></div>`;
   el('doctor-foot').innerHTML = '';
 
   let data;
   try {
     data = await Bridge.call('doctor.repair', { paths, output }, 0);
   } catch (err) {
-    el('doctor-body').innerHTML = errorNotice('התיקון לא הושלם', err);
+    el('doctor-body').innerHTML = errorNotice(t('התיקון לא הושלם'), err);
     return;
   }
 
@@ -183,19 +177,19 @@ async function runDoctorRepair(paths) {
       <div class="doc-top">
         <span class="doc-name"><bdi>${esc(r.name)}</bdi></span>
         <span class="chip ${r.healthyAfter ? 'ok' : r.succeeded ? 'warn' : 'danger'} tiny">
-          ${r.healthyAfter ? 'תוקן — תקין' : r.succeeded ? 'תוקן חלקית' : 'לא תוקן'}</span>
+          ${t(r.healthyAfter ? 'תוקן — תקין' : r.succeeded ? 'תוקן חלקית' : 'לא תוקן')}</span>
       </div>
       ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       <div class="doc-meta">${esc(r.message)}</div>
     </div>`).join('');
 
   el('doctor-body').innerHTML = `
-    ${notice('ok-notice', Icon.check, `${countFiles(data.repaired)} ${plural(data.repaired, 'נכתב', 'נכתבו')} אל:`,
+    ${notice('ok-notice', Icon.check, `${countFiles(data.repaired)} ${plural(data.repaired, 'נכתב אל:', 'נכתבו אל:')}`,
       `<span style="direction:ltr;display:inline-block">${esc(data.output)}</span>`,
-      'כל עותק מתוקן נבדק שוב אחרי הכתיבה, והתוצאה המוצגת היא של הבדיקה החוזרת. הקבצים המקוריים לא שונו.')}
+      t('כל עותק מתוקן נבדק שוב אחרי הכתיבה, והתוצאה המוצגת היא של הבדיקה החוזרת. הקבצים המקוריים לא שונו.'))}
     <div class="doc-list">${rows}</div>`;
 
-  el('doctor-foot').innerHTML = `<button class="btn btn-primary" id="btn-doctor-done">סיום</button>`;
+  el('doctor-foot').innerHTML = `<button class="btn btn-primary" id="btn-doctor-done">${t('סיום')}</button>`;
   el('btn-doctor-done').onclick = closePanel;
 }
 
@@ -216,7 +210,7 @@ async function rebuildVideo(path) {
 
   el('doctor-body').innerHTML = `
     <div class="loading" style="height:200px"><div class="spinner"></div>
-      <p>בונה אינדקס חדש לסרטון — תמונה אחר תמונה…</p>
+      <p>${t('בונה אינדקס חדש לסרטון — תמונה אחר תמונה…')}</p>
       <p class="doc-meta" id="rebuild-percent"></p></div>`;
   el('doctor-foot').innerHTML = '';
 
@@ -224,27 +218,26 @@ async function rebuildVideo(path) {
   try {
     r = await Bridge.call('doctor.rebuildVideo', { path, reference: ref.path, output }, 0);
   } catch (err) {
-    el('doctor-body').innerHTML = errorNotice('בניית האינדקס לא הושלמה', err);
-    el('doctor-foot').innerHTML = `<button class="btn" id="btn-doctor-back">חזרה לרשימה</button>`;
+    el('doctor-body').innerHTML = errorNotice(t('בניית האינדקס לא הושלמה'), err);
+    el('doctor-foot').innerHTML = `<button class="btn" id="btn-doctor-back">${t('חזרה לרשימה')}</button>`;
     el('btn-doctor-back').onclick = renderDoctorList;
     return;
   }
 
   el('doctor-body').innerHTML = `
     ${r.succeeded
-      ? notice('ok-notice', Icon.check, 'הסרטון תוקן', esc(r.message))
-      : notice(r.output ? 'warn' : 'danger', Icon.alert, r.output ? 'הסרטון תוקן חלקית' : 'הסרטון לא תוקן', esc(r.message))}
+      ? notice('ok-notice', Icon.check, t('הסרטון תוקן'), esc(r.message))
+      : notice(r.output ? 'warn' : 'danger', Icon.alert, t(r.output ? 'הסרטון תוקן חלקית' : 'הסרטון לא תוקן'), esc(r.message))}
     <div class="doc-list"><div class="doc-row">
       <div class="doc-top"><span class="doc-name"><bdi>${esc(r.name)}</bdi></span></div>
       ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
     </div></div>
-    <p class="doc-hint">הסרטון המקורי לא שונה. אם התמונה בסרטון המתוקן משובשת, כנראה שסרטון הדוגמה צולם בהגדרות אחרות
-      (רזולוציה או קצב תמונות) — נסו סרטון אחר מאותו מכשיר.</p>`;
+    <p class="doc-hint">${t('הסרטון המקורי לא שונה. אם התמונה בסרטון המתוקן משובשת, כנראה שסרטון הדוגמה צולם בהגדרות אחרות (רזולוציה או קצב תמונות) — נסו סרטון אחר מאותו מכשיר.')}</p>`;
 
   el('doctor-foot').innerHTML = `
-    ${r.folder ? `<button class="btn btn-primary" id="btn-doctor-open">${Icon.folder}<span>פתיחת התיקייה</span></button>` : ''}
-    <button class="btn" id="btn-doctor-back">חזרה לרשימה</button>`;
+    ${r.folder ? `<button class="btn btn-primary" id="btn-doctor-open">${Icon.folder}<span>${t('פתיחת התיקייה')}</span></button>` : ''}
+    <button class="btn" id="btn-doctor-back">${t('חזרה לרשימה')}</button>`;
   if (r.folder) el('btn-doctor-open').onclick = () => Bridge.call('recover.openFolder', { path: r.folder });
   el('btn-doctor-back').onclick = renderDoctorList;
 }

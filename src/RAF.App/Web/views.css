@@ -537,7 +537,7 @@
   font-size: 13px;
 }
 .custom-type-row .muted, #custom-types-list .muted { color: var(--text-dim); }
-.target-row input.name-input { direction: rtl; text-align: right; font-size: 13.5px; }
+.target-row input.name-input { direction: inherit; text-align: start; font-size: 13.5px; }
 
 /* ---------- מילת אישור לפני כתיבה לכונן ---------- */
 .confirm-hint { margin: 0 0 8px; font-size: 13px; color: var(--text-dim); }
@@ -873,7 +873,7 @@
 @media (min-width: 1400px) { .situations { grid-template-columns: repeat(6, 1fr); } }
 .situation {
   display: flex; align-items: center; gap: 11px;
-  padding: 11px 13px; text-align: right;
+  padding: 11px 13px; text-align: start;
   background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
   font-family: inherit; color: inherit; cursor: pointer;
   transition: border-color 0.14s, background 0.14s, transform 0.08s;
@@ -943,3 +943,22 @@
 }
 .faq .faq-a ul, .faq .faq-a ol { margin: 4px 0; padding-inline-start: 20px; }
 .faq .faq-a b { color: var(--text); }
+
+/* ==========================================================================
+   ממשק באנגלית — משמאל לימין
+   רוב הפריסה מתהפכת לבד עם dir="ltr". כאן — מה שקבוע בכיוון: מספרים שמיושרים
+   לקצה השורה, וחצים שמסתובבים (החץ עצמו מתהפך ב-Icon, ראו core.js).
+   ========================================================================== */
+html[dir="ltr"] .part-size { text-align: right; }
+html[dir="ltr"] .kv dd { text-align: left; }
+html[dir="ltr"] .kv dd.words { text-align: left; }
+html[dir="ltr"] .disk.open .disk-toggle { transform: rotate(90deg); }
+html[dir="ltr"] .tree-item.open .tree-caret { transform: rotate(90deg); }
+html[dir="ltr"] .faq summary::before { transform: rotate(-90deg); }
+html[dir="ltr"] .faq details[open] summary::before { transform: none; }
+
+/* כפתור השפה: אותיות, לא סמל */
+.win-btn.lang-btn { font-family: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; }
+
+html[lang="en"] .notes-toggle::before { content: '· show'; }
+html[lang="en"] .results-notes[open] .notes-toggle::before { content: '· hide'; }

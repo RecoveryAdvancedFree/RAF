@@ -29,7 +29,7 @@ const Bridge = (() => {
     if (msg.ok) { entry.resolve(msg.data); return; }
 
     // השגיאה מגיעה מתורגמת: מה קרה, מה לעשות, והפירוט הטכני המקורי בנפרד.
-    const err = new Error(msg.error || 'שגיאה לא ידועה');
+    const err = new Error(msg.error || t('שגיאה לא ידועה'));
     err.advice = msg.advice;
     err.detail = msg.detail;
     err.sourceUntouched = msg.sourceUntouched;
@@ -48,8 +48,8 @@ const Bridge = (() => {
         setTimeout(() => {
           if (pending.has(id)) {
             pending.delete(id);
-            const err = new Error('הפעולה לא הסתיימה בזמן הצפוי.');
-            err.advice = 'ייתכן שהכונן איטי או תקוע. בדקו שהוא מחובר ונסו שוב.';
+            const err = new Error(t('הפעולה לא הסתיימה בזמן הצפוי.'));
+            err.advice = t('ייתכן שהכונן איטי או תקוע. בדקו שהוא מחובר ונסו שוב.');
             reject(err);
           }
         }, limit);
@@ -80,12 +80,18 @@ function formatSize(bytes) {
 
 /// "קובץ אחד" / "3 קבצים" — בעברית המספר אחד בא אחרי שם העצם, ביחיד.
 function countFiles(n) {
-  return n === 1 ? 'קובץ אחד' : `${n.toLocaleString('he-IL')} קבצים`;
+  if (I18n.lang === 'en') return n === 1 ? '1 file' : `${n.toLocaleString('en-US')} files`;
+  return n === 1 ? 'קובץ אחד' : `${n.toLocaleString('he-IL')} קבצים`;   // לא לתרגום: הגרסה העברית
 }
 
-/// פועל שמתאים למספר: plural(n, 'שוחזר', 'שוחזרו').
+/// מספר לתצוגה, בפורמט של שפת הממשק.
+function num(n) {
+  return (n || 0).toLocaleString(I18n.locale);
+}
+
+/// פועל שמתאים למספר: plural(n, 'שוחזר', 'שוחזרו'). כל צורה מתורגמת בנפרד.
 function plural(n, one, many) {
-  return n === 1 ? one : many;
+  return t(n === 1 ? one : many);
 }
 
 /// זמן משוער שנותר, במילים. הקצב מוחלק (ממוצע נע), כדי שהמספר לא יקפוץ בכל
@@ -94,13 +100,24 @@ const Eta = (() => {
   const smoothed = new Map();
 
   function words(seconds) {
-    if (seconds < 60) return 'פחות מדקה';
+    if (I18n.lang === 'en') return wordsEn(seconds);
+    if (seconds < 60) return 'פחות מדקה';                                 // לא לתרגום: הגרסה העברית
     const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return minutes === 1 ? 'כדקה' : `כ-${minutes} דקות`;
+    if (minutes < 60) return minutes === 1 ? 'כדקה' : `כ-${minutes} דקות`; // לא לתרגום
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
-    const h = hours === 1 ? 'כשעה' : hours === 2 ? 'כשעתיים' : `כ-${hours} שעות`;
-    return rest < 5 ? h : `${h} ו-${rest} דקות`;
+    const h = hours === 1 ? 'כשעה' : hours === 2 ? 'כשעתיים' : `כ-${hours} שעות`; // לא לתרגום
+    return rest < 5 ? h : `${h} ו-${rest} דקות`;                          // לא לתרגום
+  }
+
+  function wordsEn(seconds) {
+    if (seconds < 60) return 'less than a minute';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes === 1 ? 'about a minute' : `about ${minutes} minutes`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    const h = hours === 1 ? 'about an hour' : `about ${hours} hours`;
+    return rest < 5 ? h : `${h} and ${rest} minutes`;
   }
 
   /// key מזהה את הפעולה: ערך מוחלק אחד לכל מסך התקדמות. האחוז הוא של השלב
@@ -109,7 +126,7 @@ const Eta = (() => {
   function text(key, percent, elapsed) {
     if (percent === null || percent === undefined) {
       smoothed.delete(key);
-      return 'מחשב…';
+      return t('מחשב…');
     }
     if (percent >= 100) return '—';
 
@@ -123,7 +140,7 @@ const Eta = (() => {
 
     const done = percent - s.basePercent;
     const time = elapsed - s.baseTime;
-    if (done < 1 || time < 8) return 'מחשב…';
+    if (done < 1 || time < 8) return t('מחשב…');
 
     // החלקה לפי זמן (כ-10 שניות) ולא לפי מספר הדיווחים, שמשתנה בין פעולות.
     // הערך הקודם "מתקדם" בזמן שעבר מאז, לפני שמשקללים אותו עם החדש.
@@ -166,7 +183,7 @@ function el(id) { return document.getElementById(id); }
 function notice(cls, icon, title, text, why, extra) {
   const head = title ? `<b>${title}</b>` : '';
   const sep = title && text ? '<br>' : '';
-  const more = why ? `<details class="why"><summary>למה?</summary><div>${why}</div></details>` : '';
+  const more = why ? `<details class="why"><summary>${t('למה?')}</summary><div>${why}</div></details>` : '';
   return `<div class="notice ${cls}${extra ? ' ' + extra : ''}">${icon}<div>${head}${sep}${text || ''}${more}</div></div>`;
 }
 
@@ -174,10 +191,10 @@ function notice(cls, icon, title, text, why, extra) {
 /// ומה לעשות עכשיו. ההודעה הטכנית המקורית מקופלת תחת "פרטים טכניים".
 function errorNotice(title, err, extra) {
   const lines = [esc(err.message)];
-  if (err.sourceUntouched) lines.push('הקבצים המקוריים לא השתנו.');
-  if (err.advice) lines.push(`<b>מה לעשות:</b> ${esc(err.advice)}`);
+  if (err.sourceUntouched) lines.push(t('הקבצים המקוריים לא השתנו.'));
+  if (err.advice) lines.push(`<b>${t('מה לעשות:')}</b> ${esc(err.advice)}`);
   const detail = err.detail
-    ? `<details class="why"><summary>פרטים טכניים</summary><div dir="ltr">${esc(err.detail)}</div></details>`
+    ? `<details class="why"><summary>${t('פרטים טכניים')}</summary><div dir="ltr">${esc(err.detail)}</div></details>`
     : '';
   const head = title ? `<b>${title}</b><br>` : '';
   return `<div class="notice danger${extra ? ' ' + extra : ''}">${Icon.alert}<div>${head}${lines.join('<br>')}${detail}</div></div>`;
@@ -226,6 +243,13 @@ const Icon = {
   grid: '<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>',
 };
 
+/// סמלים שמצביעים לכיוון ("חזרה", חץ פתיחה, המשך) — משמאל לימין הם מתהפכים.
+for (const name of ['back', 'chevron', 'play']) {
+  const rtlIcon = Icon[name];
+  const ltrIcon = rtlIcon.replace('<svg ', '<svg style="transform:scaleX(-1)" ');
+  Object.defineProperty(Icon, name, { get: () => (I18n.rtl ? rtlIcon : ltrIcon) });
+}
+
 function diskIcon(media) {
   if (media === 'HardDisk') return { html: Icon.hdd, cls: 'is-hdd' };
   if (media === 'UsbFlash') return { html: Icon.usb, cls: 'is-usb' };
@@ -240,11 +264,11 @@ function diskIcon(media) {
 /// הסמל מראה את הבחירה הנוכחית, והתיאור מסביר אותה במילים.
 const Theme = (() => {
   const ORDER = ['system', 'light', 'dark'];
-  const LABEL = {
+  const LABEL = {   // מתורגם בהצגה: מכאן
     system: 'ערכת נושא: לפי הגדרות Windows',
     light: 'ערכת נושא: בהירה',
     dark: 'ערכת נושא: כהה',
-  };
+  };                // מתורגם בהצגה: עד כאן
   const ICON = {
     system: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 4v12" /><path d="M12 4h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7Z" fill="currentColor" stroke="none"/><path d="M8 20h8M12 16v4"/></svg>',
     light: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>',
@@ -266,8 +290,8 @@ const Theme = (() => {
 
     const btn = el('btn-theme');
     btn.innerHTML = ICON[pref];
-    btn.title = LABEL[pref];
-    btn.setAttribute('aria-label', LABEL[pref]);
+    btn.title = t(LABEL[pref]);
+    btn.setAttribute('aria-label', t(LABEL[pref]));
 
     // גם רקע החלון עצמו מתעדכן, כדי שבשינוי גודל לא יבצבץ צבע אחר.
     Bridge.call('window.theme', { dark }).catch(() => {});
@@ -277,14 +301,14 @@ const Theme = (() => {
     pref = ORDER[(ORDER.indexOf(pref) + 1) % ORDER.length];
     try { localStorage.setItem('raf-theme', pref); } catch (e) {}
     apply();
-    setStatus(LABEL[pref]);
+    setStatus(t(LABEL[pref]));
   };
 
   // במצב "לפי המערכת", שינוי בהגדרות Windows מתעדכן מיד.
   media.addEventListener('change', () => { if (pref === 'system') apply(); });
 
   apply();
-  return { get preference() { return pref; } };
+  return { get preference() { return pref; }, refresh: apply };
 })();
 
 /* --------------------------------------------------------- שליטת חלון */
@@ -299,6 +323,7 @@ el('btn-close').onclick = () => Bridge.call('window.close');
 /// שאלות נפוצות — בשכבה משלהן, כך שאפשר לפתוח אותן גם באמצע סריקה או
 /// מעל לוח פתוח, בלי לאבד אותו.
 const Help = (() => {
+  // לא לתרגום: מכאן — הגרסה האנגלית היא EN_FAQ ב-lang-en.js.
   const FAQ = [
     ['מה אסור לעשות עכשיו?', `
       <ul>
@@ -378,19 +403,20 @@ const Help = (() => {
       לפני כל אחת מהן התוכנה שומרת גיבוי של מה שהיא משנה, ומחזירה אותו אוטומטית אם משהו נכשל.
       סריקה, שחזור ויצירת תמונת דיסק רק קוראים מהכונן.`],
   ];
+  // לא לתרגום: עד כאן
 
   function open() {
     el('help-panel').innerHTML = `
       <div class="panel-head">
         <div class="grow">
-          <div class="panel-title">שאלות נפוצות</div>
-          <div class="panel-sub">לחצו על שאלה כדי לראות את התשובה</div>
+          <div class="panel-title">${t('שאלות נפוצות')}</div>
+          <div class="panel-sub">${t('לחצו על שאלה כדי לראות את התשובה')}</div>
         </div>
-        <button class="panel-close" id="help-close" aria-label="סגירה">${Icon.close}</button>
+        <button class="panel-close" id="help-close" aria-label="${t('סגירה')}">${Icon.close}</button>
       </div>
       <div class="panel-body">
         <div class="faq">
-          ${FAQ.map(([q, a]) => `<details><summary>${q}</summary><div class="faq-a">${a}</div></details>`).join('')}
+          ${(I18n.lang === 'en' ? EN_FAQ : FAQ).map(([q, a]) => `<details><summary>${q}</summary><div class="faq-a">${a}</div></details>`).join('')}
         </div>
       </div>`;
     el('help-overlay').hidden = false;
@@ -460,7 +486,7 @@ function setStatus(text) { el('status-text').textContent = text; }
 /// (סריקה, יצירת תמונה, שחזור), שתוצאתה הייתה דורסת את המסך שאליו עברו.
 /// "בחירת קבצים" זמין גם ממסך הכוננים כל עוד יש תוצאות סריקה: הבחירה נשמרת במנוע.
 const Steps = (() => {
-  const STEPS = ['מחיצה', 'סריקה', 'בחירת קבצים', 'שחזור'];
+  const STEPS = ['מחיצה', 'סריקה', 'בחירת קבצים', 'שחזור'];   // מתורגם בהצגה
   let current = 1;
   let busy = false;
 
@@ -479,7 +505,7 @@ const Steps = (() => {
       const sep = n > 1 ? `<span class="step-sep${done || n === current ? ' done' : ''}"></span>` : '';
       return `${sep}<button class="${cls}" data-step="${n}"${canGo(n) ? '' : ' tabindex="-1"'}
                 ${n === current ? 'aria-current="step"' : ''}>
-                <span class="step-num">${done ? Icon.check : n}</span>${label}</button>`;
+                <span class="step-num">${done ? Icon.check : n}</span>${t(label)}</button>`;
     }).join('');
   }
 

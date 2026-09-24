@@ -16,10 +16,10 @@ async function openRepairPanel(disk, part) {
         <div class="panel-title">${esc(partTitle(part))}</div>
         <div class="panel-sub">${esc(disk.name)} · ${esc(part.fsLabel)} · ${formatSize(part.size)}</div>
       </div>
-      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
     </div>
     <div class="panel-body"><div class="loading" style="height:180px">
-      <div class="spinner"></div><p>מאבחן את המחיצה…</p></div></div>`;
+      <div class="spinner"></div><p>${t('מאבחן את המחיצה…')}</p></div></div>`;
 
   el('overlay').hidden = false;
   el('panel-close').onclick = closePanel;
@@ -28,7 +28,7 @@ async function openRepairPanel(disk, part) {
   try {
     d = await Bridge.call('repair.diagnose', { disk: disk.number, part: part.index });
   } catch (err) {
-    el('panel').querySelector('.panel-body').innerHTML = errorNotice('לא ניתן לבדוק את המחיצה', err);
+    el('panel').querySelector('.panel-body').innerHTML = errorNotice(t('לא ניתן לבדוק את המחיצה'), err);
     return;
   }
 
@@ -39,26 +39,25 @@ async function openRepairPanel(disk, part) {
   // כשיש עותק גיבוי, הדרך המומלצת היא להעתיק את הקבצים דרכו — עם שמות
   // ותיקיות, ובלי לכתוב לכונן. התיקון עצמו מוצע כאפשרות שנייה.
   const readThroughBlock = d.canRepair ? `
-    <div class="section-label">אפשרות 1 — העתקת הקבצים בלי לגעת בכונן (מומלץ)</div>
+    <div class="section-label">${t('אפשרות 1 — העתקת הקבצים בלי לגעת בכונן (מומלץ)')}</div>
     <div class="strategy">
-      <p>Windows מבקש לפרמט כי תחילת המחיצה נפגעה, אבל הקבצים עצמם בדרך כלל שלמים.
-      התוכנה תציג את כולם <b>עם השמות והתיקיות המקוריים</b>, להעתקה לכונן אחר.</p>
+      <p>${t('Windows מבקש לפרמט כי תחילת המחיצה נפגעה, אבל הקבצים עצמם בדרך כלל שלמים. התוכנה תציג את כולם <b>עם השמות והתיקיות המקוריים</b>, להעתקה לכונן אחר.')}</p>
     </div>
-    ${notice('info', Icon.shield, 'שום דבר לא נכתב לכונן',
-      'התיקון קיים רק בזיכרון של התוכנה.',
-      'התוכנה קוראת את המחיצה דרך עותק הגיבוי של תחילתה (מגזר האתחול), והכונן נשאר בדיוק כפי שהוא.')}` : '';
+    ${notice('info', Icon.shield, t('שום דבר לא נכתב לכונן'),
+      t('התיקון קיים רק בזיכרון של התוכנה.'),
+      t('התוכנה קוראת את המחיצה דרך עותק הגיבוי של תחילתה (מגזר האתחול), והכונן נשאר בדיוק כפי שהוא.'))}` : '';
 
   const repairBlock = d.canRepair ? `
-    <div class="section-label" style="margin-top:18px">אפשרות 2 — תיקון המחיצה</div>
+    <div class="section-label" style="margin-top:18px">${t('אפשרות 2 — תיקון המחיצה')}</div>
     <div class="strategy">
       <p>${esc(d.whatWillChange)}</p>
     </div>
     ${disk.isImage
-      ? notice('info', Icon.shield, 'התיקון ייכתב לקובץ התמונה בלבד',
-          'הכונן המקורי לא נוגע בתהליך — זו הדרך הבטוחה ביותר לנסות תיקון.')
-      : notice('warn', Icon.alert, 'הפעולה היחידה שכותבת לדיסק המקור',
-          'אם התיקון יצליח, כל הקבצים יחזרו להיות נגישים כרגיל.',
-          'אם התיקון ייכשל, התוכנה תחזיר את המצב הקודם אוטומטית מהגיבוי שנשמר לפני הכתיבה.')}` : '';
+      ? notice('info', Icon.shield, t('התיקון ייכתב לקובץ התמונה בלבד'),
+          t('הכונן המקורי לא נוגע בתהליך — זו הדרך הבטוחה ביותר לנסות תיקון.'))
+      : notice('warn', Icon.alert, t('הפעולה היחידה שכותבת לדיסק המקור'),
+          t('אם התיקון יצליח, כל הקבצים יחזרו להיות נגישים כרגיל.'),
+          t('אם התיקון ייכשל, התוכנה תחזיר את המצב הקודם אוטומטית מהגיבוי שנשמר לפני הכתיבה.'))}` : '';
 
   el('panel').querySelector('.panel-body').innerHTML = `
     ${verdict}
@@ -66,24 +65,24 @@ async function openRepairPanel(disk, part) {
     ${repairBlock}
 
     <div class="section-label" style="margin-top:18px">
-      ${d.canRepair ? 'אפשרות 3 — ' : ''}סריקה מתקדמת
+      ${d.canRepair ? t('אפשרות 3 — סריקה מתקדמת') : t('סריקה מתקדמת')}
     </div>
     <div class="strategy">
-      <p>סריקה מתקדמת מחפשת קבצים לפי התוכן שלהם, ועובדת גם במחיצה שאינה נקראת כלל. ${d.canRepair
+      <p>${t('סריקה מתקדמת מחפשת קבצים לפי התוכן שלהם, ועובדת גם במחיצה שאינה נקראת כלל.')} ${t(d.canRepair
         ? 'אבל הקבצים יימצאו בלי שמות — השתמשו בה רק אם אפשרות 1 לא מצאה את מה שחיפשתם.'
-        : 'לא נמצא עותק גיבוי, ולכן זו הדרך להציל את הקבצים — בלי שמות מקוריים ובלי תיקיות.'}</p>
+        : 'לא נמצא עותק גיבוי, ולכן זו הדרך להציל את הקבצים — בלי שמות מקוריים ובלי תיקיות.')}</p>
     </div>
-    ${d.canRepair ? '' : notice('info', Icon.shield, 'קריאה בלבד',
-      'הכונן לא ישתנה, והקבצים יועתקו לכונן אחר.')}`;
+    ${d.canRepair ? '' : notice('info', Icon.shield, t('קריאה בלבד'),
+      t('הכונן לא ישתנה, והקבצים יועתקו לכונן אחר.'))}`;
 
   el('panel').insertAdjacentHTML('beforeend', `
     <div class="panel-foot">
-      ${d.canRepair ? `<button class="btn btn-primary" id="btn-read-through">${Icon.copy}<span>העתקת קבצים עם שמות</span></button>` : ''}
-      ${d.canRepair ? `<button class="btn" id="btn-repair">${Icon.wrench}<span>תיקון המחיצה</span></button>` : ''}
-      <button class="btn ${d.canRepair ? '' : 'btn-primary'}" id="btn-recover-raw">${Icon.radar}<span>סריקה מתקדמת</span></button>
-      ${disk.isImage || !disk.rawAccessible ? '' : `<button class="btn" id="btn-image-raw">${Icon.copy}<span>יצירת תמונת דיסק</span></button>`}
-      ${part.found ? `<button class="btn" id="btn-restore-raw">${Icon.layers}<span>החזרה לטבלה</span></button>` : ''}
-      <button class="btn" id="btn-cancel-repair">ביטול</button>
+      ${d.canRepair ? `<button class="btn btn-primary" id="btn-read-through">${Icon.copy}<span>${t('העתקת קבצים עם שמות')}</span></button>` : ''}
+      ${d.canRepair ? `<button class="btn" id="btn-repair">${Icon.wrench}<span>${t('תיקון המחיצה')}</span></button>` : ''}
+      <button class="btn ${d.canRepair ? '' : 'btn-primary'}" id="btn-recover-raw">${Icon.radar}<span>${t('סריקה מתקדמת')}</span></button>
+      ${disk.isImage || !disk.rawAccessible ? '' : `<button class="btn" id="btn-image-raw">${Icon.copy}<span>${t('יצירת תמונת דיסק')}</span></button>`}
+      ${part.found ? `<button class="btn" id="btn-restore-raw">${Icon.layers}<span>${t('החזרה לטבלה')}</span></button>` : ''}
+      <button class="btn" id="btn-cancel-repair">${t('ביטול')}</button>
     </div>`);
 
   const imageRaw = el('btn-image-raw');
@@ -105,7 +104,7 @@ async function openRepairPanel(disk, part) {
 /// הפעלת הקריאה דרך עותק הגיבוי, ומעבר ישיר לבחירת סריקה.
 async function startReadThrough(disk, part) {
   el('panel').querySelector('.panel-body').innerHTML =
-    `<div class="loading" style="height:180px"><div class="spinner"></div><p>קורא את המחיצה דרך עותק הגיבוי…</p></div>`;
+    `<div class="loading" style="height:180px"><div class="spinner"></div><p>${t('קורא את המחיצה דרך עותק הגיבוי…')}</p></div>`;
   el('panel').querySelector('.panel-foot').innerHTML = '';
 
   let r;
@@ -117,10 +116,10 @@ async function startReadThrough(disk, part) {
 
   if (!r.ok) {
     el('panel').querySelector('.panel-body').innerHTML = r.error
-      ? errorNotice('לא ניתן לקרוא את המחיצה דרך עותק הגיבוי', r.error)
+      ? errorNotice(t('לא ניתן לקרוא את המחיצה דרך עותק הגיבוי'), r.error)
       : `<div class="notice danger">${Icon.alert}<div>${esc(r.message)}</div></div>`;
     el('panel').querySelector('.panel-foot').innerHTML =
-      `<button class="btn" id="btn-back-rt">חזרה</button>`;
+      `<button class="btn" id="btn-back-rt">${t('חזרה')}</button>`;
     el('btn-back-rt').onclick = () => openRepairPanel(disk, part);
     return;
   }
@@ -131,49 +130,50 @@ async function startReadThrough(disk, part) {
   openScanPanel(disk.number, part.index);
 }
 
-/// המילה שמקלידים לפני כתיבה לכונן — חייבת להתאים ל-ConfirmWord שבגשר.
-const CONFIRM_WORD = 'מאשר';
+/// המילה שמקלידים לפני כתיבה לכונן — חייבת להתאים ל-ConfirmWords שבגשר.
+/// בכל שפה המילה שלה: לא מבקשים ממי שעובד באנגלית להקליד עברית.
+const confirmWord = () => t('מאשר');
 
 /// שדה מילת האישור: לחיצה אחת בטעות לא תכתוב לכונן.
 function confirmWordField(id) {
   return `
-    <div class="section-label">אישור אחרון</div>
-    <p class="confirm-hint" id="${id}-hint">כדי לכתוב לכונן, הקלידו את המילה <b>${CONFIRM_WORD}</b>:</p>
+    <div class="section-label">${t('אישור אחרון')}</div>
+    <p class="confirm-hint" id="${id}-hint">${t('כדי לכתוב לכונן, הקלידו את המילה <b>{0}</b>:', confirmWord())}</p>
     <input type="text" class="confirm-word" id="${id}" autocomplete="off" spellcheck="false"
            aria-describedby="${id}-hint">`;
 }
 
-const confirmTyped = id => el(id).value.trim() === CONFIRM_WORD;
+const confirmTyped = id => el(id).value.trim().toUpperCase() === confirmWord().toUpperCase();
 
 /// אישור אחרון לפני כתיבה לדיסק, כולל בחירת תיקיית הגיבוי.
 function confirmRepair(disk, part, diagnosis) {
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
-        <div class="panel-title">תיקון מחיצה</div>
+        <div class="panel-title">${t('תיקון מחיצה')}</div>
         <div class="panel-sub">${esc(partTitle(part))} · ${esc(disk.name)}</div>
       </div>
-      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
     </div>
     <div class="panel-body">
-      ${notice('warn', Icon.alert, 'הפעולה כותבת לדיסק', esc(diagnosis.whatWillChange))}
+      ${notice('warn', Icon.alert, t('הפעולה כותבת לדיסק'), esc(diagnosis.whatWillChange))}
 
-      <div class="section-label">תיקיית גיבוי — על כונן אחר</div>
+      <div class="section-label">${t('תיקיית גיבוי — על כונן אחר')}</div>
       <div class="target-row">
-        <input type="text" id="undo-path" readonly placeholder="לא נבחרה תיקייה" aria-label="תיקיית הגיבוי">
-        <button class="btn" id="btn-pick-undo">${Icon.folder}<span>בחירה</span></button>
+        <input type="text" id="undo-path" readonly placeholder="${t('לא נבחרה תיקייה')}" aria-label="${t('תיקיית הגיבוי')}">
+        <button class="btn" id="btn-pick-undo">${Icon.folder}<span>${t('בחירה')}</span></button>
       </div>
       <div id="undo-status"></div>
 
-      ${notice('info', Icon.shield, 'אפשר לחזור אחורה',
-        'לפני הכתיבה יישמר כאן עותק של כל מה שעומד להשתנות בכונן. אם התיקון ייכשל, המצב הקודם יוחזר אוטומטית.',
+      ${notice('info', Icon.shield, t('אפשר לחזור אחורה'),
+        t('לפני הכתיבה יישמר כאן עותק של כל מה שעומד להשתנות בכונן. אם התיקון ייכשל, המצב הקודם יוחזר אוטומטית.'),
         '', 'spaced')}
 
       ${confirmWordField('repair-confirm')}
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-do-repair" disabled>ביצוע התיקון</button>
-      <button class="btn" id="btn-back-repair">חזרה</button>
+      <button class="btn btn-primary" id="btn-do-repair" disabled>${t('ביצוע התיקון')}</button>
+      <button class="btn" id="btn-back-repair">${t('חזרה')}</button>
     </div>`;
 
   el('panel-close').onclick = closePanel;
@@ -189,7 +189,7 @@ function confirmRepair(disk, part, diagnosis) {
     el('undo-path').value = path;
     ready();
     el('undo-status').innerHTML =
-      `<div class="notice ok-notice tiny-notice">${Icon.check}<div>הגיבוי יישמר כאן.</div></div>`;
+      `<div class="notice ok-notice tiny-notice">${Icon.check}<div>${t('הגיבוי יישמר כאן.')}</div></div>`;
   };
 
   el('btn-do-repair').onclick = () => runRepair(disk, part);
@@ -200,7 +200,7 @@ async function runRepair(disk, part) {
   const confirm = el('repair-confirm').value.trim();
 
   el('panel').querySelector('.panel-body').innerHTML =
-    `<div class="loading" style="height:180px"><div class="spinner"></div><p>מתקן את המחיצה…</p></div>`;
+    `<div class="loading" style="height:180px"><div class="spinner"></div><p>${t('מתקן את המחיצה…')}</p></div>`;
   el('panel').querySelector('.panel-foot').innerHTML = '';
 
   let r;
@@ -215,14 +215,14 @@ async function runRepair(disk, part) {
   const icon = r.succeeded ? Icon.check : Icon.alert;
 
   el('panel').querySelector('.panel-body').innerHTML = `
-    ${r.error ? errorNotice('תיקון המחיצה לא הושלם', r.error)
+    ${r.error ? errorNotice(t('תיקון המחיצה לא הושלם'), r.error)
       : `<div class="notice ${cls}">${icon}<div>${esc(r.message)}</div></div>`}
     ${r.undoFile ? `<div class="notice info tiny-notice">${Icon.info}
-      <div>קובץ ביטול: <span style="direction:ltr;display:inline-block">${esc(r.undoFile)}</span></div>
+      <div>${t('קובץ ביטול:')} <span style="direction:ltr;display:inline-block">${esc(r.undoFile)}</span></div>
     </div>` : ''}`;
 
   el('panel').querySelector('.panel-foot').innerHTML = `
-    <button class="btn btn-primary" id="btn-done-repair">סיום</button>`;
+    <button class="btn btn-primary" id="btn-done-repair">${t('סיום')}</button>`;
 
   el('btn-done-repair').onclick = () => { closePanel(); loadDisks(); };
 }
@@ -233,26 +233,26 @@ function openUndoPanel() {
   el('panel').innerHTML = `
     <div class="panel-head">
       <div class="grow">
-        <div class="panel-title">ביטול תיקון קודם</div>
-        <div class="panel-sub">החזרת הכונן למצב שלפני תיקון מחיצה או החזרת מחיצה לטבלה</div>
+        <div class="panel-title">${t('ביטול תיקון קודם')}</div>
+        <div class="panel-sub">${t('החזרת הכונן למצב שלפני תיקון מחיצה או החזרת מחיצה לטבלה')}</div>
       </div>
-      <button class="panel-close" id="panel-close" aria-label="סגירה">${Icon.close}</button>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
     </div>
     <div class="panel-body">
       ${notice('info', Icon.info, '',
-        'בכל תיקון התוכנה שומרת קובץ ביטול בתיקיית הגיבוי שבחרתם. שמו מתחיל ב-RAF-undo.')}
+        t('בכל תיקון התוכנה שומרת קובץ ביטול בתיקיית הגיבוי שבחרתם. שמו מתחיל ב-RAF-undo.'))}
 
-      <div class="section-label">קובץ הביטול</div>
+      <div class="section-label">${t('קובץ הביטול')}</div>
       <div class="target-row">
-        <input type="text" id="undo-file" readonly placeholder="לא נבחר קובץ" aria-label="קובץ הביטול">
-        <button class="btn" id="btn-pick-undo-file">${Icon.file}<span>בחירה</span></button>
+        <input type="text" id="undo-file" readonly placeholder="${t('לא נבחר קובץ')}" aria-label="${t('קובץ הביטול')}">
+        <button class="btn" id="btn-pick-undo-file">${Icon.file}<span>${t('בחירה')}</span></button>
       </div>
       <div id="undo-check"></div>
       <div id="undo-confirm-row" hidden>${confirmWordField('undo-confirm')}</div>
     </div>
     <div class="panel-foot">
-      <button class="btn btn-primary" id="btn-do-undo" disabled>${Icon.back}<span>ביטול התיקון</span></button>
-      <button class="btn" id="btn-close-undo">סגירה</button>
+      <button class="btn btn-primary" id="btn-do-undo" disabled>${Icon.back}<span>${t('ביטול התיקון')}</span></button>
+      <button class="btn" id="btn-close-undo">${t('סגירה')}</button>
     </div>`;
 
   el('overlay').hidden = false;
@@ -271,22 +271,22 @@ function openUndoPanel() {
     checked = false;
     ready();
     el('undo-check').innerHTML =
-      `<div class="loading" style="height:80px"><div class="spinner"></div><p>בודק את הכונן…</p></div>`;
+      `<div class="loading" style="height:80px"><div class="spinner"></div><p>${t('בודק את הכונן…')}</p></div>`;
 
     let c;
     try {
       c = await Bridge.call('undo.check', { path }, 0);
     } catch (err) {
-      el('undo-check').innerHTML = errorNotice('לא ניתן לבדוק את קובץ הביטול', err, 'spaced');
+      el('undo-check').innerHTML = errorNotice(t('לא ניתן לבדוק את קובץ הביטול'), err, 'spaced');
       return;
     }
 
     checked = c.canUndo;
     const details = c.what ? `
       <div class="strategy"><p>
-        <b>הפעולה:</b> ${esc(c.what)}<br>
-        ${c.created ? `<b>מתי:</b> ${esc(new Date(c.created).toLocaleString('he-IL'))}<br>` : ''}
-        ${c.diskName ? `<b>הכונן:</b> ${esc(c.diskName)} · ${formatSize(c.diskSize)}` : ''}
+        <b>${t('הפעולה:')}</b> ${esc(t(c.what))}<br>
+        ${c.created ? `<b>${t('מתי:')}</b> ${esc(new Date(c.created).toLocaleString(I18n.locale))}<br>` : ''}
+        ${c.diskName ? `<b>${t('הכונן:')}</b> ${esc(c.diskName)} · ${formatSize(c.diskSize)}` : ''}
       </p></div>` : '';
     el('undo-check').innerHTML = details +
       `<div class="notice ${c.canUndo ? 'ok-notice' : 'warn'} tiny-notice">
@@ -300,7 +300,7 @@ function openUndoPanel() {
     const confirm = el('undo-confirm').value.trim();
 
     el('panel').querySelector('.panel-body').innerHTML =
-      `<div class="loading" style="height:180px"><div class="spinner"></div><p>מחזיר את הכונן למצב הקודם…</p></div>`;
+      `<div class="loading" style="height:180px"><div class="spinner"></div><p>${t('מחזיר את הכונן למצב הקודם…')}</p></div>`;
     el('panel').querySelector('.panel-foot').innerHTML = '';
 
     let r;
@@ -312,10 +312,10 @@ function openUndoPanel() {
 
     const cls = r.succeeded ? 'ok-notice' : r.rolledBack ? 'warn' : 'danger';
     el('panel').querySelector('.panel-body').innerHTML = r.error
-      ? errorNotice('ביטול התיקון לא הושלם', r.error)
+      ? errorNotice(t('ביטול התיקון לא הושלם'), r.error)
       : `<div class="notice ${cls}">${r.succeeded ? Icon.check : Icon.alert}<div>${esc(r.message)}</div></div>`;
     el('panel').querySelector('.panel-foot').innerHTML =
-      `<button class="btn btn-primary" id="btn-done-undo">סיום</button>`;
+      `<button class="btn btn-primary" id="btn-done-undo">${t('סיום')}</button>`;
     el('btn-done-undo').onclick = () => { closePanel(); loadDisks(); };
   };
 }

@@ -21,7 +21,7 @@ async function startScan(disk, part, modeId, includeExisting, freeSpaceOnly = fa
 /// המשך של סריקה מתקדמת שנעצרה — מהסריקה הנוכחית (בלי נתיב) או מ"סריקות אחרונות".
 async function resumeScan(path, title) {
   closePanel();
-  showScanScreen(3, `${title} · המשך מהנקודה שבה נעצרה`);
+  showScanScreen(3, `${title} ${t('· המשך מהנקודה שבה נעצרה')}`);
   await runScan('scan.resume', path ? { path } : {}, title);
 }
 
@@ -37,13 +37,13 @@ function showScanScreen(modeId, subtitle) {
       <div class="scan-head">
         <div class="scan-icon">${mode.icon}</div>
         <div>
-          <div class="page-title">${mode.name}</div>
+          <div class="page-title">${t(mode.name)}</div>
           <div class="page-desc">${esc(subtitle)}</div>
         </div>
       </div>
 
       <div class="progress-card">
-        <div class="progress-stage" id="scan-stage">מתחיל…</div>
+        <div class="progress-stage" id="scan-stage">${t('מתחיל…')}</div>
         <div class="progress-track"><div class="progress-fill" id="scan-fill" style="width:0%"></div></div>
         <div class="progress-numbers">
           <span id="scan-percent">0%</span>
@@ -53,40 +53,40 @@ function showScanScreen(modeId, subtitle) {
         ${SectorMapView.html('scan')}
 
         <div class="kv" style="margin-top:18px">
-          <div><dt>קבצים שנמצאו</dt><dd id="scan-files">0</dd></div>
-          <div><dt>נקרא מהדיסק</dt><dd id="scan-bytes">0 B</dd></div>
-          <div><dt>זמן שחלף</dt><dd id="scan-elapsed">0:00</dd></div>
-          <div><dt>זמן משוער שנותר</dt><dd id="scan-eta" class="words">מחשב…</dd></div>
-          <div><dt>מצב</dt><dd style="direction:rtl" id="scan-state">פועל</dd></div>
+          <div><dt>${t('קבצים שנמצאו')}</dt><dd id="scan-files">0</dd></div>
+          <div><dt>${t('נקרא מהדיסק')}</dt><dd id="scan-bytes">0 B</dd></div>
+          <div><dt>${t('זמן שחלף')}</dt><dd id="scan-elapsed">0:00</dd></div>
+          <div><dt>${t('זמן משוער שנותר')}</dt><dd id="scan-eta" class="words">${t('מחשב…')}</dd></div>
+          <div><dt>${t('מצב')}</dt><dd class="words" id="scan-state">${t('פועל')}</dd></div>
         </div>
       </div>
 
       <div class="scan-actions">
-        ${pausable ? `<button class="btn" id="btn-pause-scan">${Icon.pause}<span>השהיה</span></button>` : ''}
-        <button class="btn" id="btn-cancel-scan">${Icon.stop}<span>עצירת הסריקה</span></button>
+        ${pausable ? `<button class="btn" id="btn-pause-scan">${Icon.pause}<span>${t('השהיה')}</span></button>` : ''}
+        <button class="btn" id="btn-cancel-scan">${Icon.stop}<span>${t('עצירת הסריקה')}</span></button>
       </div>
 
       ${pausable
-        ? notice('info', Icon.info, 'אפשר להשהות ולהמשיך אחר כך',
-            'בהשהיה הסריקה נשמרת עם הנקודה שבה עצרה — אפשר להמשיך עכשיו, או גם אחרי סגירת התוכנה, ' +
-            'מ"סריקות אחרונות". בעצירה מוצג מה שנמצא עד אז.')
-        : notice('info', Icon.info, 'אפשר לעצור בכל רגע',
-            'מה שנמצא עד אז יוצג, ואפשר יהיה לשחזר אותו.')}
+        ? notice('info', Icon.info, t('אפשר להשהות ולהמשיך אחר כך'),
+            t('בהשהיה הסריקה נשמרת עם הנקודה שבה עצרה — אפשר להמשיך עכשיו, או גם אחרי סגירת התוכנה, ' +
+            'מ"סריקות אחרונות". בעצירה מוצג מה שנמצא עד אז.'))
+        : notice('info', Icon.info, t('אפשר לעצור בכל רגע'),
+            t('מה שנמצא עד אז יוצג, ואפשר יהיה לשחזר אותו.'))}
     </div>`;
 
   el('btn-cancel-scan').onclick = () => {
-    el('scan-state').textContent = 'עוצר…';
+    el('scan-state').textContent = t('עוצר…');
     Bridge.call('scan.cancel');
   };
   if (pausable) {
     el('btn-pause-scan').onclick = () => {
-      el('scan-state').textContent = 'משהה…';
+      el('scan-state').textContent = t('משהה…');
       el('btn-pause-scan').disabled = true;
       Bridge.call('scan.pause');
     };
   }
 
-  setStatus('סורק…');
+  setStatus(t('סורק…'));
 }
 
 async function runScan(method, params, title) {
@@ -102,18 +102,18 @@ async function runScan(method, params, title) {
     const resuming = method === 'scan.resume';
     el('content').innerHTML = `
       <div class="page-head"><div>
-        <div class="page-title">${resuming ? 'אי אפשר להמשיך את הסריקה כרגע' : 'הסריקה נכשלה'}</div>
+        <div class="page-title">${t(resuming ? 'אי אפשר להמשיך את הסריקה כרגע' : 'הסריקה נכשלה')}</div>
         <div class="page-desc">${esc(title)}</div>
       </div>
       <div class="head-actions">
-        ${resuming ? `<button class="btn btn-primary" id="btn-retry">${Icon.play}<span>ניסיון נוסף</span></button>` : ''}
-        <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button>
+        ${resuming ? `<button class="btn btn-primary" id="btn-retry">${Icon.play}<span>${t('ניסיון נוסף')}</span></button>` : ''}
+        <button class="btn" id="btn-home">${Icon.back}<span>${t('חזרה לכוננים')}</span></button>
       </div></div>
       ${errorNotice('', err)}
-      ${resuming ? '<p class="doc-hint">הסריקה עצמה שמורה, עם הנקודה שבה נעצרה — אפשר להמשיך גם אחר כך, מ"סריקות אחרונות".</p>' : ''}`;
+      ${resuming ? `<p class="doc-hint">${t('הסריקה עצמה שמורה, עם הנקודה שבה נעצרה — אפשר להמשיך גם אחר כך, מ"סריקות אחרונות".')}</p>` : ''}`;
     el('btn-home').onclick = loadDisks;
     if (resuming) el('btn-retry').onclick = () => resumeScan(params.path || null, title);
-    setStatus(resuming ? 'אי אפשר להמשיך כרגע' : 'שגיאה');
+    setStatus(t(resuming ? 'אי אפשר להמשיך כרגע' : 'שגיאה'));
   }
 }
 
@@ -122,20 +122,20 @@ function showPaused(p, title) {
   el('content').innerHTML = `
     <div class="page-head">
       <div>
-        <div class="page-title">${p.disconnected ? 'הכונן נותק באמצע הסריקה' : 'הסריקה מושהית'}</div>
-        <div class="page-desc">${esc(title)} · נסרקו ${p.percent.toFixed(1)}% · ${countFiles(p.files)} נמצאו עד כה</div>
+        <div class="page-title">${t(p.disconnected ? 'הכונן נותק באמצע הסריקה' : 'הסריקה מושהית')}</div>
+        <div class="page-desc">${esc(title)} · ${t('נסרקו {0}% · {1} נמצאו עד כה', p.percent.toFixed(1), countFiles(p.files))}</div>
       </div>
     </div>
     ${p.disconnected
-      ? notice('warn', Icon.unplug, 'הסריקה נשמרה עם הנקודה שבה עצרה',
-          'חברו את הכונן שוב ולחצו "המשך הסריקה" — היא תמשיך מאותה נקודה. ' +
-          'אפשר גם לסגור את התוכנה ולהמשיך אחר כך, מ"סריקות אחרונות" במסך הכוננים.')
-      : notice('ok-notice', Icon.check, 'הסריקה נשמרה עם הנקודה שבה עצרה',
-          'אפשר להמשיך עכשיו, או לסגור את התוכנה ולהמשיך אחר כך — מ"סריקות אחרונות" במסך הכוננים.')}
+      ? notice('warn', Icon.unplug, t('הסריקה נשמרה עם הנקודה שבה עצרה'),
+          t('חברו את הכונן שוב ולחצו "המשך הסריקה" — היא תמשיך מאותה נקודה. ' +
+          'אפשר גם לסגור את התוכנה ולהמשיך אחר כך, מ"סריקות אחרונות" במסך הכוננים.'))
+      : notice('ok-notice', Icon.check, t('הסריקה נשמרה עם הנקודה שבה עצרה'),
+          t('אפשר להמשיך עכשיו, או לסגור את התוכנה ולהמשיך אחר כך — מ"סריקות אחרונות" במסך הכוננים.'))}
     <div class="scan-actions" style="margin-top:16px">
-      <button class="btn btn-primary" id="btn-resume">${Icon.play}<span>המשך הסריקה</span></button>
-      <button class="btn" id="btn-show-found">${Icon.list}<span>הצגת מה שנמצא עד כה</span></button>
-      <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button>
+      <button class="btn btn-primary" id="btn-resume">${Icon.play}<span>${t('המשך הסריקה')}</span></button>
+      <button class="btn" id="btn-show-found">${Icon.list}<span>${t('הצגת מה שנמצא עד כה')}</span></button>
+      <button class="btn" id="btn-home">${Icon.back}<span>${t('חזרה לכוננים')}</span></button>
     </div>`;
 
   el('btn-resume').onclick = () => resumeScan(null, title);
@@ -144,7 +144,7 @@ function showPaused(p, title) {
     await renderResults();
   };
   el('btn-home').onclick = loadDisks;
-  setStatus(p.disconnected ? 'הכונן נותק — הסריקה נשמרה' : 'הסריקה מושהית');
+  setStatus(t(p.disconnected ? 'הכונן נותק — הסריקה נשמרה' : 'הסריקה מושהית'));
 }
 
 /* =====================================================================
@@ -155,18 +155,18 @@ function showPaused(p, title) {
 const SectorMapView = (() => {
   // המצבים כפי שהמנוע שולח אותם: תו '0' עד '5' לכל ריבוע.
   const COLORS = ['--border', '--border-strong', '--accent', '--ok', '--warn', '--danger'];
-  const LEGENDS = {
+  const LEGENDS = {   // מתורגם בהצגה: מכאן
     scan: { 2: 'נסרק', 3: 'נמצאו קבצים', 1: 'קבצים קיימים (דולג)', 5: 'לא ניתן לקריאה', 0: 'טרם נסרק' },
     hunt: { 2: 'נבדק', 3: 'נמצאה מחיצה', 5: 'לא ניתן לקריאה', 0: 'טרם נבדק' },
     image: { 2: 'הועתק', 4: 'ממתין לניסיון חוזר', 5: 'לא ניתן לקריאה', 0: 'טרם הועתק' },
-  };
+  };                  // מתורגם בהצגה: עד כאן
   const CELL = 8, GAP = 2, PITCH = CELL + GAP;
 
   function html(kind) {
     return `
       <div class="sector-map" id="map-${kind}" data-kind="${kind}" hidden>
         <div class="sm-head">
-          <span class="section-label">מפת הסקטורים</span>
+          <span class="section-label">${t('מפת הסקטורים')}</span>
           <div class="sm-legend"></div>
         </div>
         <div class="sm-canvas-wrap">
@@ -176,10 +176,10 @@ const SectorMapView = (() => {
       </div>`;
   }
 
-  /// מיקום הריבוע: מימין לשמאל ומלמעלה למטה, כמו קריאה בעברית.
+  /// מיקום הריבוע: בכיוון הקריאה ומלמעלה למטה — בעברית מימין לשמאל, באנגלית משמאל לימין.
   function place(box, i) {
     const col = i % box.cols, row = Math.floor(i / box.cols);
-    return { x: box.width - (col + 1) * PITCH + GAP, y: row * PITCH };
+    return { x: I18n.rtl ? box.width - (col + 1) * PITCH + GAP : col * PITCH, y: row * PITCH };
   }
 
   function draw(root) {
@@ -229,7 +229,7 @@ const SectorMapView = (() => {
     const present = new Set(data.cells);
     const items = Object.entries(legend)
       .filter(([s]) => s !== '1' || present.has('1'))
-      .map(([s, label]) => `<span><i style="background:var(${COLORS[s]})"></i>${label}</span>`)
+      .map(([s, label]) => `<span><i style="background:var(${COLORS[s]})"></i>${t(label)}</span>`)
       .join('');
     const legendBox = root.querySelector('.sm-legend');
     if (legendBox._html !== items) legendBox.innerHTML = legendBox._html = items;
@@ -240,14 +240,15 @@ const SectorMapView = (() => {
     const box = root._box, data = root._map;
     if (!box || !data) return;
     const rect = e.target.getBoundingClientRect();
-    const col = Math.floor((box.width - (e.clientX - rect.left)) / PITCH);
+    const x = e.clientX - rect.left;
+    const col = Math.floor((I18n.rtl ? box.width - x : x) / PITCH);
     const row = Math.floor((e.clientY - rect.top) / PITCH);
     const i = row * box.cols + col;
     if (col < 0 || col >= box.cols || i < 0 || i >= box.n) { e.target.title = ''; return; }
 
     const start = Math.ceil(i * data.length / box.n), end = Math.ceil((i + 1) * data.length / box.n);
     const legend = LEGENDS[root.dataset.kind] || LEGENDS.scan;
-    const state = legend[data.cells[i]] || '';
+    const state = legend[data.cells[i]] ? t(legend[data.cells[i]]) : '';
     e.target.title = `${formatSize(start)} – ${formatSize(end)}${state ? ' · ' + state : ''}`;
   }
 
@@ -282,8 +283,8 @@ Bridge.on('scan.progress', (p) => {
   el('scan-fill').classList.toggle('indeterminate', pct === null);
   el('scan-percent').textContent = pct === null ? '' : pct.toFixed(1) + '%';
 
-  el('scan-speed').textContent = p.speed > 0 ? formatSize(p.speed) + '/שנייה' : '';
-  el('scan-files').textContent = (p.files || 0).toLocaleString('he-IL');
+  el('scan-speed').textContent = p.speed > 0 ? formatSize(p.speed) + t('/שנייה') : '';
+  el('scan-files').textContent = num(p.files);
   el('scan-bytes').textContent = formatSize(p.bytes);
   el('scan-elapsed').textContent = formatDuration(p.elapsed);
   el('scan-eta').textContent = Eta.text('scan', pct, p.elapsed);

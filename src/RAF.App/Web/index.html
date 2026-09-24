@@ -11,6 +11,13 @@
       var dark = pref === 'dark' ||
         (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      // השפה והכיוון — לפני שהדף מצויר, כדי שלא יהבהב בכיוון הלא נכון.
+      try {
+        if (localStorage.getItem('raf-lang') === 'en') {
+          document.documentElement.lang = 'en';
+          document.documentElement.dir = 'ltr';
+        }
+      } catch (e) {}
     })();
   </script>
   <link rel="stylesheet" href="styles.css">
@@ -33,29 +40,32 @@
     <!-- ===================== שורת כותרת ===================== -->
     <header class="titlebar" id="titlebar">
       <div class="win-controls">
-        <button class="win-btn help-btn" id="btn-help" title="שאלות נפוצות (F1)" aria-label="שאלות נפוצות"></button>
+        <button class="win-btn lang-btn" id="btn-lang"></button>
+        <button class="win-btn help-btn" id="btn-help" title="שאלות נפוצות (F1)" aria-label="שאלות נפוצות"
+                data-t-label="שאלות נפוצות" data-t-title="שאלות נפוצות (F1)"></button>
         <button class="win-btn theme-btn" id="btn-theme" title="ערכת נושא" aria-label="ערכת נושא"></button>
         <button class="win-btn" id="btn-tray" title="הסתרה לאזור ההודעות, ליד השעון — הסמל שם מראה את ההתקדמות"
-                aria-label="הסתרה לאזור ההודעות">
+                aria-label="הסתרה לאזור ההודעות" data-t-label="הסתרה לאזור ההודעות"
+                data-t-title="הסתרה לאזור ההודעות, ליד השעון — הסמל שם מראה את ההתקדמות">
           <svg viewBox="0 0 12 12"><path d="M6 1.5v6M3.5 5 6 7.5 8.5 5"/><path d="M1.5 9.5v1h9v-1"/></svg>
         </button>
-        <button class="win-btn" id="btn-min" title="מזעור" aria-label="מזעור">
+        <button class="win-btn" id="btn-min" title="מזעור" aria-label="מזעור" data-t-label="מזעור">
           <svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg>
         </button>
-        <button class="win-btn" id="btn-max" title="הגדלה" aria-label="הגדלה">
+        <button class="win-btn" id="btn-max" title="הגדלה" aria-label="הגדלה" data-t-label="הגדלה">
           <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/></svg>
         </button>
-        <button class="win-btn danger" id="btn-close" title="סגירה" aria-label="סגירה">
+        <button class="win-btn danger" id="btn-close" title="סגירה" aria-label="סגירה" data-t-label="סגירה">
           <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg>
         </button>
       </div>
 
       <!-- שלבי השחזור: מראים איפה נמצאים בתהליך, ומאפשרים לחזור לשלב קודם -->
-      <nav class="steps" id="steps" aria-label="שלבי השחזור"></nav>
+      <nav class="steps" id="steps" aria-label="שלבי השחזור" data-t-label="שלבי השחזור"></nav>
 
       <div class="brand">
         <img class="brand-mark" src="icon.png" alt="" aria-hidden="true">
-        <span class="brand-title">שחזור מתקדם חינם</span>
+        <span class="brand-title" data-t>שחזור מתקדם חינם</span>
       </div>
     </header>
 
@@ -63,14 +73,14 @@
     <main class="content" id="content">
       <div class="loading" id="loading">
         <div class="spinner"></div>
-        <p>סורק את אמצעי האחסון במערכת…</p>
+        <p data-t>סורק את אמצעי האחסון במערכת…</p>
       </div>
     </main>
 
     <!-- ===================== שורת מצב ===================== -->
     <footer class="statusbar">
       <div class="status-right">
-        <span id="status-text" role="status" aria-live="polite">מאתחל…</span>
+        <span id="status-text" role="status" aria-live="polite" data-t>מאתחל…</span>
       </div>
       <div class="status-left">
         <span class="status-chip" id="status-elevation"></span>
@@ -88,10 +98,13 @@
 
   <!-- ===================== שאלות נפוצות — שכבה נפרדת, כדי לא לדרוס לוח פתוח ===================== -->
   <div class="overlay help-overlay" id="help-overlay" hidden>
-    <div class="panel" id="help-panel" role="dialog" aria-modal="true" aria-label="שאלות נפוצות"></div>
+    <div class="panel" id="help-panel" role="dialog" aria-modal="true" aria-label="שאלות נפוצות" data-t-label="שאלות נפוצות"></div>
   </div>
 
-  <!-- הממשק, לפי מסכים. הסדר חשוב: core ראשון (הגשר וכלי העזר), main אחרון (ההפעלה). -->
+  <!-- הממשק, לפי מסכים. הסדר חשוב: השפה ראשונה (המילון והתרגום), core אחריה (הגשר וכלי
+       העזר), main אחרון (ההפעלה). -->
+  <script src="lang-en.js"></script>
+  <script src="i18n.js"></script>
   <script src="core.js"></script>
   <script src="disks.js"></script>
   <script src="partitions.js"></script>
