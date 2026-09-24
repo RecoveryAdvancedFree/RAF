@@ -294,6 +294,63 @@ public static class FileSignatures
         },
         new()
         {
+            // מצלמות וידאו ביתיות (AVCHD — סוני, פנסוניק, קנון): חבילות של 192 בתים.
+            // החבילה הראשונה בקובץ פותחת טבלה (PAT, SDT וכד'): תחילת יחידה, מונה 0, בלי ריפוד.
+            Name = "וידאו ממצלמת וידאו (AVCHD)", Extensions = new[] { "mts", "m2ts" },
+            MimeType = "video/mp2t",
+            Header = Bytes(-1, -1, -1, -1, 0x47, 0x40, -1, 0x10, 0x00),
+            MaxSize = 8L * 1024 * 1024 * 1024, Structure = "m2ts",
+        },
+        new()
+        {
+            // אותו זרם בלי בתי הזמן: הקלטות טלוויזיה ומכשירים אחרים.
+            Name = "וידאו MPEG-TS", Extensions = new[] { "ts", "mts", "m2ts" },
+            MimeType = "video/mp2t",
+            Header = Bytes(0x47, 0x40, -1, 0x10, 0x00),
+            MaxSize = 8L * 1024 * 1024 * 1024, Structure = "ts",
+        },
+        new()
+        {
+            // QuickTime ישן (מצלמות ואייפון ישנים), בלי תיבת ftyp: wide ואחריה mdat.
+            Name = "וידאו QuickTime", Extensions = new[] { "mov", "qt" },
+            MimeType = "video/quicktime",
+            Header = Bytes(0, 0, 0, 8, 0x77, 0x69, 0x64, 0x65, -1, -1, -1, -1, 0x6D, 0x64, 0x61, 0x74),
+            MaxSize = 16L * 1024 * 1024 * 1024, Structure = "mov",
+        },
+        new()
+        {
+            // QuickTime שהאינדקס שלו בהתחלה: moov, ומיד בתוכה mvhd.
+            Name = "וידאו QuickTime", Extensions = new[] { "mov", "qt" },
+            MimeType = "video/quicktime",
+            Header = Bytes(-1, -1, -1, -1, 0x6D, 0x6F, 0x6F, 0x76, -1, -1, -1, -1, 0x6D, 0x76, 0x68, 0x64),
+            MaxSize = 16L * 1024 * 1024 * 1024, Structure = "mov",
+        },
+        new()
+        {
+            // Windows Media (ASF): מזהה GUID של אובייקט הכותרת.
+            Name = "וידאו Windows Media", Extensions = new[] { "wmv", "wma", "asf" },
+            MimeType = "video/x-ms-asf",
+            Header = Bytes(0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C),
+            MaxSize = 16L * 1024 * 1024 * 1024, Structure = "asf",
+        },
+        new()
+        {
+            // MPEG-2 ו-DVD: חבילה ראשונה, ובה כותרת המערכת (00 00 01 BB) — רק בתחילת זרם ובחבילות ניווט.
+            Name = "וידאו MPEG / DVD", Extensions = new[] { "mpg", "mpeg", "vob" },
+            MimeType = "video/mpeg",
+            Header = Bytes(0, 0, 1, 0xBA, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 1, 0xBB),
+            MaxSize = 8L * 1024 * 1024 * 1024, Structure = "mpg",
+        },
+        new()
+        {
+            // MPEG-1 (מצלמות ומחשבים ישנים): החבילה קצרה יותר.
+            Name = "וידאו MPEG / DVD", Extensions = new[] { "mpg", "mpeg", "vob" },
+            MimeType = "video/mpeg",
+            Header = Bytes(0, 0, 1, 0xBA, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 1, 0xBB),
+            MaxSize = 4L * 1024 * 1024 * 1024, Structure = "mpg",
+        },
+        new()
+        {
             Name = "וידאו AVI", Extensions = new[] { "avi" },
             MimeType = "video/x-msvideo",
             Header = Bytes(0x52, 0x49, 0x46, 0x46, -1, -1, -1, -1, 0x41, 0x56, 0x49, 0x20),
@@ -319,6 +376,29 @@ public static class FileSignatures
             MimeType = "audio/wav",
             Header = Bytes(0x52, 0x49, 0x46, 0x46, -1, -1, -1, -1, 0x57, 0x41, 0x56, 0x45),
             MaxSize = 4L * 1024 * 1024 * 1024,
+        },
+        new()
+        {
+            // הקלטות קול מטלפונים: AMR רגיל, ו-AMR-WB באיכות גבוהה יותר.
+            Name = "הקלטת קול AMR", Extensions = new[] { "amr" },
+            MimeType = "audio/amr",
+            Header = Ascii("#!AMR-WB\n"),
+            MaxSize = 256L * 1024 * 1024, Structure = "amr",
+        },
+        new()
+        {
+            Name = "הקלטת קול AMR", Extensions = new[] { "amr" },
+            MimeType = "audio/amr",
+            Header = Ascii("#!AMR\n"),
+            MaxSize = 256L * 1024 * 1024, Structure = "amr",
+        },
+        new()
+        {
+            // הדף הראשון בזרם מסומן "תחילת זרם" (2). Vorbis, Opus (וואטסאפ) ו-Theora.
+            Name = "שמע OGG", Extensions = new[] { "ogg", "opus", "oga", "ogv" },
+            MimeType = "audio/ogg",
+            Header = Bytes(0x4F, 0x67, 0x67, 0x53, 0x00, 0x02),
+            MaxSize = 2L * 1024 * 1024 * 1024, Structure = "ogg",
         },
         new()
         {

@@ -159,6 +159,12 @@ internal static class FileLength
             "zip" => StructureCheck.ReadZip(new WindowReader(volume, offset, ceiling)),
             "mkv" => Matroska.ReadSegment(head)?.DeclaredFileLength ?? 0,
             "tif" => StructureCheck.ReadTiff(new WindowReader(volume, offset, ceiling)),
+            "m2ts" => MediaLength.ReadTransportStream(new WindowReader(volume, offset, ceiling), 192),
+            "ts" => MediaLength.ReadTransportStream(new WindowReader(volume, offset, ceiling), 188),
+            "mpg" => MediaLength.ReadProgramStream(new WindowReader(volume, offset, ceiling)),
+            "asf" => MediaLength.ReadAsf(new WindowReader(volume, offset, ceiling)),
+            "amr" => MediaLength.ReadAmr(new WindowReader(volume, offset, ceiling)),
+            "ogg" => MediaLength.ReadOgg(new WindowReader(volume, offset, ceiling)),
             _ => 0,
         };
     }

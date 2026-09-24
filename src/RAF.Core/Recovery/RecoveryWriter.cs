@@ -76,7 +76,7 @@ public enum RecoveryStatus { Recovered, Partial, Empty, Failed, Skipped }
 /// <summary>שורה בדוח השחזור.</summary>
 public sealed record RecoveryEntry(
     string OriginalPath, string? Destination, long Size, RecoveryQuality Quality,
-    RecoveryStatus Status, string Reason, string? Sha256);
+    RecoveryStatus Status, string Reason, string? Sha256, string Location = "");
 
 /// <summary>
 /// כתיבת הקבצים המשוחזרים לתיקיית היעד.
@@ -184,7 +184,8 @@ public static class RecoveryWriter
 
             string original = string.IsNullOrEmpty(file.Path) ? file.Name : file.Path + "\\" + file.Name;
             void Log(RecoveryStatus status, string reason, string? destination = null, string? sha = null)
-                => entries.Add(new RecoveryEntry(original, destination, file.Size, file.Quality, status, reason, sha));
+                => entries.Add(new RecoveryEntry(original, destination, file.Size, file.Quality, status, reason, sha,
+                       Location(file)));
 
             if (!file.HasContent)
             {
@@ -369,13 +370,13 @@ public static class RecoveryWriter
             path = Path.Combine(folder, $"RAF-report-{DateTime.Now:yyyyMMdd-HHmmss}-{i}.csv");
 
         var csv = new StringBuilder();
-        csv.AppendLine("נתיב מקורי,נכתב אל,גודל (בתים),איכות,תוצאה,פירוט,SHA-256");
+        csv.AppendLine("נתיב מקורי,נכתב אל,גודל (בתים),איכות,תוצאה,פירוט,SHA-256,מיקום בכונן");
         foreach (var e in entries)
         {
             csv.AppendLine(string.Join(",",
                 Csv(e.OriginalPath), Csv(e.Destination is null ? "" : Path.GetRelativePath(folder, e.Destination)),
                 e.Size.ToString(CultureInfo.InvariantCulture), Csv(QualityLabel(e.Quality)),
-                Csv(StatusLabel(e.Status)), Csv(e.Reason), e.Sha256 ?? ""));
+                Csv(StatusLabel(e.Status)), Csv(e.Reason), e.Sha256 ?? "", Csv(e.Location)));
         }
 
         File.WriteAllText(path, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
@@ -489,6 +490,15 @@ public static class RecoveryWriter
             ? "\"" + value.Replace("\"", "\"\"") + "\""
             : value;
     }
+
+    /// <summary>
+    /// קובץ מסריקה מתקדמת: הסקטור שבו התחיל. השם שלו נבנה מתוכנו, ולכן זה
+    /// המזהה היחיד שקושר אותו למקום על הכונן — למשל לבדיקה חוזרת בעורך הקס.
+    /// </summary>
+    private static string Location(RecoveredFile file)
+        => file.Source == DiscoverySource.Carving && file.Extents.Count > 0
+            ? $"סקטור {file.Extents[0].StartCluster:N0}"
+            : "";
 
     private static string StatusLabel(RecoveryStatus s) => s switch
     {

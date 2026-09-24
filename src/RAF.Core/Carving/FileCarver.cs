@@ -268,16 +268,19 @@ public sealed class FileCarver
                 bool wanted = Accept is null || Accept(signature);
 
                 // JPEG נשלח לפענוח ברקע. עד שהתוצאה חוזרת, הקובץ נרשם לפי המבנה.
+                // שם, תאריך וסוג מדויק — מתוך הקובץ עצמו.
+                var info = wanted ? ReadInfo(volume, signature, absolute, resolved.Bytes) : null;
+
                 if (wanted && signature.Extensions.FirstOrDefault() == "jpg")
                 {
                     var check = StartJpegCheck(volume, absolute, resolved.Bytes);
                     if (check is not null)
-                        pending.Add(new PendingJpeg(files.Count, absolute, resolved, signature, check));
+                        pending.Add(new PendingJpeg(files.Count, absolute, resolved, signature, check, info));
                 }
 
                 if (wanted)
                 {
-                    files.Add(Materialize(signature, resolved, absolute, sectorSize, files.Count));
+                    files.Add(Materialize(signature, resolved, absolute, sectorSize, files.Count, info: info));
                     _map?.Mark(absolute, SectorState.Found);
                 }
 
@@ -420,7 +423,8 @@ public sealed class FileCarver
 
     /// <summary>JPEG שנמצא, ופענוחו רץ ברקע.</summary>
     private sealed record PendingJpeg(
-        int Index, long Offset, ResolvedLength Resolved, FileSignature Signature, Task<JpegCheck> Check);
+        int Index, long Offset, ResolvedLength Resolved, FileSignature Signature, Task<JpegCheck> Check,
+        CarvedInfo? Info);
 
     /// <summary>JPEG גדול מזה אינו מפוענח — ממילא נדיר, והזמן עדיף לסריקה.</summary>
     private const int MaxJpegCheck = 64 * 1024 * 1024;
@@ -495,7 +499,7 @@ public sealed class FileCarver
                 ? new JpegOutcome(true, null, false, 0, 1)
                 : SearchFragments(volume, p.Offset, size - p.Offset, check, sectorSize);
 
-            files[p.Index] = Materialize(p.Signature, p.Resolved, p.Offset, sectorSize, p.Index, outcome);
+            files[p.Index] = Materialize(p.Signature, p.Resolved, p.Offset, sectorSize, p.Index, outcome, p.Info);
             if (outcome.Verified) continue;
 
             // הסריקה הראשית דילגה על כל אורך הקובץ. בפועל הקובץ נגמר מוקדם יותר —
@@ -538,12 +542,30 @@ public sealed class FileCarver
         return new JpegOutcome(false, null, true, check.Offset, check.Fraction);
     }
 
+    /// <summary>
+    /// קריאת השם, התאריך והסוג המדויק מתוך הקובץ. נקראים רק חלקים קטנים —
+    /// הכותרת, ובמסמכים גם הסוף — ולא הקובץ כולו.
+    /// </summary>
+    private static CarvedInfo? ReadInfo(RawVolume volume, FileSignature signature, long offset, long length)
+        => CarvedMetadata.Read(signature, length, (at, count) =>
+        {
+            if (at < 0 || at >= length || count <= 0) return Array.Empty<byte>();
+            byte[] buffer = new byte[(int)Math.Min(count, length - at)];
+            int read = volume.ReadRaw(offset + at, buffer);
+            return read == buffer.Length ? buffer : buffer.AsSpan(0, Math.Max(0, read)).ToArray();
+        });
+
     /// <summary>בניית רשומת קובץ מתוך חתימה שזוהתה.</summary>
     private static RecoveredFile Materialize(
         FileSignature signature, ResolvedLength resolved, long offset, int sectorSize, int index,
-        JpegOutcome? jpeg = null)
+        JpegOutcome? jpeg = null, CarvedInfo? info = null)
     {
-        string extension = signature.Extensions.Length > 0 ? signature.Extensions[0] : "bin";
+        string extension = info?.Extension ?? (signature.Extensions.Length > 0 ? signature.Extensions[0] : "bin");
+
+        // בלי מידע מתוך הקובץ: מספר רץ והמיקום בכונן — כך לפחות אין שני קבצים באותו שם.
+        string name = (info?.Name is { } found ? found : $"{index + 1:D6}_{offset:X}") + "." + extension;
+        string folder = info?.Folder ?? signature.Name;
+        DateTime? date = info?.Date;
 
         long startSector = offset / sectorSize;
         long sectors = (resolved.Bytes + sectorSize - 1) / sectorSize;
@@ -557,8 +579,9 @@ public sealed class FileCarver
             {
                 Id = index + 1,
                 ParentId = -1,
-                Name = $"{index + 1:D6}_{offset:X}.{extension}",
-                Path = signature.Name,
+                Name = name,
+                Path = folder,
+                Modified = date,
                 Size = pair.Length,
                 IsDeleted = true,
                 Source = DiscoverySource.Carving,
@@ -581,8 +604,9 @@ public sealed class FileCarver
             {
                 Id = index + 1,
                 ParentId = -1,
-                Name = $"{index + 1:D6}_{offset:X}.{extension}",
-                Path = signature.Name,
+                Name = name,
+                Path = folder,
+                Modified = date,
                 Size = resolved.Bytes,
                 IsDeleted = true,
                 Source = DiscoverySource.Carving,
@@ -618,9 +642,10 @@ public sealed class FileCarver
             Id = index + 1,
             ParentId = -1,
 
-            // אין שם מקורי: המידע הזה חי במטא-דאטה, שאינה נקראת בסריקה זו.
-            Name = $"{index + 1:D6}_{offset:X}.{extension}",
-            Path = signature.Name,
+            // השם המקורי אבד עם מערכת הקבצים; השם כאן נבנה ממה ששמור בתוך הקובץ.
+            Name = name,
+            Path = folder,
+            Modified = date,
             Size = resolved.Bytes,
             IsDeleted = true,
             Source = DiscoverySource.Carving,
@@ -638,9 +663,10 @@ public sealed class FileCarver
     private void BuildWarnings(List<RecoveredFile> files)
     {
         _warnings.Add(
-            "בסריקה מתקדמת אין שמות קבצים ואין נתיבי תיקייה: המידע הזה נשמר במטא-דאטה " +
-            "של מערכת הקבצים, והסריקה הזו אינה קוראת אותה. הקבצים מקבלים שם לפי סוגם " +
-            "ומיקומם על הכונן.");
+            "בסריקה מתקדמת השמות והתיקיות המקוריים אינם נשמרים: הם היו רשומים במערכת הקבצים, " +
+            "והסריקה הזו אינה נעזרת בה. הקבצים מסודרים בתיקיות לפי סוגם, ומקבלים שם לפי מה ששמור " +
+            "בתוכם — תאריך הצילום ודגם המצלמה, כותרת המסמך או שם השיר. קובץ שאין בו מידע כזה " +
+            "מקבל מספר.");
 
         if (files.Count == 0)
         {

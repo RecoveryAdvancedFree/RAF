@@ -131,7 +131,8 @@ internal static class StructureCheck
     /// </summary>
     internal static bool HasFullParser(FileSignature signature) => Kind(signature)
         is "bmp" or "exe" or "ico" or "gif" or "png" or "jpg"
-        or "wav" or "avi" or "webp" or "db" or "mp4";
+        or "wav" or "avi" or "webp" or "db" or "mp4"
+        or "mov" or "m2ts" or "ts" or "mpg" or "asf" or "amr" or "ogg";
 
     /// <summary>האם המבנה שאחרי החתימה עקבי עם קובץ אמיתי.</summary>
     internal static bool IsPlausible(FileSignature signature, byte[] head) => Kind(signature) switch
@@ -148,6 +149,13 @@ internal static class StructureCheck
         "wav" or "avi" or "webp" => head.Length >= 12
                  && BinaryPrimitives.ReadUInt32LittleEndian(head.AsSpan(4)) >= 12,
         "mp4" => Mp4(head),
+        "mov" => head.Length >= 16 && BinaryPrimitives.ReadUInt32BigEndian(head.AsSpan(8)) >= 8,
+        // זרם TS: החבילה הראשונה שייכת לטבלה (מזהה קטן מ-0x20), וכל החבילות שבכותרת מתחילות במקומן.
+        "m2ts" => head.Length >= 192 * 20 && head[6] < 0x20 && EveryPacketSyncs(head, 192, 4),
+        "ts" => head.Length >= 188 * 20 && head[2] < 0x20 && EveryPacketSyncs(head, 188, 0),
+        "mpg" => head.Length >= 16 && ((head[4] & 0xC0) == 0x40 || (head[4] & 0xF0) == 0x20),
+        "asf" => head.Length >= 30 && BinaryPrimitives.ReadUInt64LittleEndian(head.AsSpan(16)) is >= 30 and < 16 * 1024 * 1024,
+        "ogg" => head.Length >= 28 && head[26] > 0,
         "db" => Sqlite(head),
         "mp3" => Id3(head),
         "gz" => head.Length >= 10 && (head[3] & 0xE0) == 0,
@@ -258,7 +266,7 @@ internal static class StructureCheck
         switch (Kind(signature))
         {
             // שדה גודל יחיד בכותרת: מדויק לקובץ אמיתי, אך אינו מוכיח שזה קובץ.
-            case "bmp" or "ico" or "wav" or "avi" or "webp" or "db" or "mkv" or "tif":
+            case "bmp" or "ico" or "wav" or "avi" or "webp" or "db" or "mkv" or "tif" or "asf":
                 return LengthConfidence.Declared;
 
             // JPEG שנקטע (קובץ מפוצל) לא הגיע לסמן הסיום, ולכן גבולו אינו ודאי.
@@ -272,6 +280,13 @@ internal static class StructureCheck
             default:
                 return LengthConfidence.Exact;
         }
+    }
+
+    private static bool EveryPacketSyncs(byte[] head, int packet, int sync)
+    {
+        for (int at = sync; at < head.Length; at += packet)
+            if (head[at] != 0x47) return false;
+        return true;
     }
 
     /// <summary>JPEG: אחרי החתימה בא סמן מקטע מוכר עם אורך סביר.</summary>
