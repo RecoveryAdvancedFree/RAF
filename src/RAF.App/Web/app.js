@@ -1931,6 +1931,7 @@ function openImagePanel(disk, part) {
         <ol class="image-steps">
           <li><b>מעבר 1 — העתקה מהירה.</b> מדלגים על אזורים פגומים, ואוספים קודם את מה שנקרא בקלות.</li>
           <li><b>מעבר 2 — ניסיון חוזר.</b> חוזרים לאזורים שדולגו, וקוראים אותם בחלקים קטנים ככל האפשר.</li>
+          <li><b>מעבר 3 — מהכיוון ההפוך.</b> מה שעדיין לא נקרא נקרא שוב מהסוף להתחלה — כך מצליחים לפעמים להציל עוד סקטורים בקצה של אזור פגום.</li>
         </ol>
       </div>
 
@@ -2096,7 +2097,7 @@ Bridge.on('image.progress', (p) => {
   el('img-speed').textContent = p.speed > 0 ? formatSize(p.speed) + '/שנייה' : '';
   el('img-done').textContent = p.pass === 1
     ? `${formatSize(p.done)} מתוך ${formatSize(p.total)}`
-    : `ניסיון חוזר: ${formatSize(p.done)} מתוך ${formatSize(p.total)}`;
+    : `${p.pass === 2 ? 'ניסיון חוזר' : 'מהכיוון ההפוך'}: ${formatSize(p.done)} מתוך ${formatSize(p.total)}`;
   el('img-problems').textContent = formatSize(p.problems);
   el('img-problems').classList.toggle('warn-text', p.problems > 0);
   el('img-elapsed').textContent = formatDuration(p.elapsed);

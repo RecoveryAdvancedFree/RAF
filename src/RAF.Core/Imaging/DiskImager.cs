@@ -20,7 +20,7 @@ internal interface ISectorSource
 
 public sealed class ImagingProgress
 {
-    /// <summary>1 — העתקה מהירה; 2 — ניסיון חוזר באזורים שנכשלו.</summary>
+    /// <summary>1 — העתקה מהירה; 2 — ניסיון חוזר באזורים שנכשלו; 3 — קריאה מהכיוון ההפוך.</summary>
     public int Pass { get; init; }
     public string Stage { get; init; } = "";
     public double Percent { get; init; }
@@ -65,6 +65,8 @@ public sealed class ImagingResult
 ///    הזמן הקצר שנותר לכונן, ורוב הנתונים הטובים נאספים קודם.
 /// 2. חזרה לאזורים שנכשלו ודולגו, בבלוקים קטנים ואז סקטור אחר סקטור,
 ///    כדי להציל כל סקטור שעוד ניתן לקרוא.
+/// 3. הסקטורים שעדיין לא נקראו — שוב, מהסוף להתחלה. אזור פגום שנקרא
+///    בכיוון ההפוך מוסר לפעמים עוד סקטורים מהקצה שלו.
 ///
 /// סקטור שלא נקרא נשאר אפסים בתמונה ומתועד בקובץ המפה.
 /// </summary>
@@ -73,6 +75,12 @@ public static class DiskImager
     internal const int ChunkSize = 1024 * 1024;
     internal const int RetryBlock = 64 * 1024;
     internal const long MaxSkip = 64L * 1024 * 1024;
+
+    /// <summary>
+    /// במעבר ההפוך: כמה סקטורים רצופים שנכשלים עד שמוותרים על שאר האזור. בכונן
+    /// גוסס כל קריאה שנכשלת עלולה להימשך שניות — ואת פנים האזור כבר ניסה המעבר השני.
+    /// </summary>
+    internal const int ReverseGiveUp = 256;
 
     /// <summary>גודל הקובץ המרבי ב-FAT32.</summary>
     private const long Fat32MaxFile = 4L * 1024 * 1024 * 1024 - 1;
@@ -419,6 +427,64 @@ public static class DiskImager
                 }
             }
 
+            // ---------------------------------------------------- מעבר 3
+            // הסקטורים שעדיין לא נקראו — מהסוף להתחלה. המעבר השני הגיע לכל אזור פגום
+            // מתחילתו; כאן מגיעים אליו מהצד השני, וסקטורים בקצה שלו נקראים לפעמים דווקא כך.
+            // עצירה כאן לא משאירה דבר שלא הועתק: מה שלא נוסה פשוט נשאר פגום.
+            if (unreadable.Count > 0)
+            {
+                var recovered = new List<ByteRange>();
+                long reverseTotal = unreadable.Sum(r => r.Length);
+                long reverseDone = 0, recoveredBytes = 0;
+                const string stage3 = "מעבר 3 — קריאה מהכיוון ההפוך באזורים פגומים";
+
+                for (int i = unreadable.Count - 1; i >= 0; i--)
+                {
+                    var range = unreadable[i];
+                    int failures = 0;
+
+                    for (long end = range.End; end > range.Offset;)
+                    {
+                        if (token.IsCancellationRequested) goto reverseStopped;
+
+                        // אזור שכולו מת: אחרי רצף ארוך של כישלונות — לאזור הבא, בלי לשחוק את הכונן.
+                        if (failures >= ReverseGiveUp) { reverseDone += end - range.Offset; break; }
+
+                        long start = range.Offset + (end - 1 - range.Offset) / sector * sector;
+                        int k = (int)(end - start);
+                        sectors.Cursor = start;
+
+                        if (source.Read(start, buffer.AsSpan(0, k)) == k)
+                        {
+                            Write(start, k);
+                            sectors.Remove(start, k, SectorState.Bad);
+                            sectors.Add(start, k, SectorState.Read);
+                            recovered.Add(new ByteRange(start, k));
+                            recoveredBytes += k;
+                            readOk += k;
+                            failures = 0;
+                        }
+                        else if (source.Disconnected)
+                        {
+                            disconnected = true;
+                            goto reverseStopped;
+                        }
+                        else
+                        {
+                            failures++;
+                        }
+
+                        end = start;
+                        reverseDone += k;
+                        Report(3, stage3, reverseDone, reverseTotal, reverseTotal - recoveredBytes);
+                    }
+                }
+
+                reverseStopped:
+                unreadable = Subtract(Normalize(unreadable), Normalize(recovered));
+                Report(3, stage3, reverseTotal, reverseTotal, unreadable.Sum(r => r.Length), force: true);
+            }
+
             finished:
             output.Flush(flushToDisk: true);
         }
@@ -483,6 +549,26 @@ public static class DiskImager
         {
             // מפת ביניים היא רשת ביטחון; כישלון בה אינו עוצר את ההעתקה.
         }
+    }
+
+    /// <summary>טווחים ממוינים פחות טווחים ממוינים: מה שנשאר מ-from אחרי הסרת remove.</summary>
+    internal static List<ByteRange> Subtract(List<ByteRange> from, List<ByteRange> remove)
+    {
+        var result = new List<ByteRange>();
+        int j = 0;
+        foreach (var range in from)
+        {
+            long at = range.Offset;
+            while (j < remove.Count && remove[j].End <= at) j++;
+
+            for (int r = j; r < remove.Count && remove[r].Offset < range.End; r++)
+            {
+                if (remove[r].Offset > at) result.Add(new ByteRange(at, remove[r].Offset - at));
+                at = Math.Max(at, remove[r].End);
+            }
+            if (at < range.End) result.Add(new ByteRange(at, range.End - at));
+        }
+        return result;
     }
 
     /// <summary>הוספת טווח לרשימה ממוינת, תוך איחוד עם טווח צמוד.</summary>

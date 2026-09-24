@@ -78,7 +78,7 @@ public sealed class ImagingTests : IDisposable
         return data;
     }
 
-    private ImagingResult Image(FaultySource source, out string path, CancellationToken token = default)
+    private ImagingResult Image(ISectorSource source, out string path, CancellationToken token = default)
     {
         path = TempPath();
         return DiskImager.Create(source, "disk", "בדיקה", path, null, token);
@@ -422,8 +422,8 @@ public sealed class ImagingTests : IDisposable
         Assert.Equal(new ByteRange(900L * Sector, Sector), Assert.Single(ImageMap.TryLoad(ImageMap.PathFor(path))!.Unreadable));
 
         // הניסיון החוזר קרא רק את הסקטורים הפגומים — לא את כל הכונן: 10–11 כבלוק אחד,
-        // ו-900 פעמיים (כבלוק, ואז סקטור בודד אחרי שהבלוק נכשל).
-        Assert.Equal(4 * Sector, second.Reads.Sum(r => (long)r.Length));
+        // ו-900 שלוש פעמים (כבלוק, כסקטור בודד אחרי שהבלוק נכשל, ושוב במעבר ההפוך).
+        Assert.Equal(5 * Sector, second.Reads.Sum(r => (long)r.Length));
         Assert.All(second.Reads, r => Assert.Contains(r.Offset / Sector, new long[] { 10, 900 }));
     }
 
@@ -457,5 +457,88 @@ public sealed class ImagingTests : IDisposable
         });
 
         Assert.Equal(new[] { new ByteRange(0, 1024), new ByteRange(5000, 150) }, merged);
+    }
+
+    // ------------------------------------------------------------ מעבר 3 — מהכיוון ההפוך
+
+    /// <summary>
+    /// כונן שסקטורים מסוימים בו נקראים רק כשמגיעים אליהם מלמעלה — כמו ראש קריאה
+    /// שנתקע בקצה של אזור פגום כשהוא מגיע אליו מתחילתו.
+    /// </summary>
+    private sealed class DirectionalSource(byte[] data, HashSet<long> onlyFromAbove, HashSet<long> dead) : ISectorSource
+    {
+        private long _last = -1;
+        public List<long> Reads { get; } = new();
+        public long Length => data.Length;
+        public int SectorSize => Sector;
+
+        public int Read(long offset, Span<byte> destination)
+        {
+            bool fromAbove = offset < _last;
+            _last = offset;
+            Reads.Add(offset / Sector);
+
+            for (long s = offset / Sector; s * Sector < offset + destination.Length; s++)
+                if (dead.Contains(s) || (onlyFromAbove.Contains(s) && !fromAbove)) return 0;
+
+            data.AsSpan((int)offset, destination.Length).CopyTo(destination);
+            return destination.Length;
+        }
+    }
+
+    [Fact]
+    public void Reading_backwards_recovers_sectors_that_fail_when_reached_from_the_start()
+    {
+        byte[] data = Pattern(2 * DiskImager.ChunkSize, 31);
+
+        // אזור פגום 100–140: הפנים מת, והקצה העליון (131–140) נקרא רק כשמגיעים מלמעלה.
+        var edge = Enumerable.Range(131, 10).Select(i => (long)i).ToHashSet();
+        var dead = Enumerable.Range(100, 31).Select(i => (long)i).ToHashSet();
+        var result = Image(new DirectionalSource(data, edge, dead), out string path);
+
+        Assert.Equal(31 * Sector, result.UnreadableBytes);
+        Assert.Equal(new ByteRange(100L * Sector, 31 * Sector), Assert.Single(ImageMap.TryLoad(ImageMap.PathFor(path))!.Unreadable));
+
+        byte[] image = File.ReadAllBytes(path);
+        Assert.Equal(data.AsSpan(131 * Sector, 10 * Sector).ToArray(), image.AsSpan(131 * Sector, 10 * Sector).ToArray());
+        Assert.True(image.AsSpan(100 * Sector, 31 * Sector).IndexOfAnyExcept((byte)0) < 0);
+    }
+
+    [Fact]
+    public void A_completely_dead_zone_is_not_ground_sector_by_sector_a_third_time()
+    {
+        byte[] data = Pattern(2 * DiskImager.ChunkSize, 32);
+        var dead = Enumerable.Range(1000, 1000).Select(i => (long)i).ToHashSet();
+        var source = new DirectionalSource(data, [], dead);
+
+        var result = Image(source, out _);
+        Assert.Equal(1000 * Sector, result.UnreadableBytes);
+
+        // המעבר השני ניסה כל סקטור; המעבר ההפוך מוותר אחרי רצף הכישלונות.
+        // רק המעבר ההפוך יורד סקטור אחר סקטור — כל קריאה שלו (מלבד הראשונה) נמוכה באחד מקודמתה.
+        int reverseReads = 1 + source.Reads.Zip(source.Reads.Skip(1)).Count(p => p.Second == p.First - 1);
+        Assert.InRange(reverseReads, DiskImager.ReverseGiveUp, DiskImager.ReverseGiveUp + 1);
+    }
+
+    [Fact]
+    public void Stopping_during_the_backwards_pass_keeps_the_image_complete()
+    {
+        byte[] data = Pattern(2 * DiskImager.ChunkSize, 33);
+        var dead = Enumerable.Range(500, 40).Select(i => (long)i).ToHashSet();
+        using var stop = new CancellationTokenSource();
+
+        var progress = new SyncProgress<ImagingProgress>(p => { if (p.Pass == 3) stop.Cancel(); });
+        string path = TempPath();
+
+        var result = DiskImager.Create(new DirectionalSource(data, [], dead), "disk", "בדיקה", path, progress, stop.Token);
+
+        Assert.True(result.Complete);
+        Assert.Equal(0, result.NotCopiedBytes);
+        Assert.Equal(40 * Sector, result.UnreadableBytes);
+    }
+
+    private sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }
