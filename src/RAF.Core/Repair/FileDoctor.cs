@@ -52,6 +52,12 @@ public enum FileIssueKind
 
     /// <summary>מסמך פגום שהטקסט שבו שרד — הוא יישמר כקובץ טקסט פשוט, כמוצא אחרון.</summary>
     TextRecoverable,
+
+    /// <summary>שדות הגודל בכותרת אינם תואמים לתוכן — למשל הקלטה שלא נסגרה כראוי.</summary>
+    SizeFieldsWrong,
+
+    /// <summary>לפני תחילת הקובץ האמיתית יש נתונים זרים.</summary>
+    LeadingData,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -89,6 +95,12 @@ public sealed class FileDiagnosis
 
     /// <summary>הטקסט שחולץ ממסמך פגום — מה שיישמר בתיקון כקובץ טקסט.</summary>
     internal string? Text { get; init; }
+
+    /// <summary>היכן הקובץ האמיתי מתחיל, כשלפניו נתונים זרים.</summary>
+    internal long BodyStart { get; init; }
+
+    /// <summary>בתים שהתיקון כותב מחדש, לפי ההיסט שלהם בקובץ המקורי (שדות גודל, כותרת).</summary>
+    internal List<(long Offset, byte[] Data)> Patches { get; init; } = new();
 }
 
 /// <summary>תוצאת תיקון קובץ.</summary>
@@ -148,9 +160,35 @@ public static class FileDoctor
 
         FileSignature? format = detected;
         string? suggestedExtension = null;
+        string? detectedName = detected?.Name;
+        long bodyStart = 0;
+        var patches = new List<(long Offset, byte[] Data)>();
+        Func<long, int, byte[]> read = volume.ReadAt;
+
+        // ---------------------------------------------- MP3
+        // ל-MP3 בלי תג פרטים אין חתימה: הוא מתחיל ישר בשמע. שרשרת של מסגרות שמע
+        // רצופות מזהה אותו — ומגלה גם נתונים זרים לפניו או אחריו.
+        Mp3Layout? mp3 = null;
+        if ((detected is null && extension == "mp3") || detected?.Extensions[0] == "mp3")
+        {
+            mp3 = Mp3Layout.Analyze(read, size);
+            if (mp3 is not null && detected is null)
+            {
+                format = FileSignatures.ForExtension("mp3").First();
+                detectedName = format.Name;
+
+                if (mp3.Start > 0)
+                {
+                    bodyStart = mp3.Start;
+                    issues.Add(new FileIssue(FileIssueKind.LeadingData,
+                        $"בתחילת הקובץ יש {mp3.Start:N0} בתים שאינם שייכים לשיר — השמע עצמו מתחיל רק אחריהם, " +
+                        "ולכן נגנים לא מזהים את הקובץ. אפשר להסיר אותם.", true));
+                }
+            }
+        }
 
         // ---------------------------------------------- חתימת הפתיחה
-        if (detected is null && expected is not null)
+        if (detected is null && expected is not null && mp3 is null)
         {
             if (LooksLikeDamagedHeader(head, expected))
             {
@@ -256,6 +294,73 @@ public static class FileDoctor
         // ---------------------------------------------- אורך וחתימת סיום
         long? correctLength = null;
 
+        // ---------------------------------------------- הקלטת WAV
+        // שדות הגודל נכתבים רק כשההקלטה נסגרת. בדיקת האורך הכללית הייתה סומכת עליהם —
+        // ובהקלטה שנקטעה, עם גודל אפס, מציעה "להסיר" את כל השמע.
+        if (format is not null && format.Structure == "wav" && !archiveDamaged)
+        {
+            byte[] restored = detected is null ? WithHeader(head, format) : head;
+            var wav = WavLayout.Analyze((at, count) => at + count <= restored.Length
+                ? restored.AsSpan((int)at, count).ToArray()
+                : volume.ReadAt(at, count), size);
+
+            if (wav is not null)
+            {
+                archiveDamaged = true;                                   // האורך נקבע כאן, לא בבדיקה הכללית
+                if (wav.ProperEnd < size) correctLength = wav.ProperEnd;
+
+                if (wav.DataUnfinished)
+                {
+                    patches.Add((wav.DataSizeField, UInt32(wav.DataActual)));
+                    patches.Add((4, UInt32(wav.RiffField)));
+                    issues.Add(new FileIssue(FileIssueKind.SizeFieldsWrong,
+                        "ההקלטה לא נסגרה כראוי — כך קורה כשהמכשיר נכבה או שהאפליקציה נסגרה באמצע. " +
+                        (wav.DataDeclared == 0 ? "בכותרת רשום שאין בה שמע כלל, " : "בכותרת רשום אורך שגוי, ") +
+                        $"אבל בקובץ יש {Duration(wav.Seconds, wav.DataActual)} של שמע. תיקון הכותרת יאפשר לנגן את כל ההקלטה.", true));
+                }
+                else
+                {
+                    if (wav.RiffDeclared != wav.ProperEnd)
+                    {
+                        patches.Add((4, UInt32(wav.RiffField)));
+                        issues.Add(new FileIssue(FileIssueKind.SizeFieldsWrong,
+                            "הגודל הכללי שרשום בכותרת ההקלטה אינו תואם לתוכן שלה. השמע עצמו שלם, " +
+                            "ואפשר לתקן את הכותרת.", true));
+                    }
+
+                    if (wav.ProperEnd < size && !volume.IsZeroRange(wav.ProperEnd, size))
+                        issues.Add(new FileIssue(FileIssueKind.TrailingData,
+                            $"אחרי סוף ההקלטה יש {size - wav.ProperEnd:N0} בתים עודפים שאינם חלק ממנה. ניתן להסיר אותם.", true));
+                    else
+                        correctLength = null;                            // אפסים בסוף — לא נוגעים
+                }
+            }
+        }
+
+        // ---------------------------------------------- מסד נתונים SQLite
+        // אחרי החתימה באים גודל הדף ושדות קבועים; בלעדיהם המסד לא נפתח.
+        if (format is not null && format.Structure == "db")
+        {
+            byte[] restored = detected is null ? WithHeader(head, format) : head;
+            if (SqliteHeader.Check(restored, read, size) is { } sqlite)
+            {
+                if (sqlite.Patch is not null) patches.Add((16, sqlite.Patch));
+                issues.Add(new FileIssue(FileIssueKind.HeaderDamaged, sqlite.Problem, sqlite.Patch is not null));
+            }
+        }
+
+        // ---------------------------------------------- MP3: סוף השמע
+        if (mp3 is not null && !archiveDamaged)
+        {
+            archiveDamaged = true;
+            if (mp3.End < size && !volume.IsZeroRange(mp3.End, size))
+            {
+                correctLength = mp3.End;
+                issues.Add(new FileIssue(FileIssueKind.TrailingData,
+                    $"אחרי סוף השיר יש {size - mp3.End:N0} בתים עודפים שאינם חלק ממנו. ניתן להסיר אותם.", true));
+            }
+        }
+
         if (format is not null && !archiveDamaged)
         {
             // בקובץ שחתימתו נפגעה, קריאת המבנה צריכה לראות את החתימה התקינה.
@@ -276,6 +381,12 @@ public static class FileDoctor
                 // אחרי סוף ה-JPEG טלפונים ומצלמות כותבים חלקים של הקובץ עצמו — "הסרה" שלהם
                 // הייתה מוחקת מידע אמיתי. ראו KnownJpegTrailer.
                 else if (declared < size && format.Structure == "jpg" && KnownJpegTrailer(volume, declared, size))
+                {
+                }
+                // מסד נתונים ארוך ממספר הדפים שבכותרת אינו פגום: המספר מתעדכן לפעמים רק מאוחר
+                // יותר, ודפדפנים מקצים דפים מראש. SQLite קוראת רק את הדפים שהיא מכירה, ולכן
+                // "הסרה" לא הייתה מועילה לדבר — והייתה עלולה למחוק דפים אמיתיים.
+                else if (format.Structure == "db")
                 {
                 }
                 else if (declared < size)
@@ -376,7 +487,7 @@ public static class FileDoctor
         {
             Path = path,
             Size = size,
-            DetectedFormat = detected?.Name,
+            DetectedFormat = detectedName,
             ExpectedFormat = expected?.Name,
             SuggestedExtension = suggestedExtension,
             Issues = issues,
@@ -384,7 +495,26 @@ public static class FileDoctor
             CorrectLength = correctLength,
             Preview = preview,
             Text = text,
+            BodyStart = bodyStart,
+            Patches = patches,
         };
+    }
+
+    private static byte[] UInt32(long value)
+    {
+        byte[] b = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(b, (uint)Math.Min(value, uint.MaxValue));
+        return b;
+    }
+
+    /// <summary>משך השמע במילים; בלי קצב ידוע — הגודל.</summary>
+    private static string Duration(double seconds, long bytes)
+    {
+        if (seconds <= 0) return Size(bytes);
+        var t = TimeSpan.FromSeconds(seconds);
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2} שעות"
+             : t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes}:{t.Seconds:D2} דקות"
+             : $"{Math.Max(1, (int)t.TotalSeconds)} שניות";
     }
 
     /// <summary>
@@ -657,6 +787,15 @@ public static class FileDoctor
                 case FileIssueKind.ExtensionMismatch:
                     applied.Add($"הסיומת תוקנה ל-.{diagnosis.SuggestedExtension}");
                     break;
+
+                case FileIssueKind.SizeFieldsWrong:
+                    if (diagnosis.CorrectLength is > 0) bodyLength = diagnosis.CorrectLength.Value;
+                    applied.Add("תוקנו שדות הגודל בכותרת לפי התוכן שבקובץ");
+                    break;
+
+                case FileIssueKind.LeadingData:
+                    applied.Add($"הוסרו {diagnosis.BodyStart:N0} בתים זרים מתחילת הקובץ");
+                    break;
             }
         }
 
@@ -729,7 +868,7 @@ public static class FileDoctor
             else if (rebuildPdf)
                 applied.Add(WriteRebuiltPdf(path, output, format, restoreHeader));
             else
-                WriteStreamed(path, output, format, restoreHeader, bodyLength, footer);
+                WriteStreamed(path, output, format, restoreHeader, diagnosis.BodyStart, bodyLength, footer, diagnosis.Patches);
         }
         catch
         {
@@ -772,12 +911,16 @@ public static class FileDoctor
     /// האורך הנכון, וחתימת הסיום כשהיא חסרה. עובד בכל גודל קובץ.
     /// </summary>
     private static void WriteStreamed(string path, string output, FileSignature? format,
-        bool restoreHeader, long bodyLength, byte[] footer)
+        bool restoreHeader, long bodyStart, long bodyLength, byte[] footer, List<(long Offset, byte[] Data)> patches)
     {
         using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
             1024 * 1024, FileOptions.SequentialScan);
         using var target = new FileStream(output, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             1024 * 1024, FileOptions.SequentialScan);
+
+        // bodyLength הוא סוף הקובץ האמיתי בתוך המקור; bodyStart — תחילתו.
+        source.Position = bodyStart;
+        bodyLength -= bodyStart;
 
         byte[] head = new byte[(int)Math.Min(PatchedHead, bodyLength)];
         source.ReadExactly(head);
@@ -800,6 +943,15 @@ public static class FileDoctor
         }
 
         target.Write(footer);
+
+        // שדות שהאבחון חישב מחדש — לפי ההיסט שלהם בקובץ המקורי.
+        foreach (var (offset, data) in patches)
+        {
+            long at = offset - bodyStart;
+            if (at < 0 || at + data.Length > target.Length) continue;
+            target.Position = at;
+            target.Write(data);
+        }
     }
 
     /// <summary>בניית ארכיון מחדש, מהנתונים כפי שהם אחרי שחזור החתימה.</summary>
