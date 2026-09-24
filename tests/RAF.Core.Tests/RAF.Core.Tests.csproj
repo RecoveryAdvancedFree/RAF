@@ -21,4 +21,9 @@
     <ProjectReference Include="..\..\src\RAF.Core\RAF.Core.csproj" />
   </ItemGroup>
 
+  <!-- סרטוני בדיקה קטנים (נוצרו ב-ffmpeg) לבניית אינדקס של סרטון מחדש -->
+  <ItemGroup>
+    <None Include="Media\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -46,6 +46,9 @@ public enum FileIssueKind
 
     /// <summary>בתוך תמונה פגומה שמורה תמונה מוקטנת שלמה — היא תישמר כקובץ נפרד.</summary>
     PreviewAvailable,
+
+    /// <summary>לסרטון חסר האינדקס (moov) — ההקלטה נקטעה. נבנה מחדש בעזרת סרטון תקין מאותו מכשיר.</summary>
+    VideoIndexMissing,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -70,6 +73,9 @@ public sealed class FileDiagnosis
 
     public bool IsHealthy => Issues.Count == 0;
     public bool CanRepair => Issues.Any(i => i.Fixable);
+
+    /// <summary>התיקון דורש סרטון תקין מאותו מכשיר — ראו Mp4Rebuilder.</summary>
+    public bool NeedsReferenceVideo => Issues.Any(i => i.Kind == FileIssueKind.VideoIndexMissing);
 
     // ---- נתונים פנימיים לשלב התיקון ----
     internal FileSignature? Format { get; init; }
@@ -215,6 +221,20 @@ public static class FileDoctor
             }
         }
 
+        // ---------------------------------------------- סרטון בלי אינדקס
+        // הקלטה שנקטעה: התמונות והקול בקובץ, אבל האינדקס שנכתב רק בסוף חסר.
+        // בדיקת האורך הרגילה הייתה מדווחת כאן "חסרים נתונים" — וזה לא מה שחסר.
+        if (format is not null && format.Structure == "mp4" && detected is not null && Mp4Rebuilder.Inspect(path) is { } missing)
+        {
+            archiveDamaged = true;
+            issues.Add(new FileIssue(FileIssueKind.VideoIndexMissing,
+                "הסרטון לא נסגר כראוי: חסר בו האינדקס — החלק שאומר לנגן היכן כל תמונה וכל קטע קול. " +
+                "זה קורה כשההקלטה נקטעת (סוללה שנגמרה, כרטיס שנשלף, מכשיר שנתקע). " +
+                // הגודל מבודד משמאל לימין — אחרת "11.7 MB" מוצג הפוך בתוך משפט בעברית.
+                $"התמונות והקול עצמם נמצאים בקובץ (⁦{Size(missing.DataEnd - missing.DataStart)}⁩). " +
+                "אפשר לבנות אינדקס חדש בעזרת סרטון תקין אחד שצולם באותו מכשיר ובאותן הגדרות.", false));
+        }
+
         // ---------------------------------------------- אורך וחתימת סיום
         long? correctLength = null;
 
@@ -342,6 +362,58 @@ public static class FileDoctor
         if (start is [0xFF, 0xD8, 0xFF, ..]) return true;
         if (start.Length >= 8 && start.AsSpan(4, 4).SequenceEqual("ftyp"u8)) return true;
         return volume.ReadAt(size - 4, 4).AsSpan().SequenceEqual("SEFT"u8);
+    }
+
+    private static string Size(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.0} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0.0} MB",
+        _ => $"{bytes / 1024.0:0} KB",
+    };
+
+    /// <summary>
+    /// בניית אינדקס לסרטון שחסר בו, לעותק חדש בתיקיית היעד — בעזרת סרטון תקין מאותו
+    /// מכשיר. העותק נבדק שוב אחרי הכתיבה, כמו כל תיקון.
+    /// </summary>
+    public static FileRepairResult RepairVideo(string path, string referencePath, string outputFolder,
+        IProgress<double>? progress = null, CancellationToken token = default)
+    {
+        Directory.CreateDirectory(outputFolder);
+        string extension = System.IO.Path.GetExtension(path).TrimStart('.');
+        string output = UniquePath(outputFolder, $"{System.IO.Path.GetFileNameWithoutExtension(path)} (תוקן)",
+            extension.Length > 0 ? extension : "mp4");
+
+        if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
+            return new FileRepairResult { Message = "נתיב היעד זהה לקובץ המקורי. התיקון בוטל." };
+
+        VideoRebuildResult rebuilt;
+        try
+        {
+            rebuilt = Mp4Rebuilder.Rebuild(path, referencePath, output, progress, token);
+        }
+        catch
+        {
+            try { File.Delete(output); } catch { }
+            throw;
+        }
+
+        if (!rebuilt.Succeeded)
+        {
+            try { File.Delete(output); } catch { }
+            return new FileRepairResult { Message = rebuilt.Message };
+        }
+
+        var after = Diagnose(output);
+        return new FileRepairResult
+        {
+            Succeeded = after.IsHealthy,
+            OutputPath = output,
+            Applied = new List<string> { rebuilt.Message },
+            After = after,
+            Message = after.IsHealthy
+                ? "הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."
+                : "האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: " + string.Join(" ", after.Issues.Select(i => i.Description)),
+        };
     }
 
     /// <summary>ארכיון גדול מזה אינו נבדק לעומק — הוא נקרא כולו לזיכרון.</summary>

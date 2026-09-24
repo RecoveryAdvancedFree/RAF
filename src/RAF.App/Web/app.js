@@ -1883,7 +1883,8 @@ function renderDoctorEmpty() {
       תחילת קובץ שנמחקה או נפגעה · נתונים מיותרים בסוף הקובץ · סוף קובץ חסר ·
       סיומת שגויה (למשל תמונה שנשמרה בשם ‎.doc) ·
       מסמך Word, Excel או PowerPoint (או ZIP) שלא נפתח — תוכן העניינים שלו נבנה מחדש ·
-      מסמך PDF שלא נפתח, או נפתח רק עם אזהרה — טבלת המיקומים שלו נבנית מחדש.</p>
+      מסמך PDF שלא נפתח, או נפתח רק עם אזהרה — טבלת המיקומים שלו נבנית מחדש ·
+      סרטון שההקלטה שלו נקטעה ולא נפתח — בעזרת סרטון תקין אחד מאותו מכשיר.</p>
       <p>קובץ שחסרים בו נתונים, או שאינו תואם לשום פורמט מוכר, לא יתוקן — התוכנה לא ממציאה נתונים.</p></div>
     <p class="doc-hint">אפשר גם לגרור קבצים או תיקייה אל החלון.</p>`;
 
@@ -1919,15 +1920,17 @@ function renderDoctorList() {
   const files = Doctor.files;
   const healthy = files.filter((f) => f.healthy).length;
   const fixable = files.filter((f) => !f.healthy && f.canRepair);
-  const hopeless = files.length - healthy - fixable.length;
+  const videos = files.filter((f) => f.needsReference);
+  const hopeless = files.length - healthy - fixable.length - videos.filter((f) => !f.canRepair).length;
 
   const rows = files.map((f) => {
     const [cls, label] = f.healthy ? ['ok', 'תקין']
-      : f.canRepair ? ['warn', 'ניתן לתקן'] : ['danger', 'לא ניתן לתקן'];
+      : f.canRepair ? ['warn', 'ניתן לתקן']
+      : f.needsReference ? ['warn', 'צריך סרטון לדוגמה'] : ['danger', 'לא ניתן לתקן'];
 
     const issues = f.issues.length
       ? `<ul class="doc-issues">${f.issues.map((i) =>
-          `<li class="${i.fixable ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
+          `<li class="${i.fixable || i.kind === 'VideoIndexMissing' ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
       : '';
 
     return `
@@ -1939,6 +1942,8 @@ function renderDoctorList() {
         </div>
         ${f.detected ? `<div class="doc-meta">זוהה: ${esc(f.detected)}</div>` : ''}
         ${issues}
+        ${f.needsReference ? `
+          <button class="btn btn-sm doc-action" data-rebuild="${esc(f.path)}">${Icon.play}<span>בחירת סרטון תקין מאותו מכשיר…</span></button>` : ''}
       </div>`;
   }).join('');
 
@@ -1947,6 +1952,8 @@ function renderDoctorList() {
       <span><b class="ok-text">${healthy}</b> תקינים</span>
       <span class="sep">·</span>
       <span><b>${fixable.length}</b> ניתנים לתיקון</span>
+      ${videos.length ? `<span class="sep">·</span>
+      <span><b>${videos.length}</b> ${plural(videos.length, 'סרטון שצריך', 'סרטונים שצריכים')} סרטון לדוגמה</span>` : ''}
       <span class="sep">·</span>
       <span><b class="danger-text">${hopeless}</b> לא ניתנים לתיקון</span>
     </div>
@@ -1959,6 +1966,9 @@ function renderDoctorList() {
 
   const fix = el('btn-doctor-fix');
   if (fix) fix.onclick = () => runDoctorRepair(fixable.map((f) => f.path));
+  document.querySelectorAll('[data-rebuild]').forEach((b) => {
+    b.onclick = () => rebuildVideo(b.dataset.rebuild);
+  });
   el('btn-doctor-more').onclick = pickDoctorFiles;
   el('btn-doctor-close').onclick = closePanel;
 }
@@ -1999,6 +2009,61 @@ async function runDoctorRepair(paths) {
   el('doctor-foot').innerHTML = `<button class="btn btn-primary" id="btn-doctor-done">סיום</button>`;
   el('btn-doctor-done').onclick = closePanel;
 }
+
+/// סרטון שחסר בו האינדקס: סרטון ייחוס מאותו מכשיר, תיקיית יעד, ובנייה.
+async function rebuildVideo(path) {
+  const ref = await Bridge.call('doctor.pickReference', {}, 0);
+  if (!ref.path) return;
+  if (ref.problem) {
+    setStatus('');
+    const row = document.querySelector(`[data-rebuild="${CSS.escape(path)}"]`)?.closest('.doc-row');
+    row?.querySelector('.doc-ref-problem')?.remove();
+    row?.insertAdjacentHTML('beforeend', `<div class="doc-meta danger-text doc-ref-problem">${esc(ref.problem)}</div>`);
+    return;
+  }
+
+  const { path: output } = await Bridge.call('doctor.pickFolder', {}, 0);
+  if (!output) return;
+
+  el('doctor-body').innerHTML = `
+    <div class="loading" style="height:200px"><div class="spinner"></div>
+      <p>בונה אינדקס חדש לסרטון — תמונה אחר תמונה…</p>
+      <p class="doc-meta" id="rebuild-percent"></p></div>`;
+  el('doctor-foot').innerHTML = '';
+
+  let r;
+  try {
+    r = await Bridge.call('doctor.rebuildVideo', { path, reference: ref.path, output }, 0);
+  } catch (err) {
+    el('doctor-body').innerHTML = errorNotice('בניית האינדקס לא הושלמה', err);
+    el('doctor-foot').innerHTML = `<button class="btn" id="btn-doctor-back">חזרה לרשימה</button>`;
+    el('btn-doctor-back').onclick = renderDoctorList;
+    return;
+  }
+
+  el('doctor-body').innerHTML = `
+    ${r.succeeded
+      ? notice('ok-notice', Icon.check, 'הסרטון תוקן', esc(r.message))
+      : notice(r.output ? 'warn' : 'danger', Icon.alert, r.output ? 'הסרטון תוקן חלקית' : 'הסרטון לא תוקן', esc(r.message))}
+    <div class="doc-list"><div class="doc-row">
+      <div class="doc-top"><span class="doc-name"><bdi>${esc(r.name)}</bdi></span></div>
+      ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+      ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
+    </div></div>
+    <p class="doc-hint">הסרטון המקורי לא שונה. אם התמונה בסרטון המתוקן משובשת, כנראה שסרטון הדוגמה צולם בהגדרות אחרות
+      (רזולוציה או קצב תמונות) — נסו סרטון אחר מאותו מכשיר.</p>`;
+
+  el('doctor-foot').innerHTML = `
+    ${r.folder ? `<button class="btn btn-primary" id="btn-doctor-open">${Icon.folder}<span>פתיחת התיקייה</span></button>` : ''}
+    <button class="btn" id="btn-doctor-back">חזרה לרשימה</button>`;
+  if (r.folder) el('btn-doctor-open').onclick = () => Bridge.call('recover.openFolder', { path: r.folder });
+  el('btn-doctor-back').onclick = renderDoctorList;
+}
+
+Bridge.on('doctor.progress', ({ percent }) => {
+  const box = el('rebuild-percent');
+  if (box) box.textContent = `${Math.min(100, percent).toFixed(0)}%`;
+});
 
 function closePanel() {
   el('overlay').hidden = true;

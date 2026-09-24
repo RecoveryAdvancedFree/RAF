@@ -783,6 +783,7 @@
 .disk-note.danger { color: var(--danger-text); background: var(--danger-soft); }
 .disk-note .link-btn { font-size: 12px; font-weight: 600; color: inherit; text-decoration: underline; }
 .health-slot:empty { display: none; }
+.doc-row .doc-action { margin-top: 8px; }
 .health-warning { margin-bottom: 14px; }
 .health-warning .disk-note { border: 1px solid currentColor; border-radius: 8px; border-color: var(--border); }
 .health-warning .btn { margin-top: 8px; }

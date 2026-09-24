@@ -87,6 +87,8 @@ internal sealed partial class Bridge
         "doctor.diagnose" => await Task.Run(() => DoctorDiagnose(p)),
         "doctor.diagnoseFolder" => await Task.Run(() => DoctorDiagnoseFolder(p)),
         "doctor.repair" => await Task.Run(() => DoctorRepair(p)),
+        "doctor.pickReference" => PickReferenceVideo(),
+        "doctor.rebuildVideo" => await Task.Run(() => DoctorRebuildVideo(p)),
 
         "disk.hunt" => await Tracked(LongOperation.Hunt, () => HuntAsync(p)),
         "disk.huntCancel" => Cancel(_huntCancel),
@@ -1454,10 +1456,70 @@ internal sealed partial class Bridge
         };
     }
 
+    /// <summary>
+    /// בחירת סרטון ייחוס — תקין, מאותו מכשיר. נבדק מיד שיש בו אינדקס ותמונה בקידוד
+    /// שאפשר לעבוד איתו, כדי שהשגיאה תופיע עכשיו ולא אחרי בנייה ארוכה.
+    /// </summary>
+    private object PickReferenceVideo()
+    {
+        string? selected = null;
+        _form.InvokeOnUiSync(() =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = "בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות",
+                Filter = "סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*",
+                CheckFileExists = true,
+            };
+            if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
+        });
+
+        if (selected is null) return new { path = (string?)null, problem = (string?)null };
+
+        string? problem = null;
+        try
+        {
+            problem = RAF.Core.Repair.Mp4Rebuilder.DescribeReference(selected);
+        }
+        catch (Exception ex)
+        {
+            problem = FriendlyError.From(ex).Text;
+        }
+        return new { path = selected, problem };
+    }
+
+    private object DoctorRebuildVideo(JsonObject? p)
+    {
+        string path = p?["path"]?.GetValue<string>() ?? "";
+        string reference = p?["reference"]?.GetValue<string>() ?? "";
+        string output = p?["output"]?.GetValue<string>() ?? "";
+        if (string.IsNullOrWhiteSpace(output))
+            throw new InvalidOperationException("יש לבחור תיקייה לשמירת הסרטון המתוקן.");
+
+        var last = DateTime.MinValue;
+        var progress = new Progress<double>(percent =>
+        {
+            if ((DateTime.UtcNow - last).TotalMilliseconds < 150 && percent < 100) return;
+            last = DateTime.UtcNow;
+            PushEvent("doctor.progress", new { percent });
+        });
+
+        var r = FileDoctor.RepairVideo(path, reference, output, progress);
+        return new
+        {
+            name = Path.GetFileName(path),
+            succeeded = r.Succeeded,
+            output = r.OutputPath,
+            folder = r.OutputPath is null ? null : Path.GetDirectoryName(r.OutputPath),
+            applied = r.Applied,
+            message = r.Message,
+        };
+    }
+
     private sealed record DiagnosisView(
         string path, string name, long size, bool healthy, bool canRepair,
         string? detected, string? expected, string? suggestedExtension,
-        List<IssueView> issues);
+        List<IssueView> issues, bool needsReference = false);
 
     private sealed record IssueView(string kind, string description, bool fixable);
 
@@ -1469,7 +1531,8 @@ internal sealed partial class Bridge
             return new DiagnosisView(
                 path, Path.GetFileName(path), d.Size, d.IsHealthy, d.CanRepair,
                 d.DetectedFormat, d.ExpectedFormat, d.SuggestedExtension,
-                d.Issues.Select(i => new IssueView(i.Kind.ToString(), i.Description, i.Fixable)).ToList());
+                d.Issues.Select(i => new IssueView(i.Kind.ToString(), i.Description, i.Fixable)).ToList(),
+                d.NeedsReferenceVideo);
         }
         catch (Exception ex)
         {
