@@ -44,15 +44,55 @@ internal sealed class RawDevice : IDisposable
             IntPtr.Zero);
 
         if (h == Win32.INVALID_HANDLE_VALUE || h == IntPtr.Zero)
+        {
+            _openError = Marshal.GetLastPInvokeError();
             return null;
+        }
 
         return new RawDevice(h, devicePath, sectorSize);
     }
+
+    [ThreadStatic] private static int _openError;
+
+    /// <summary>הכונן לא נמצא כלל (אין לו נתיב) — כמו "הקובץ לא נמצא".</summary>
+    internal static void NotFound() => _openError = 2;
+
+    /// <summary>
+    /// למה נכשלה הפתיחה האחרונה בחוט הזה, במילים פשוטות: כונן שאינו מחובר אינו
+    /// "חוסר הרשאות" — ההודעה הישנה שלחה אנשים לחפש בעיה שאינה קיימת.
+    /// </summary>
+    public static string OpenFailure(string what = "הדיסק") => _openError switch
+    {
+        2 or 3 or 21 or 55 or 433 or 1167 or 1617 =>
+            "הכונן אינו מחובר. חברו אותו שוב, רעננו את רשימת הכוננים ונסו שוב.",
+        5 => $"אין הרשאה לקרוא את {what}. ודאו שהתוכנה פועלת בהרשאות מנהל.",
+        32 => $"{what} בשימוש של תוכנה אחרת שנעלה אותו. סגרו אותה ונסו שוב.",
+        0 => $"לא ניתן לפתוח את {what} לקריאה. ודאו שהוא מחובר ושהתוכנה פועלת בהרשאות מנהל.",
+        var e => $"לא ניתן לפתוח את {what} לקריאה (שגיאה {e}). ודאו שהוא מחובר ושהתוכנה פועלת בהרשאות מנהל.",
+    };
 
     /// <summary>שגיאת Win32 האחרונה, לצורך הודעות שגיאה מדויקות למשתמש.</summary>
     public static int LastError => Marshal.GetLastWin32Error();
 
     public bool IsValid => _handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE;
+
+    /// <summary>
+    /// ההתקן נותק (נשלף, או שהחיבור נפל) — ולא סקטור פגום. Windows מבחין בין השניים
+    /// בקוד השגיאה: סקטור פגום מחזיר שגיאת CRC או שגיאת קלט/פלט, וניתוק — "ההתקן אינו מחובר".
+    /// מי שעובר על הכונן עוצר אז ושומר נקודת המשך, במקום לסמן את כל ההמשך כפגום.
+    /// </summary>
+    public bool Disconnected { get; private set; }
+
+    /// <summary>לבדיקות: מכאן והלאה ההתקן מתנהג כמו כונן שנשלף.</summary>
+    internal void SimulateDisconnect() => _gone = true;
+    private volatile bool _gone;
+
+    private void Failed()
+    {
+        int error = Marshal.GetLastPInvokeError();
+        // NOT_READY, DEV_NOT_EXIST, NO_SUCH_DEVICE, DEVICE_NOT_CONNECTED, DEVICE_REMOVED, INVALID_HANDLE, FILE_NOT_FOUND
+        if (error is 21 or 55 or 433 or 1167 or 1617 or 6 or 2) Disconnected = true;
+    }
 
     /// <summary>
     /// קריאת בתים מהיסט מוחלט. ההיסט והאורך מיושרים אוטומטית לגבול סקטור
@@ -73,11 +113,23 @@ internal sealed class RawDevice : IDisposable
             uint read;
             lock (_gate)
             {
-                if (!IsValid || !Win32.SetFilePointerEx(_handle, alignedStart, out _position, 0 /* FILE_BEGIN */))
+                if (!IsValid) return 0;
+                if (_gone)
+                {
+                    Disconnected = true;
                     return 0;
+                }
+                if (!Win32.SetFilePointerEx(_handle, alignedStart, out _position, 0 /* FILE_BEGIN */))
+                {
+                    Failed();
+                    return 0;
+                }
 
                 if (!Win32.ReadFile(_handle, pin.AddrOfPinnedObject(), (uint)alignedLength, out read, IntPtr.Zero))
+                {
+                    Failed();
                     return 0;
+                }
             }
 
             int usable = Math.Max(0, Math.Min(destination.Length, (int)read - skew));

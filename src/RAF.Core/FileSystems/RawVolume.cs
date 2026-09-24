@@ -33,6 +33,9 @@ internal sealed class RawVolume : IClusterVolume
 
     public int ReadRaw(long offset, Span<byte> destination) => _reader.Read(offset, destination);
 
+    /// <summary>הכונן נותק באמצע — ראו RawDevice.Disconnected.</summary>
+    internal bool Disconnected => _reader.Disconnected;
+
     /// <summary>
     /// במחיצה גולמית אין מפת הקצאה, ולכן אין דרך לדעת אם אזור תפוס.
     /// החזרת null מונעת מהדירוג להסיק מסקנה שאין לה בסיס.

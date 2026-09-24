@@ -126,6 +126,7 @@ internal sealed partial class Bridge
 
         "window.theme" => _form.InvokeOnUi(() => _form.ApplyTheme(p?["dark"]?.GetValue<bool>() ?? true)),
         "window.minimize" => _form.InvokeOnUi(() => _form.WindowState = FormWindowState.Minimized),
+        "window.toTray" => _form.InvokeOnUi(() => _form.Tray.Send()),
         "window.toggleMaximize" => _form.InvokeOnUi(_form.ToggleMaximize),
         "window.close" => _form.InvokeOnUi(_form.Close),
         "window.beginDrag" => _form.InvokeOnUi(() =>
@@ -376,6 +377,9 @@ internal sealed partial class Bridge
         var resume = archive.Result.Resume
                      ?? throw new InvalidOperationException("הסריקה הזו הסתיימה, או שאי אפשר להמשיך אותה.");
 
+        // הרשימה מתרעננת קודם: כונן שנותק עדיין מופיע ברשימה הישנה, וכונן שחובר מחדש
+        // עוד לא — ובשני המקרים הייתה מתקבלת שגיאת פתיחה במקום "הכונן אינו מחובר".
+        if (archive.Header.Disk.ImagePath is null) ListDisks();
         var disk = MatchDisk(archive.Header.Disk);
         if (disk is null && archive.Header.Disk.ImagePath is { } image && File.Exists(image))
         {
@@ -462,9 +466,12 @@ internal sealed partial class Bridge
         if (resumable) await Task.Run(() => Autosave(session, partial: true));
         else _ = Task.Run(() => Autosave(session, partial: false));
 
-        bool paused = _pauseRequested && resumable;
+        // השהיה, או כונן שנותק באמצע — בשניהם הסריקה נשמרה עם נקודת המשך.
+        bool paused = (_pauseRequested || result.Disconnected) && resumable;
         _pauseRequested = false;
-        return paused ? new { paused = true, percent = result.Resume!.Percent, files = result.Files.Count } : Summary();
+        return paused
+            ? new { paused = true, disconnected = result.Disconnected, percent = result.Resume!.Percent, files = result.Files.Count }
+            : Summary();
     }
 
     /// <summary>מפת הסקטורים לממשק: תו לכל ריבוע, הריבוע שהמעבר נמצא בו, וגודל האזור.</summary>

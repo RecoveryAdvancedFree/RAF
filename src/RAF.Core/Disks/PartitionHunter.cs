@@ -48,6 +48,9 @@ public sealed class HuntResult
 {
     public List<FoundPartition> Found { get; init; } = new();
     public bool Cancelled { get; init; }
+
+    /// <summary>הכונן נותק באמצע הסריקה — מה שאחרי נקודת הניתוק לא נבדק.</summary>
+    public bool Disconnected { get; init; }
     public TimeSpan Duration { get; init; }
     public long UnreadableBytes { get; init; }
 
@@ -80,7 +83,7 @@ public static class PartitionHunter
         {
             using var reader = VolumeReader.TryOpen(
                 disk.DiskNumber, 0, disk.SizeBytes, disk.LogicalSectorSize, sequential: true, applyOverlay: false)
-                ?? throw new IOException("לא ניתן לפתוח את הכונן לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+                ?? throw new IOException(Native.RawDevice.OpenFailure("הכונן"));
 
             var existing = disk.Partitions
                 .Where(p => p.SizeBytes > 0)
@@ -106,6 +109,7 @@ public static class PartitionHunter
         long unreadable = 0;
         var lastReport = TimeSpan.Zero;
         var map = new SectorMap(length);
+        bool disconnected = false;
 
         long at = 0;
         for (; at < length && !token.IsCancellationRequested; at += BlockSize)
@@ -113,7 +117,12 @@ public static class PartitionHunter
             int want = (int)Math.Min(BlockSize, length - at);
             int read = source.Read(at, block.AsSpan(0, want));
             int before = hypotheses.Count;
-            map.Cursor = at;
+            if (read < want && source.Disconnected)
+            {
+                disconnected = true;
+                break;
+            }
+            map.Cursor = at + want - 1;             // סוף הבלוק — כדי שהצבע לא יעבור את הסמן
 
             if (read < want)
             {
@@ -177,7 +186,8 @@ public static class PartitionHunter
         return new HuntResult
         {
             Found = found,
-            Cancelled = token.IsCancellationRequested,
+            Cancelled = token.IsCancellationRequested || disconnected,
+            Disconnected = disconnected,
             Duration = clock.Elapsed,
             UnreadableBytes = unreadable,
             HiddenInside = all.Count - found.Count,
@@ -363,5 +373,6 @@ public static class PartitionHunter
         public long Length => length;
         public int SectorSize => sectorSize;
         public int Read(long offset, Span<byte> destination) => reader.Read(offset, destination);
+        public bool Disconnected => reader.Disconnected;
     }
 }

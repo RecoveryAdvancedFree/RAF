@@ -14,6 +14,9 @@ internal sealed partial class TaskbarProgress
     private readonly ITaskbarList3? _taskbar;
     private bool _showingError;
 
+    /// <summary>הסמל באזור ההודעות — מקבל את אותה התקדמות, כשהתוכנה נשלחה לשם.</summary>
+    internal TrayIcon? Tray { get; set; }
+
     internal TaskbarProgress(Form form)
     {
         _form = form;
@@ -37,12 +40,14 @@ internal sealed partial class TaskbarProgress
     internal void Start() => OnUi(() =>
     {
         _showingError = false;
+        Tray?.Progress(null);
         _taskbar?.SetProgressState(_form.Handle, TaskbarState.Indeterminate);
     });
 
     /// <summary>אחוז ההתקדמות; null משאיר פס "עובד".</summary>
     internal void Report(double? percent) => OnUi(() =>
     {
+        Tray?.Progress(percent);
         if (_taskbar is null || _showingError) return;
 
         if (percent is not { } p || double.IsNaN(p))
@@ -58,6 +63,7 @@ internal sealed partial class TaskbarProgress
     /// <summary>סיום הפעולה. בהצלחה הפס נעלם; בשגיאה ברקע הוא נשאר אדום. בשני המקרים — הבהוב, אם החלון ברקע.</summary>
     internal void Finish(bool failed) => OnUi(() =>
     {
+        Tray?.Finished(failed, cancelled: false);
         bool watching = Form.ActiveForm == _form;
 
         if (_taskbar is not null)
@@ -92,6 +98,7 @@ internal sealed partial class TaskbarProgress
     internal void Clear() => OnUi(() =>
     {
         _showingError = false;
+        Tray?.Finished(failed: false, cancelled: true);
         _taskbar?.SetProgressState(_form.Handle, TaskbarState.NoProgress);
     });
 

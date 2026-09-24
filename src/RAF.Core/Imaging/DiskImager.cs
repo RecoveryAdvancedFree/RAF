@@ -13,6 +13,9 @@ internal interface ISectorSource
 
     /// <summary>מחזיר את מספר הבתים שנקראו; 0 אם הקריאה נכשלה.</summary>
     int Read(long offset, Span<byte> destination);
+
+    /// <summary>הכונן נותק באמצע — הקריאות נכשלות בגלל זה, ולא בגלל סקטורים פגומים.</summary>
+    bool Disconnected => false;
 }
 
 public sealed class ImagingProgress
@@ -40,6 +43,9 @@ public sealed class ImagingResult
     public long Size { get; init; }
     public bool Complete { get; init; }
     public bool Cancelled { get; init; }
+
+    /// <summary>ההעתקה נעצרה כי הכונן נותק — אפשר להמשיך כשיחובר שוב.</summary>
+    public bool Disconnected { get; init; }
     public long UnreadableBytes { get; init; }
     public int UnreadableRanges { get; init; }
     public long NotCopiedBytes { get; init; }
@@ -120,7 +126,7 @@ public static class DiskImager
         => Task.Run(() =>
         {
             using var reader = VolumeReader.TryOpen(diskNumber, offset, length, sectorSize, sequential: true, applyOverlay: false)
-                ?? throw new IOException("לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+                ?? throw new IOException(Native.RawDevice.OpenFailure());
 
             var source = new VolumeSource(reader, length, sectorSize);
             return resume
@@ -207,6 +213,7 @@ public static class DiskImager
         var notCopied = new List<ByteRange>();
 
         long readOk = 0;
+        bool disconnected = false;
         var lastReport = TimeSpan.Zero;
 
         // במפה: בהמשך של תמונה קיימת — מה שכבר הועתק, מה שיינסה שוב, ומה שנשאר פגום.
@@ -293,7 +300,7 @@ public static class DiskImager
 
                     int want = (int)Math.Min(ChunkSize, range.End - pos);
                     int read = source.Read(pos, buffer.AsSpan(0, want));
-                    sectors.Cursor = pos;
+                    sectors.Cursor = pos + want - 1;
 
                     if (read == want)
                     {
@@ -306,6 +313,15 @@ public static class DiskImager
                     }
                     else
                     {
+                        if (source.Disconnected)
+                        {
+                            disconnected = true;
+                            notCopied.AddRange(pending);
+                            notCopied.AddRange(Remaining());
+                            pending.Clear();
+                            goto finished;
+                        }
+
                         // מה שנקרא לפני הכישלון נשמר; הקריאה הבאה תתחיל ממקום הכישלון.
                         int good = Math.Max(0, read) / sector * sector;
                         if (good > 0)
@@ -358,10 +374,20 @@ public static class DiskImager
                     }
 
                     int n = (int)Math.Min(RetryBlock, range.End - at);
-                    sectors.Cursor = at;
+                    sectors.Cursor = at + n - 1;
                     sectors.Remove(at, n, SectorState.Retry);
 
-                    if (source.Read(at, buffer.AsSpan(0, n)) == n)
+                    int got = source.Read(at, buffer.AsSpan(0, n));
+                    if (got != n && source.Disconnected)
+                    {
+                        disconnected = true;
+                        sectors.Add(at, n, SectorState.Retry);
+                        notCopied.Add(new ByteRange(at, range.End - at));
+                        notCopied.AddRange(pending.Skip(i + 1));
+                        goto finished;
+                    }
+
+                    if (got == n)
                     {
                         sectors.Add(at, n, SectorState.Read);
                         Write(at, n);
@@ -412,7 +438,10 @@ public static class DiskImager
             UnreadableRanges = map.Unreadable.Count,
             NotCopiedBytes = map.NotCopiedBytes,
             Duration = clock.Elapsed,
-            Message = Describe(map, cancelled, sector),
+            Disconnected = disconnected,
+            Message = (disconnected
+                ? "הכונן נותק באמצע ההעתקה. מה שהועתק נשמר — חברו אותו שוב ובחרו באותה תמונה כדי להמשיך מאותה נקודה. "
+                : "") + Describe(map, cancelled, sector),
         };
     }
 
@@ -508,5 +537,6 @@ public static class DiskImager
         public long Length { get; }
         public int SectorSize { get; }
         public int Read(long offset, Span<byte> destination) => _reader.Read(offset, destination);
+        public bool Disconnected => _reader.Disconnected;
     }
 }

@@ -38,7 +38,12 @@ internal sealed class VolumeReader : IDisposable
         int diskNumber, long offset, long length, int sectorSize, bool sequential = true, bool applyOverlay = true)
     {
         string? path = DevicePaths.PathOf(diskNumber);
-        if (path is null) return null;
+        if (path is null)
+        {
+            RawDevice.NotFound();
+            return null;
+        }
+        // אם הפתיחה נכשלת — RawDevice.OpenFailure מסביר למה.
 
         var device = RawDevice.TryOpen(path, sectorSize, sequential);
         if (device is null) return null;
@@ -52,6 +57,9 @@ internal sealed class VolumeReader : IDisposable
     /// <summary>עטיפת התקן פתוח קיים, ללא בעלות עליו.</summary>
     internal static VolumeReader Wrap(RawDevice device, long offset, long length)
         => new(device, offset, length, ownsDevice: false);
+
+    /// <summary>הכונן נותק באמצע — ראו RawDevice.Disconnected.</summary>
+    internal bool Disconnected => _device.Disconnected;
 
     /// <summary>קריאה מהיסט יחסי לתחילת המחיצה.</summary>
     internal int Read(long relativeOffset, Span<byte> destination)

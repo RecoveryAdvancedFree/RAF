@@ -42,7 +42,7 @@ public sealed class ExFatScanner
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: mode != ScanMode.Quick)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+                Native.RawDevice.OpenFailure());
 
         using var volume = ExFatVolume.Open(reader)
             ?? throw new InvalidDataException(
@@ -160,7 +160,7 @@ public sealed class ExFatScanner
             {
                 map.Add(marked, position - marked, SectorState.Read);
                 marked = position;
-                map.Cursor = position;
+                map.Cursor = Math.Max(0, position - 1);
                 progress?.Report(new ScanProgress
                 {
                     Map = map,

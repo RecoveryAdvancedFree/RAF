@@ -127,7 +127,10 @@ const Eta = (() => {
 
     // החלקה לפי זמן (כ-10 שניות) ולא לפי מספר הדיווחים, שמשתנה בין פעולות.
     // הערך הקודם "מתקדם" בזמן שעבר מאז, לפני שמשקללים אותו עם החדש.
-    const raw = time * (100 - percent) / done;
+    // תיקון לאופטימיות: נמדד על סריקה מלאה של דיסק-און-קי — הקצב יורד לאורך הסריקה
+    // (64 ← 46MB/שנייה בממוצע) וההערכה בדקה הראשונה יצאה קצרה בכ-30% מהזמן בפועל.
+    // התיקון גדול בהתחלה ונעלם לקראת הסוף, כשהקצב כבר ידוע.
+    const raw = time * (100 - percent) / done * (1 + 0.3 * (1 - percent / 100));
     if (s.value === undefined) s.value = raw;
     else {
       const dt = Math.max(0, elapsed - s.valueAt);
@@ -285,6 +288,7 @@ const Theme = (() => {
 /* --------------------------------------------------------- שליטת חלון */
 
 el('btn-min').onclick = () => Bridge.call('window.minimize');
+el('btn-tray').onclick = () => Bridge.call('window.toTray');
 el('btn-max').onclick = () => Bridge.call('window.toggleMaximize');
 el('btn-close').onclick = () => Bridge.call('window.close');
 
@@ -2276,15 +2280,21 @@ async function runScan(method, params, title) {
     State.summary = summary;
     await renderResults();
   } catch (err) {
+    const resuming = method === 'scan.resume';
     el('content').innerHTML = `
       <div class="page-head"><div>
-        <div class="page-title">הסריקה נכשלה</div>
+        <div class="page-title">${resuming ? 'אי אפשר להמשיך את הסריקה כרגע' : 'הסריקה נכשלה'}</div>
         <div class="page-desc">${esc(title)}</div>
       </div>
-      <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button></div>
-      ${errorNotice('', err)}`;
+      <div class="head-actions">
+        ${resuming ? `<button class="btn btn-primary" id="btn-retry">${Icon.play}<span>ניסיון נוסף</span></button>` : ''}
+        <button class="btn" id="btn-home">${Icon.back}<span>חזרה לכוננים</span></button>
+      </div></div>
+      ${errorNotice('', err)}
+      ${resuming ? '<p class="doc-hint">הסריקה עצמה שמורה, עם הנקודה שבה נעצרה — אפשר להמשיך גם אחר כך, מ"סריקות אחרונות".</p>' : ''}`;
     el('btn-home').onclick = loadDisks;
-    setStatus('שגיאה');
+    if (resuming) el('btn-retry').onclick = () => resumeScan(params.path || null, title);
+    setStatus(resuming ? 'אי אפשר להמשיך כרגע' : 'שגיאה');
   }
 }
 
@@ -2293,12 +2303,16 @@ function showPaused(p, title) {
   el('content').innerHTML = `
     <div class="page-head">
       <div>
-        <div class="page-title">הסריקה מושהית</div>
+        <div class="page-title">${p.disconnected ? 'הכונן נותק באמצע הסריקה' : 'הסריקה מושהית'}</div>
         <div class="page-desc">${esc(title)} · נסרקו ${p.percent.toFixed(1)}% · ${countFiles(p.files)} נמצאו עד כה</div>
       </div>
     </div>
-    ${notice('ok-notice', Icon.check, 'הסריקה נשמרה עם הנקודה שבה עצרה',
-      'אפשר להמשיך עכשיו, או לסגור את התוכנה ולהמשיך אחר כך — מ"סריקות אחרונות" במסך הכוננים.')}
+    ${p.disconnected
+      ? notice('warn', Icon.unplug, 'הסריקה נשמרה עם הנקודה שבה עצרה',
+          'חברו את הכונן שוב ולחצו "המשך הסריקה" — היא תמשיך מאותה נקודה. ' +
+          'אפשר גם לסגור את התוכנה ולהמשיך אחר כך, מ"סריקות אחרונות" במסך הכוננים.')
+      : notice('ok-notice', Icon.check, 'הסריקה נשמרה עם הנקודה שבה עצרה',
+          'אפשר להמשיך עכשיו, או לסגור את התוכנה ולהמשיך אחר כך — מ"סריקות אחרונות" במסך הכוננים.')}
     <div class="scan-actions" style="margin-top:16px">
       <button class="btn btn-primary" id="btn-resume">${Icon.play}<span>המשך הסריקה</span></button>
       <button class="btn" id="btn-show-found">${Icon.list}<span>הצגת מה שנמצא עד כה</span></button>
@@ -2311,7 +2325,7 @@ function showPaused(p, title) {
     await renderResults();
   };
   el('btn-home').onclick = loadDisks;
-  setStatus('הסריקה מושהית');
+  setStatus(p.disconnected ? 'הכונן נותק — הסריקה נשמרה' : 'הסריקה מושהית');
 }
 
 /* =====================================================================

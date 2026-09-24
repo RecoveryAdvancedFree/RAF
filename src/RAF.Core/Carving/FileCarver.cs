@@ -47,6 +47,9 @@ public sealed class FileCarver
     /// <summary>היכן נעצרה הסריקה הראשית: הסקטור הבא שטרם נבדק, וגבול הקובץ האחרון.</summary>
     private long _stoppedAt = -1, _stoppedAllowed;
 
+    /// <summary>הכונן נותק באמצע המעבר הראשי.</summary>
+    private bool _disconnected;
+
     /// <summary>מפת הסקטורים של המעבר הראשי — להצגה בזמן הסריקה.</summary>
     private SectorMap? _map;
     private long _bytesRead;
@@ -79,7 +82,7 @@ public sealed class FileCarver
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: true)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+                Native.RawDevice.OpenFailure());
 
         long length = partitionSize > 0 ? partitionSize : reader.Length;
         if (freeSpaceOnly) _free = ReadFreeSpace(diskNumber, partitionOffset, length, sectorSize, fileSystem, progress);
@@ -149,8 +152,13 @@ public sealed class FileCarver
         ResolveJpegs(volume, size, sectorSize, files, pending, clock, progress, token);
 
         BuildWarnings(files);
-        var resume = token.IsCancellationRequested && _stoppedAt >= 0 ? ResumeAt(_stoppedAt, _stoppedAllowed, size) : null;
-        return Result(files, clock, token.IsCancellationRequested, _warnings, resume);
+        bool stopped = token.IsCancellationRequested || _disconnected;
+        var resume = stopped && _stoppedAt >= 0 ? ResumeAt(_stoppedAt, _stoppedAllowed, size) : null;
+        if (_disconnected)
+            _warnings.Insert(0, $"הכונן נותק באמצע הסריקה, אחרי {resume?.Percent ?? 0:0.#}% מהמחיצה. " +
+                                "הסריקה נשמרה — חברו את הכונן שוב והמשיכו מאותה נקודה.");
+        var result = Result(files, clock, stopped, _warnings, resume);
+        return _disconnected ? result.WithDisconnected() : result;
     }
 
     /// <summary>
@@ -202,6 +210,17 @@ public sealed class FileCarver
             if (at + BlockSize < to && (_free is null || _free.NextFree(at + BlockSize) < at + 2 * BlockSize))
                 ahead.Prefetch(at + BlockSize);
 
+            if (read <= 0 && volume.Disconnected)
+            {
+                // הכונן נותק: כמו השהיה — הסריקה נשמרת ואפשר להמשיך כשיחובר שוב.
+                if (main)
+                {
+                    Stopped(at, nextAllowedStart);
+                    _disconnected = true;
+                }
+                break;
+            }
+
             if (read <= 0)
             {
                 // אזור בלתי קריא — ממשיכים הלאה במקום לעצור.
@@ -212,7 +231,7 @@ public sealed class FileCarver
             if (main)
             {
                 _bytesRead += read;
-                _map!.Cursor = at;
+                _map!.Cursor = Math.Min(at + BlockSize, to) - 1;   // סוף הבלוק — כדי שהצבע לא יעבור את הסמן
             }
 
             // חתימות נבדקות בגבולות סקטור: מערכות קבצים מקצות קבצים

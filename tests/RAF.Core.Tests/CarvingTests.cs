@@ -214,6 +214,44 @@ public class CarvingTests : IDisposable
         Assert.Equal(Offsets(full.Files), Offsets(resumed.Files));
     }
 
+    [Fact]
+    public void A_drive_pulled_out_mid_scan_is_saved_like_a_pause_and_resumes_to_the_same_result()
+    {
+        Place(RealFormats.Png(3000, 1));
+        Place(RealFormats.Gif());
+        _image.Write(new byte[9 * 1024 * 1024]);
+        Place(RealFormats.Wav(20_000, 3));
+        _image.Write(new byte[9 * 1024 * 1024]);                        // בלוק שלישי: הבלוק הבא כבר נקרא מראש
+        Place(RealFormats.Png(5000, 4));
+        var volume = Open();
+
+        static long[] Offsets(IEnumerable<RAF.Core.Model.RecoveredFile> f)
+            => f.Select(x => x.Extents[0].StartCluster).OrderBy(x => x).ToArray();
+
+        var full = new FileCarver().Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None);
+
+        // הכונן "נשלף" אחרי הקובץ השני — מכאן כל קריאה נכשלת כמו בכונן שנותק.
+        int seen = 0;
+        var first = new FileCarver { Accept = _ => { if (++seen == 2) _device!.SimulateDisconnect(); return true; } }
+            .Sweep(volume, _image.Length, SectorSize, null, CancellationToken.None);
+
+        Assert.True(first.Disconnected);
+        Assert.True(first.Cancelled);
+        Assert.NotNull(first.Resume);
+        Assert.Contains("נותק", first.Warnings[0]);
+
+        // מחובר מחדש: קורא חדש לאותו קובץ, והמשך מהנקודה שנשמרה.
+        _device!.Dispose();
+        _device = RawDevice.TryOpen(_path, SectorSize)!;
+        var again = RawVolume.Open(VolumeReader.Wrap(_device, 0, _image.Length), SectorSize);
+        var resumed = new FileCarver { ResumeFrom = first }
+            .Sweep(again, _image.Length, SectorSize, null, CancellationToken.None);
+
+        Assert.False(resumed.Disconnected);
+        Assert.Null(resumed.Resume);
+        Assert.Equal(Offsets(full.Files), Offsets(resumed.Files));
+    }
+
     private sealed class Captured<T> : IProgress<T>
     {
         public T? Last { get; private set; }
@@ -288,6 +326,37 @@ public class CarvingTests : IDisposable
     {
         byte[] zip = RealFormats.Zip(3000, 8);
         Assert.Equal(zip.Length, Resolve(zip, "zip").Bytes);
+    }
+
+    /// <summary>ZIP אמיתי: קבצים פנימיים שכל אחד מצהיר על גודלו, או ארכיון שנכתב בזרימה (הגודל אחרי הנתונים).</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_real_zip_is_measured_by_its_headers_or_by_a_bounded_search(bool streamed)
+    {
+        var data = new MemoryStream();
+        Stream target = streamed ? new NonSeekable(data) : data;
+        using (var zip = new System.IO.Compression.ZipArchive(target, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+            for (int i = 0; i < 5; i++)
+                using (var entry = zip.CreateEntry($"file{i}.bin").Open())
+                    entry.Write(RealFormats.Png(2000 + i * 500, i + 1));
+        byte[] bytes = data.ToArray();
+
+        Assert.Equal(bytes.Length, Resolve(bytes, "zip").Bytes);
+    }
+
+    private sealed class NonSeekable(Stream inner) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
     }
 
     [Fact]

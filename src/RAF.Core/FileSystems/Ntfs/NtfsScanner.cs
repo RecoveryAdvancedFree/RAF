@@ -74,7 +74,7 @@ public sealed class NtfsScanner
 
         using var reader = VolumeReader.TryOpen(diskNumber, partitionOffset, partitionSize, sectorSize, sequential)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+                Native.RawDevice.OpenFailure());
 
         using var volume = NtfsVolume.Open(reader)
             ?? throw new InvalidDataException(
@@ -234,7 +234,7 @@ public sealed class NtfsScanner
 
             int want = (int)Math.Min(blockSize, volumeSize - offset);
             int read = _volume.ReadRaw(offset, block.AsSpan(0, want));
-            map.Cursor = offset;
+            map.Cursor = offset + want - 1;
 
             if (read <= 0)
             {

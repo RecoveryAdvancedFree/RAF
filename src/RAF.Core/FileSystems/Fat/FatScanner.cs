@@ -44,7 +44,7 @@ public sealed class FatScanner
         using var reader = VolumeReader.TryOpen(
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: mode != ScanMode.Quick)
             ?? throw new IOException(
-                "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+                Native.RawDevice.OpenFailure());
 
         using var volume = FatVolume.Open(reader)
             ?? throw new InvalidDataException(
@@ -195,7 +195,7 @@ public sealed class FatScanner
             {
                 map.Add(marked, position - marked, SectorState.Read);
                 marked = position;
-                map.Cursor = position;
+                map.Cursor = Math.Max(0, position - 1);
                 progress?.Report(new ScanProgress
                 {
                     Map = map,

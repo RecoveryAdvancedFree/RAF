@@ -27,6 +27,16 @@ public sealed class ScanResult
     /// </summary>
     public ScanResume? Resume { get; init; }
 
+    /// <summary>הסריקה נעצרה כי הכונן נותק — לא בגלל המשתמש.</summary>
+    public bool Disconnected { get; init; }
+
+    internal ScanResult WithDisconnected() => new()
+    {
+        Files = Files, Mode = Mode, Duration = Duration, Cancelled = Cancelled, FileSystem = FileSystem,
+        RecordsExamined = RecordsExamined, BytesRead = BytesRead, Warnings = Warnings, Resume = Resume,
+        Disconnected = true,
+    };
+
     public int DeletedCount => Files.Count(f => f.IsDeleted);
     public int RecoverableCount => Files.Count(f => f.HasContent && !f.IsDirectory);
 }

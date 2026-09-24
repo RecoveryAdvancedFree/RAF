@@ -80,16 +80,16 @@ internal sealed class WindowReader
     }
 
     /// <summary>ההיסט הבא שבו מופיע בית נתון, או ‎-1.</summary>
-    internal long IndexOf(byte value, long from)
+    internal long IndexOf(byte value, long from, long until = long.MaxValue)
     {
-        for (long pos = from; pos < Limit; )
+        for (long pos = from; pos < Limit && pos < until; )
         {
             if (Byte(pos) < 0) return -1;
 
             // חיפוש בתוך החלון הטעון, בלי קריאה לכל בית בנפרד.
             int local = (int)(pos - _bufferStart);
             int found = Array.IndexOf(_buffer, value, local, _bufferLength - local);
-            if (found >= 0) return _bufferStart + found;
+            if (found >= 0) return _bufferStart + found < until ? _bufferStart + found : -1;
 
             pos = _bufferStart + _bufferLength;
         }
@@ -98,9 +98,9 @@ internal sealed class WindowReader
     }
 
     /// <summary>ההיסט הבא שבו מופיע רצף בתים, או ‎-1.</summary>
-    internal long IndexOf(ReadOnlySpan<byte> pattern, long from)
+    internal long IndexOf(ReadOnlySpan<byte> pattern, long from, long until = long.MaxValue)
     {
-        for (long pos = IndexOf(pattern[0], from); pos >= 0; pos = IndexOf(pattern[0], pos + 1))
+        for (long pos = IndexOf(pattern[0], from, until); pos >= 0; pos = IndexOf(pattern[0], pos + 1, until))
         {
             bool match = true;
             for (int i = 1; i < pattern.Length && match; i++)
@@ -657,15 +657,63 @@ internal static class StructureCheck
         return seen.Count > 0 ? end : 0;
     }
 
+    /// <summary>
+    /// אורך ZIP: מדלגים מקובץ פנימי לקובץ פנימי לפי הגודל שכל אחד מצהיר, עד תוכן
+    /// העניינים שבסוף — וממנו לרשומת הסיום. כך נקראות רק הכותרות, ולא כל הארכיון.
+    /// חיפוש של רשומת הסיום בכל הנתונים נשאר רק לארכיון שכותרותיו אינן מציינות
+    /// גודל (נכתב בזרימה), ומוגבל: חיפוש לא מוגבל עבר פעם על 1.3GB ועצר את הסריקה ל-23 שניות.
+    /// </summary>
     internal static long ReadZip(WindowReader r)
     {
+        const long LocalHeader = 0x04034B50, CentralHeader = 0x02014B50, EndOfDirectory = 0x06054B50,
+                   Descriptor = 0x08074B50;
         ReadOnlySpan<byte> endOfDirectory = [0x50, 0x4B, 0x05, 0x06];
-        long searchLimit = Math.Min(r.Limit, 256L * 1024 * 1024);
 
-        long found = r.IndexOf(endOfDirectory, 4);
-        if (found < 0 || found > searchLimit) return 0;
+        // כותרות שנשברו באמצע: שבר של ארכיון או התאמת שווא — חיפוש קצר. ארכיון שנכתב
+        // בזרימה (כותרות תקינות בלי גודל) — חיפוש ארוך יותר, כי הוא ארכיון אמיתי.
+        long pos = 0, searchFrom = 4, searchLimit = 16L * 1024 * 1024;
+        for (int entries = 0; entries < 1_000_000; entries++)
+        {
+            long signature = r.LittleEndian32(pos);
+            if (signature == LocalHeader)
+            {
+                int flags = r.LittleEndian16(pos + 6);
+                long compressed = r.LittleEndian32(pos + 18);
+                int name = r.LittleEndian16(pos + 26), extra = r.LittleEndian16(pos + 28);
+                if (flags < 0 || compressed < 0 || name < 0 || extra < 0) return 0;
 
-        int commentLength = r.LittleEndian16(found + 20);
-        return commentLength < 0 ? 0 : found + 22 + commentLength;
+                // גודל לא ידוע (נכתב אחרי הנתונים) או ZIP64 — אין דרך לדלג; חיפוש מוגבל.
+                if (((flags & 8) != 0 && compressed == 0) || compressed == 0xFFFFFFFF)
+                {
+                    searchFrom = pos + 30;
+                    searchLimit = 256L * 1024 * 1024;
+                    break;
+                }
+
+                pos += 30 + name + extra + compressed;
+                if ((flags & 8) != 0)
+                    pos += r.LittleEndian32(pos) == Descriptor ? 16 : 12;
+                continue;
+            }
+
+            if (signature == CentralHeader)
+            {
+                // תוכן העניינים קצר; רשומת הסיום מיד אחריו.
+                long end = r.IndexOf(endOfDirectory, pos, pos + 64L * 1024 * 1024);
+                return end < 0 ? 0 : EndAt(r, end);
+            }
+
+            if (signature == EndOfDirectory) return EndAt(r, pos);
+            break;                                                       // לא כותרת — כותרות פגומות: חיפוש מההתחלה
+        }
+
+        long found = r.IndexOf(endOfDirectory, searchFrom, Math.Min(r.Limit, searchLimit));
+        return found < 0 ? 0 : EndAt(r, found);
+
+        static long EndAt(WindowReader r, long end)
+        {
+            int commentLength = r.LittleEndian16(end + 20);
+            return commentLength < 0 ? 0 : end + 22 + commentLength;
+        }
     }
 }

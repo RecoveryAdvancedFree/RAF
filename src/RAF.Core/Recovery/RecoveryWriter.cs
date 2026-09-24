@@ -149,7 +149,7 @@ public static class RecoveryWriter
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: false);
 
         if (reader is null)
-            throw new IOException("לא ניתן לפתוח את דיסק המקור לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.");
+            throw new IOException(Native.RawDevice.OpenFailure("דיסק המקור"));
 
         using var volume = VolumeScanner.Open(reader, fileSystem, sectorSize);
         if (volume is null)

@@ -26,6 +26,9 @@ internal sealed class MainForm : Form
     /// <summary>התקדמות פעולות ארוכות בסמל שבשורת המשימות.</summary>
     internal TaskbarProgress Taskbar { get; }
 
+    /// <summary>הסמל באזור ההודעות — כשהחלון נשלח לשם (הכפתור שליד "מזעור").</summary>
+    internal TrayIcon Tray { get; }
+
     internal MainForm()
     {
         _bridge = new Bridge(this);
@@ -34,6 +37,8 @@ internal sealed class MainForm : Form
         Text = "שחזור מתקדם חינם — RAF";
         // הסמל שנצרב ב-EXE מוצג גם בשורת המשימות ובמעבר בין חלונות.
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        Tray = new TrayIcon(this);
+        Taskbar.Tray = Tray;
 
         // קנה המידה נקבע לפי DPI ולא לפי גופן. ללא קביעה מפורשת,
         // WinForms מחשב את גודל החלון מול הגופן ומקבל תוצאה שגויה
@@ -390,6 +395,7 @@ internal sealed class MainForm : Form
         }
 
         base.OnFormClosing(e);
+        if (!e.Cancel) Tray.Dispose();                   // בלי סמל "רפאים" באזור ההודעות אחרי היציאה
     }
 
     private static void ShowFatalError(string message) =>
