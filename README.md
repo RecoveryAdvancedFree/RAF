@@ -104,7 +104,7 @@ RAF.sln
 │  ├─ Bridge.cs                     גשר JSON בין הממשק למנוע
 │  ├─ ScanSession.cs                אינדוקס התוצאות לעץ תיקיות
 │  ├─ WebAssets.cs                  הגשת הממשק מתוך ה-EXE, ללא חילוץ לדיסק
-│  └─ Web/                          index.html · styles.css · views.css · app.js
+│  └─ Web/                          index.html · styles.css · views.css · core.js ועוד קובץ לכל מסך (disks, scan-options, results…) · main.js
 │
 └─ tests/RAF.Core.Tests/            בדיקות המפענחים מול מבנים בינאריים סינתטיים
 ```

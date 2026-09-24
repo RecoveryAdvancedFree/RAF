@@ -91,6 +91,18 @@
     <div class="panel" id="help-panel" role="dialog" aria-modal="true" aria-label="שאלות נפוצות"></div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- הממשק, לפי מסכים. הסדר חשוב: core ראשון (הגשר וכלי העזר), main אחרון (ההפעלה). -->
+  <script src="core.js"></script>
+  <script src="disks.js"></script>
+  <script src="partitions.js"></script>
+  <script src="scan-options.js"></script>
+  <script src="repair.js"></script>
+  <script src="imaging.js"></script>
+  <script src="doctor.js"></script>
+  <script src="scanning.js"></script>
+  <script src="results.js"></script>
+  <script src="recovery.js"></script>
+  <script src="a11y.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
