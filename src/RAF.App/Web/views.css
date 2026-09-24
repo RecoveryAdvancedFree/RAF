@@ -762,6 +762,11 @@
 .disk-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 .disk-note.danger { color: var(--danger-text); background: var(--danger-soft); }
+.disk-note .link-btn { font-size: 12px; font-weight: 600; color: inherit; text-decoration: underline; }
+.health-slot:empty { display: none; }
+.health-warning { margin-bottom: 14px; }
+.health-warning .disk-note { border: 1px solid currentColor; border-radius: 8px; border-color: var(--border); }
+.health-warning .btn { margin-top: 8px; }
 
 .disk-icon.is-failed { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
 .failed-device .disk-head { cursor: default; }

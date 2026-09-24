@@ -74,6 +74,7 @@ internal sealed partial class Bridge
         "system.info" => SystemInfo(),
         "diag.report" => WriteDiagnostics(p),
         "disks.list" => await Task.Run(ListDisks),
+        "disks.health" => await DisksHealthAsync(),
         "scan.profile" => ScanProfile(p),
 
         "repair.diagnose" => await Task.Run(() => Diagnose(p)),

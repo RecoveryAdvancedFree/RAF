@@ -321,6 +321,7 @@ const State = {
   openDisks: new Set(), // כוננים שהמחיצות שלהם פתוחות
   failed: [],           // התקנים ש-Windows לא הצליח להפעיל
   flash: null,          // הודעה חד-פעמית לראש מסך הכוננים
+  health: {},           // בריאות הכוננים (SMART), לפי diskKey — מגיעה אחרי הרשימה
 };
 
 function setStatus(text) { el('status-text').textContent = text; }
@@ -413,6 +414,7 @@ async function loadDisks(options = {}) {
 
     const scroll = el('content').scrollTop;
     renderDisks();
+    loadHealth();
     if (!quiet) return;
 
     el('content').scrollTop = scroll;
@@ -428,6 +430,67 @@ async function loadDisks(options = {}) {
       errorNotice('לא ניתן לקרוא את רשימת הכוננים', err);
     setStatus('שגיאה');
   }
+}
+
+/* ---------- בריאות הכוננים (SMART) ---------- */
+
+/// הבריאות נקראת אחרי הרשימה: כונן גוסס עלול להתעכב בתשובה, והרשימה לא מחכה לו.
+async function loadHealth() {
+  let list;
+  try { list = await Bridge.call('disks.health'); } catch { return; }
+
+  State.health = {};
+  for (const h of list) {
+    const disk = State.disks.find((d) => d.number === h.disk);
+    if (disk) State.health[diskKey(disk)] = h;
+  }
+
+  for (const disk of State.disks) {
+    const chip = document.querySelector(`[data-health-chip="${disk.number}"]`);
+    const note = document.querySelector(`[data-health-note="${disk.number}"]`);
+    if (chip) chip.innerHTML = healthChip(disk);
+    if (note) {
+      note.innerHTML = healthNote(disk);
+      note.querySelector('[data-image-disk]')?.addEventListener('click', () => openImagePanel(disk, null));
+    }
+  }
+}
+
+const healthOf = (disk) => State.health[diskKey(disk)];
+
+/// פרטי הבריאות במילים — לריחוף על השבב.
+function healthDetails(h) {
+  const parts = [];
+  if (h.temperature != null) parts.push(`טמפרטורה ${h.temperature}°`);
+  if (h.powerOnHours != null) parts.push(`${h.powerOnHours.toLocaleString('he-IL')} שעות פעולה`);
+  if (h.percentUsed != null) parts.push(`${h.percentUsed}% מאורך החיים נוצלו`);
+  if (h.reallocated != null) parts.push(`${h.reallocated.toLocaleString('he-IL')} סקטורים שהוחלפו`);
+  if (h.pending != null) parts.push(`${h.pending.toLocaleString('he-IL')} סקטורים שאינם נקראים`);
+  return parts.join(' · ');
+}
+
+function healthChip(disk) {
+  const h = healthOf(disk);
+  if (!h) return '';
+  const [cls, text] = h.level === 'Bad' ? ['danger', 'הכונן בסכנה']
+    : h.level === 'Caution' ? ['warn', 'סימני שחיקה'] : ['ok', 'בריאות תקינה'];
+  const title = [...h.problems, healthDetails(h)].filter(Boolean).join('\n');
+  return `<span class="chip ${cls}" title="${esc(title)}">${text}</span>`;
+}
+
+/// אזהרה מתחת לכונן שמראה סימני כשל — עם ההמלצה ליצור תמונה ולסרוק ממנה.
+function healthNote(disk, withButton = true) {
+  const h = healthOf(disk);
+  if (!h || h.level === 'Good') return '';
+  const bad = h.level === 'Bad';
+  const button = withButton && disk.rawAccessible
+    ? ` <button class="link-btn" data-image-disk="${disk.number}">יצירת תמונה של הכונן</button>` : '';
+  return `<div class="disk-note ${bad ? 'danger' : 'warn'}">${Icon.alert}<span>
+    <b>${bad ? 'הכונן מראה סימני כשל' : 'הכונן מראה סימני שחיקה'}:</b> ${esc(h.problems.join('; '))}.
+    ${bad
+      ? 'מומלץ ליצור קודם תמונה של הכונן — להעתיק אותו פעם אחת לקובץ — ולסרוק מהתמונה: כל קריאה נוספת מהכונן עלולה להחמיר את מצבו.'
+      : 'כדאי לשחזר את הקבצים החשובים בהקדם. אם הסריקה נתקעת או איטית מאוד — עדיף ליצור תמונה של הכונן ולסרוק ממנה.'}${button}
+  </span></div>`;
 }
 
 function renderDisks() {
@@ -744,10 +807,12 @@ function renderDisk(disk) {
           ${disk.isImage ? '' : `<span class="chip ltr">${esc(disk.bus)}</span>`}
           <span class="chip ltr">${esc(disk.scheme)}</span>
           ${disk.isImage ? '' : trimChip}${stateChip}
+          <span class="health-slot" data-health-chip="${disk.number}">${disk.isImage ? '' : healthChip(disk)}</span>
         </div>
         <div class="disk-actions">${actions.join('')}</div>
       </div>
       ${notes.join('')}
+      <div data-health-note="${disk.number}">${disk.isImage ? '' : healthNote(disk)}</div>
       <div class="parts">${parts}</div>
     </section>`;
 }
@@ -1973,7 +2038,15 @@ async function showStrategy(disk, part, modeId) {
   const warning = profile.warning
     ? `<div class="notice warn">${Icon.alert}<div>${esc(profile.warning)}</div></div>` : '';
 
+  const health = healthOf(disk);
+  const healthWarning = health && health.level !== 'Good'
+    ? `<div class="health-warning">${healthNote(disk, false)}
+        ${health.level === 'Bad' && disk.rawAccessible
+          ? `<button class="btn btn-sm" id="btn-image-first">${Icon.copy}<span>יצירת תמונה במקום סריקה ישירה</span></button>` : ''}
+      </div>` : '';
+
   el('panel').querySelector('.panel-body').innerHTML = `
+    ${healthWarning}
     ${warning}
     <div class="section-label">אסטרטגיה שנבחרה אוטומטית</div>
     <div class="strategy">
@@ -2016,6 +2089,7 @@ async function showStrategy(disk, part, modeId) {
 
     ${notice('info', Icon.shield, 'קריאה בלבד מהדיסק המקור',
       'השחזור יתאפשר רק לכונן אחר.')}`;
+  el('btn-image-first')?.addEventListener('click', () => openImagePanel(disk, null));
 
   el('panel').insertAdjacentHTML('beforeend', `
     <div class="panel-foot">

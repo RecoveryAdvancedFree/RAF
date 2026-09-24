@@ -41,6 +41,12 @@ internal static partial class Win32
     internal static readonly uint IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS =
         CtlCode(FILE_DEVICE_VOLUME, 0x0000, METHOD_BUFFERED, FILE_ANY_ACCESS);         // 0x560000
 
+    // בריאות הכונן: תחזית הכשל של Windows, ונתוני SMART של כונני ATA/SATA.
+    internal static readonly uint IOCTL_STORAGE_PREDICT_FAILURE =
+        CtlCode(FILE_DEVICE_MASS_STORAGE, 0x0440, METHOD_BUFFERED, FILE_ANY_ACCESS);   // 0x2D1100
+    internal static readonly uint SMART_RCV_DRIVE_DATA =
+        CtlCode(FILE_DEVICE_DISK, 0x0022, METHOD_BUFFERED, 3);                         // 0x7C088
+
     // בקשה מ-Windows לקרוא מחדש את טבלת המחיצות אחרי שינוי בה.
     internal static readonly uint IOCTL_DISK_UPDATE_PROPERTIES =
         CtlCode(FILE_DEVICE_DISK, 0x0050, METHOD_BUFFERED, FILE_ANY_ACCESS);           // 0x70140
@@ -61,6 +67,7 @@ internal static partial class Win32
         StorageAccessAlignmentProperty = 6,
         StorageDeviceSeekPenaltyProperty = 7,
         StorageDeviceTrimProperty = 8,
+        StorageDeviceProtocolSpecificProperty = 50,
     }
 
     /// <summary>סוג הפס (Bus) שאליו הדיסק מחובר — נדרש לזיהוי NVMe / USB / SATA.</summary>
