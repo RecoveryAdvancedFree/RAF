@@ -536,4 +536,80 @@ public sealed class PartitionHuntTests : IDisposable
             ImageDisk.Close(disk.DiskNumber);
         }
     }
+
+    // ------------------------------------------------------------ תמונה מכלי אחר, בלי מפה
+
+    /// <summary>תמונה בלי קובץ מפה — כמו תמונה שנוצרה בכלי אחר.</summary>
+    private (PhysicalDiskInfo Disk, string Path) ImageWithoutMap(byte[] content)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"raf-nomap-{Guid.NewGuid():N}.img");
+        _temp.Add(path);
+        File.WriteAllBytes(path, content);
+        return (ImageDisk.Open(path), path);
+    }
+
+    [Fact]
+    public void An_image_whose_partition_table_is_empty_is_searched_as_a_whole_disk()
+    {
+        byte[] content = new byte[8 * Mb];
+        content[510] = 0x55; content[511] = 0xAA;                         // טבלת מחיצות ריקה
+        Ntfs().CopyTo(content, (int)Mb);
+
+        var (disk, path) = ImageWithoutMap(content);
+        try
+        {
+            Assert.Empty(disk.Partitions);
+
+            var found = HuntImage(disk);
+            Assert.Equal(Mb, found.Offset);
+
+            var result = PartitionTableWriter.Restore(disk, found, UndoFolder());
+            Assert.True(result.Succeeded, result.Message);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
+
+    [Fact]
+    public void An_image_whose_start_was_wiped_still_reveals_the_partitions_inside_it()
+    {
+        byte[] content = new byte[8 * Mb];                                   // תחילת הכונן מאופסת לגמרי
+        Ntfs().CopyTo(content, (int)Mb);
+
+        var (disk, _) = ImageWithoutMap(content);
+        try
+        {
+            // אי אפשר לדעת אם זה כונן שלם או מחיצה אחת — ולכן היא מוצגת, אבל כהנחה.
+            var assumed = Assert.Single(disk.Partitions);
+            Assert.True(assumed.Assumed);
+            Assert.Equal(FileSystemKind.Raw, assumed.FileSystem);
+
+            var found = HuntImage(disk);
+            Assert.Equal(Mb, found.Offset);
+            Assert.False(found.OverlapsExisting);
+            Assert.True(PartitionTableWriter.Plan(disk, found).CanRestore);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
+
+    [Fact]
+    public void A_partition_image_from_another_tool_is_a_real_partition_not_an_assumption()
+    {
+        var (disk, _) = ImageWithoutMap(Ntfs());
+        try
+        {
+            var partition = Assert.Single(disk.Partitions);
+            Assert.Equal(FileSystemKind.Ntfs, partition.FileSystem);
+            Assert.False(partition.Assumed);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
 }

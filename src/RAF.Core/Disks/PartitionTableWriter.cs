@@ -56,7 +56,7 @@ public static class PartitionTableWriter
             return Refuse("המחיצה חורגת מסוף הכונן.");
 
         var clash = existing.FirstOrDefault(p =>
-            p.SizeBytes > 0 && found.Offset < p.OffsetBytes + p.SizeBytes && p.OffsetBytes < found.End);
+            p.SizeBytes > 0 && !p.Assumed && found.Offset < p.OffsetBytes + p.SizeBytes && p.OffsetBytes < found.End);
         if (clash is not null)
             return Refuse(
                 "המחיצה שנמצאה חופפת למחיצה שכבר קיימת בטבלה" +

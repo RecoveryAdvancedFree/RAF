@@ -85,8 +85,9 @@ public static class PartitionHunter
                 disk.DiskNumber, 0, disk.SizeBytes, disk.LogicalSectorSize, sequential: true, applyOverlay: false)
                 ?? throw new IOException(Native.RawDevice.OpenFailure("הכונן"));
 
+            // מחיצה שהתוכנה רק הניחה (ראו PartitionInfo.Assumed) אינה מסתירה מה שנמצא בתוכה.
             var existing = disk.Partitions
-                .Where(p => p.SizeBytes > 0)
+                .Where(p => p.SizeBytes > 0 && !p.Assumed)
                 .Select(p => (p.OffsetBytes, p.SizeBytes))
                 .ToList();
 

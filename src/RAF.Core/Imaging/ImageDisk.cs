@@ -155,10 +155,20 @@ public static class ImageDisk
             if (map?.Kind == "disk") return (table.Scheme, new List<PartitionInfo>());
         }
 
+        byte[] start = device.ReadBlock(0, 2048);
+        var fs = FileSystemIdentifier.Identify(start);
+
+        // תמונה בלי מפה (מכלי אחר) שמתחילה בטבלת מחיצות ריקה: זה כונן שלם שהמחיצות
+        // שלו נמחקו — בדיוק המקום לחפש אותן, ולא מחיצה אחת בגודל כל הקובץ.
+        // חתימת הסיום לבדה לא מבדילה בין טבלה ריקה למחיצה שתחילתה נפגעה; פקודת הקפיצה
+        // שבתחילת כל מחיצה — כן.
+        if (map is null && fs.Kind == FileSystemKind.Raw && !StartsWithJump(start))
+            return (PartitionScheme.Mbr, new List<PartitionInfo>());
+
         // מחיצה בודדת, או תמונה שאין בה טבלה מזוהה: כל הקובץ הוא מחיצה אחת.
         // גם אם מערכת הקבצים אינה מזוהה (מחיצת RAW) — כך ניתן לאבחן, לתקן
-        // ולהריץ עליה סריקה מתקדמת.
-        var fs = FileSystemIdentifier.Identify(device.ReadBlock(0, 2048));
+        // ולהריץ עליה סריקה מתקדמת. בלי מערכת קבצים ובלי מפה שאומרת "מחיצה"
+        // זו רק הנחה: ייתכן שזה כונן שלם שתחילתו נמחקה.
         var kind = fs.Kind == FileSystemKind.Unknown ? FileSystemKind.Raw : fs.Kind;
 
         return (PartitionScheme.SuperFloppy, new List<PartitionInfo>
@@ -172,9 +182,14 @@ public static class ImageDisk
                 FileSystem = kind,
                 Label = fs.Label,
                 TypeName = FileSystemIdentifier.DisplayName(kind),
+                Assumed = kind == FileSystemKind.Raw && map?.Kind != "partition",
             },
         });
     }
+
+    /// <summary>תחילת מחיצה פותחת בפקודת קפיצה אל קוד האתחול שלה; טבלת מחיצות — לא.</summary>
+    private static bool StartsWithJump(byte[] sector)
+        => sector.Length >= 3 && ((sector[0] == 0xEB && sector[2] == 0x90) || sector[0] == 0xE9);
 
     /// <summary>
     /// תמונה ללא מפה (למשל מכלי אחר): דיסק GPT עם סקטורים של 4096 בתים
