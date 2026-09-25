@@ -389,7 +389,9 @@ function renderDisk(disk) {
   const countText = count === 0 ? t('ללא מחיצות')
     : count === 1 ? t('מחיצה אחת') : t('{0} מחיצות', count);
 
-  const sub = disk.isVolume
+  const sub = disk.decrypted
+    ? t('כונן מוצפן שהתוכנה מפענחת · {0}', formatSize(disk.size))
+    : disk.isVolume
     ? t('כונן מוצפן שנקרא דרך Windows · {0}', formatSize(disk.size))
     : disk.isImage
     ? `<span class="ltr-inline">${esc(disk.imagePath)}</span> · ${formatSize(disk.size)} · ${countText}`

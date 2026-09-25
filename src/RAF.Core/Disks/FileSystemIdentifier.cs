@@ -32,6 +32,11 @@ internal static class FileSystemIdentifier
         if (Matches(head, 3, "-FVE-FS-"))
             return new Result(FileSystemKind.BitLocker, "");
 
+        // --- BitLocker To Go (כונן נייד ב-FAT/exFAT): מבחוץ מחיצת FAT32 קטנה עם קורא,
+        //     ורק המזהה בהיסט 424 מסגיר שהשאר מוצפן ---
+        if (Crypto.BitLockerMetadata.IsBitLocker(head))
+            return new Result(FileSystemKind.BitLocker, "");
+
         // --- ReFS ---
         if (Matches(head, 3, "ReFS"))
             return new Result(FileSystemKind.ReFS, "");

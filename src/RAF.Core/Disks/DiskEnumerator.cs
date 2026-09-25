@@ -90,14 +90,15 @@ public static class DiskEnumerator
 
     /// <summary>מניית כל הדיסקים הפיזיים והמחיצות שעליהם.</summary>
     /// <summary>
-    /// הדיסק הפיזי שמאחורי מספר דיסק. כונן BitLocker שנפתח דרך האות שלו מקבל
+    /// הדיסק הפיזי שמאחורי מספר דיסק. כונן BitLocker שנפתח דרך האות שלו, או במפתח, מקבל
     /// מספר וירטואלי — אבל הוא יושב על דיסק פיזי, וזה הדיסק שאסור לכתוב אליו.
     /// -1 אם לא ניתן לדעת.
     /// </summary>
     public static int PhysicalDiskOf(int number)
-        => DevicePaths.ImagePathOf(number) is { } path && DevicePaths.IsVolumePath(path)
-            ? GetDiskNumberForPath(path[4..] + "\\")
-            : number;
+        => DevicePaths.ImagePathOf(number) is not { } path ? number
+         : DevicePaths.IsVolumePath(path) ? GetDiskNumberForPath(path[4..] + "\\")
+         : DevicePaths.DecryptedSourceOf(path) is { } source ? PhysicalDiskOf(source.Disk)
+         : number;
 
     public static List<PhysicalDiskInfo> EnumerateDisks() => EnumerateDisks(null);
 

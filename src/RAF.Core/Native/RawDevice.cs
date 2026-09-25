@@ -29,6 +29,24 @@ internal sealed class RawDevice : IDisposable
     /// <summary>פתיחת התקן לקריאה גולמית. מחזיר null אם הפתיחה נכשלה (בד"כ חוסר הרשאות אדמין).</summary>
     public static RawDevice? TryOpen(string devicePath, int sectorSize = 512, bool sequential = true)
     {
+        // מחיצת BitLocker שנפתחה במפתח: קוראים מהדיסק שמתחתיה, ומפענחים.
+        if (DevicePaths.DecryptedSourceOf(devicePath) is { } source)
+        {
+            string? below = DevicePaths.PathOf(source.Disk);
+            if (below is null)
+            {
+                NotFound();
+                return null;
+            }
+            var inner = TryOpen(below, sectorSize, sequential);
+            return inner is null ? null : new RawDevice(IntPtr.Zero, devicePath, sectorSize) { _inner = inner, _decrypted = source };
+        }
+        if (DevicePaths.IsDecryptedPath(devicePath))
+        {
+            NotFound();
+            return null;
+        }
+
         // NO_BUFFERING רק בהתקן: בקובץ תמונה הוא היה מחייב יישור לסקטור של
         // הכונן המארח, שעשוי להיות 4096 גם כשהתמונה עצמה בסקטורים של 512.
         uint flags = (DevicePaths.IsDevicePath(devicePath) ? Win32.FILE_FLAG_NO_BUFFERING : 0) |
@@ -73,6 +91,10 @@ internal sealed class RawDevice : IDisposable
     /// <summary>הכונן הווירטואלי שהקובץ מכיל, או null — תמונה רגילה או התקן.</summary>
     public VirtualDisk? Virtual { get; private set; }
 
+    /// <summary>מחיצת BitLocker שהתוכנה מפענחת: הדיסק שמתחתיה, ואיך לפענח.</summary>
+    private RawDevice? _inner;
+    private DevicePaths.DecryptedSource? _decrypted;
+
     [ThreadStatic] private static int _openError;
 
     /// <summary>הכונן לא נמצא כלל (אין לו נתיב) — כמו "הקובץ לא נמצא".</summary>
@@ -97,17 +119,26 @@ internal sealed class RawDevice : IDisposable
     /// <summary>שגיאת Win32 האחרונה, לצורך הודעות שגיאה מדויקות למשתמש.</summary>
     public static int LastError => Marshal.GetLastWin32Error();
 
-    public bool IsValid => _handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE;
+    public bool IsValid => _inner?.IsValid ?? (_handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE);
 
     /// <summary>
     /// ההתקן נותק (נשלף, או שהחיבור נפל) — ולא סקטור פגום. Windows מבחין בין השניים
     /// בקוד השגיאה: סקטור פגום מחזיר שגיאת CRC או שגיאת קלט/פלט, וניתוק — "ההתקן אינו מחובר".
     /// מי שעובר על הכונן עוצר אז ושומר נקודת המשך, במקום לסמן את כל ההמשך כפגום.
     /// </summary>
-    public bool Disconnected { get; private set; }
+    public bool Disconnected
+    {
+        get => _inner?.Disconnected ?? _disconnected;
+        private set => _disconnected = value;
+    }
+    private bool _disconnected;
 
     /// <summary>לבדיקות: מכאן והלאה ההתקן מתנהג כמו כונן שנשלף.</summary>
-    internal void SimulateDisconnect() => _gone = true;
+    internal void SimulateDisconnect()
+    {
+        _gone = true;
+        _inner?.SimulateDisconnect();
+    }
     private volatile bool _gone;
 
     private void Failed()
@@ -123,6 +154,12 @@ internal sealed class RawDevice : IDisposable
     /// </summary>
     public int Read(long offset, Span<byte> destination)
     {
+        if (_decrypted is { } s)
+        {
+            var inner = _inner!;
+            return s.Volume.Read(offset, destination, (at, buffer) => inner.Read(s.Offset + at, buffer));
+        }
+
         if (Virtual is not { } disk) return ReadPhysical(offset, destination);
         if (disk.IsComposite) return disk.ReadComposite(offset, destination);
 
@@ -218,6 +255,7 @@ internal sealed class RawDevice : IDisposable
             }
         }
         Virtual?.Close();
+        _inner?.Dispose();
         GC.SuppressFinalize(this);
     }
 

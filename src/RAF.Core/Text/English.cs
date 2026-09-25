@@ -321,6 +321,40 @@ internal static class EnglishTexts
             "The drive is still locked. Unlock it in Windows first, with the password or the recovery key.",
         ["{0} — BitLocker פתוח"] =
             "{0} — unlocked BitLocker",
+        ["{0} — BitLocker מפוענח"] =
+            "{0} — decrypted BitLocker",
+        ["מחיצה {0}"] =
+            "Partition {0}",
+        ["המחיצה אינה מוצפנת ב-BitLocker."] =
+            "The partition is not encrypted with BitLocker.",
+        ["אזור הניהול של ההצפנה ניזוק בכל שלושת העותקים שלו, ולכן אי אפשר לפתוח את הכונן גם עם המפתח הנכון."] =
+            "The encryption's management area is damaged in all three of its copies, so the drive cannot be opened even with the right key.",
+        ["הכונן הוצפן ב-Windows Vista, בגרסה ישנה של BitLocker שהתוכנה אינה קוראת. פתחו אותו ב-Windows, ואז אפשר לסרוק אותו כאן."] =
+            "The drive was encrypted on Windows Vista, with an old version of BitLocker that the program does not read. Unlock it in Windows, and then it can be scanned here.",
+        ["מפתח שחזור"] =
+            "Recovery key",
+        ["סיסמה"] =
+            "Password",
+        ["שבב האבטחה של המחשב"] =
+            "The computer's security chip (TPM)",
+        ["שבב האבטחה של המחשב וקוד"] =
+            "The computer's security chip and a PIN",
+        ["קובץ מפתח בדיסק-און-קי"] =
+            "A key file on a USB drive",
+        ["ההגנה מושהית"] =
+            "Protection suspended",
+        ["אחר"] =
+            "Other",
+        ["הקלידו את מפתח השחזור או את הסיסמה של הכונן."] =
+            "Type the drive's recovery key or password.",
+        ["מפתח השחזור לא הוקלד נכון: יש בו 8 קבוצות של 6 ספרות, וכל קבוצה מתחלקת ב-11. בדקו שוב את הספרות."] =
+            "The recovery key was not typed correctly: it has 8 groups of 6 digits, and each group is divisible by 11. Check the digits again.",
+        ["המפתח או הסיסמה אינם נכונים לכונן הזה. בדקו שהמפתח שייך לכונן הזה — לכל כונן מוצפן מפתח שחזור משלו."] =
+            "The key or password is not correct for this drive. Check that the key belongs to this drive — every encrypted drive has its own recovery key.",
+        ["המפתח נכון והכונן פוענח, אבל תחילת המחיצה שבתוכו פגומה. סריקה מתקדמת תמצא את הקבצים לפי סוג. "] =
+            "The key is correct and the drive was decrypted, but the start of the partition inside it is damaged. An advanced scan will find the files by type. ",
+        ["התוכנה מפענחת את הכונן בעצמה ({0}), בלי Windows. הקריאה בלבד — שום דבר לא נכתב אליו."] =
+            "The program decrypts the drive itself ({0}), without Windows. Read only — nothing is written to it.",
         ["הכונן המוצפן {0} נקרא דרך Windows, שמפענח אותו. הקריאה בלבד — שום דבר לא נכתב אליו. אל תנעלו אותו מחדש עד סוף השחזור."] =
             "The encrypted drive {0} is read through Windows, which decrypts it. Read only — nothing is written to it. Do not lock it again until the recovery is finished.",
         ["תמונה ללא קובץ מפה — לא ידוע אם הכונן כולו נקרא בעת יצירתה."] =

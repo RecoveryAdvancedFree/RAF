@@ -462,24 +462,52 @@ Object.assign(EN, {
     'Nothing will be written to the drive. Don\'t lock it again and don\'t disconnect it until the recovery is done.',
   'הכונן נעול ב-BitLocker':
     'The drive is locked with BitLocker',
-  'התוכן שלו מוצפן, ולכן אי אפשר לסרוק אותו לפני שפותחים את הנעילה ב-Windows.':
-    'Its content is encrypted, so it can\'t be scanned before it is unlocked in Windows.',
-  'איך פותחים את הנעילה':
-    'How to unlock it',
+  'התוכן שלו מוצפן. הקלידו את מפתח השחזור או את הסיסמה, והתוכנה תפענח אותו בעצמה — גם אם Windows לא מצליח לפתוח אותו. הכונן המפוענח יופיע ברשימה ככונן נוסף.':
+    'Its content is encrypted. Type the recovery key or the password, and the program will decrypt it itself — even if Windows can\'t unlock it. The decrypted drive will appear in the list as another drive.',
+  'מפתח שחזור או סיסמה':
+    'Recovery key or password',
+  'הצגה':
+    'Show',
+  'הסתרה':
+    'Hide',
+  '<b>מפתח השחזור</b> הוא מספר של 48 ספרות. הוא נשמר בדרך כלל בחשבון Microsoft של מי שהגדיר את המחשב (בכתובת {0}), או הודפס ונשמר בקובץ כשההצפנה הופעלה.':
+    'The <b>recovery key</b> is a 48-digit number. It\'s usually saved in the Microsoft account of whoever set up the computer (at {0}), or it was printed or saved to a file when encryption was turned on.',
+  'אפשר גם לפתוח את הנעילה ב-Windows':
+    'You can also unlock it in Windows',
+  'המפתח משמש רק לפענוח בזמן שהתוכנה פתוחה. הוא לא נשמר בשום מקום, ושום דבר לא נכתב לכונן.':
+    'The key is used only for decrypting while the program is open. It isn\'t saved anywhere, and nothing is written to the drive.',
+  'פתיחה':
+    'Unlock',
+  'הקלידו את מפתח השחזור או את הסיסמה של הכונן.':
+    'Type the drive\'s recovery key or password.',
+  'בודק את המפתח… זה לוקח כמה שניות.':
+    'Checking the key… this takes a few seconds.',
+  'אזור הניהול של ההצפנה לא נקרא':
+    'The encryption\'s management area couldn\'t be read',
+  'אם הכונן גוסס, כדאי ליצור ממנו תמונת דיסק ולנסות לפתוח את התמונה. אם גם זה לא עוזר — מעבדת שחזור.':
+    'If the drive is failing, create a disk image of it and try to unlock the image. If that doesn\'t help either — a data recovery lab.',
+  'ההגנה על הכונן מושהית':
+    'The drive\'s protection is suspended',
+  'אפשר לפתוח אותו בלי מפתח — לחצו <b>פתיחה</b>.':
+    'It can be opened without a key — click <b>Unlock</b>.',
+  'הכונן ננעל עם: {0}.':
+    'The drive is locked with: {0}.',
+  'אין לכונן הזה מפתח שאפשר להקליד':
+    'This drive has no key that can be typed',
+  'הוא נפתח רק במחשב שבו הוצפן, או בקובץ מפתח. חברו אותו לאותו מחשב ופתחו אותו ב-Windows.':
+    'It opens only on the computer where it was encrypted, or with a key file. Connect it to that computer and unlock it in Windows.',
+  'כונן מוצפן שהתוכנה מפענחת · {0}':
+    'Encrypted drive decrypted by the program · {0}',
   'פתחו את <b>סייר הקבצים</b> ולחצו פעמיים על הכונן <b>{0}</b>. Windows יבקש סיסמה או מפתח שחזור.':
     'Open <b>File Explorer</b> and double-click drive <b>{0}</b>. Windows will ask for a password or a recovery key.',
   'לכונן אין אות כונן, ולכן Windows לא מציע לפתוח אותו. אם הוא חיצוני — נתקו וחברו אותו מחדש; אחרת פתחו את <b>ניהול דיסקים</b> של Windows והקצו לו אות.':
     'The drive has no drive letter, so Windows doesn\'t offer to unlock it. If it\'s external, disconnect and reconnect it; otherwise open Windows <b>Disk Management</b> and assign it a letter.',
-  'אין סיסמה? <b>מפתח השחזור</b> הוא מספר של 48 ספרות. הוא נשמר בדרך כלל בחשבון Microsoft של מי שהגדיר את המחשב (בכתובת {0}), או הודפס ונשמר בקובץ כשההצפנה הופעלה.':
-    'No password? The <b>recovery key</b> is a 48-digit number. It\'s usually saved in the Microsoft account of whoever set up the computer (at {0}), or it was printed or saved to a file when encryption was turned on.',
   'אחרי שהכונן נפתח, חזרו לכאן ולחצו <b>רענון</b>. ליד המחיצה יופיע "נעילה פתוחה".':
     'After the drive is unlocked, come back here and click <b>Refresh</b>. "Unlocked" will appear next to the partition.',
   'בלי המפתח אין דרך לשחזר':
     'Without the key there\'s no way to recover',
   'ההצפנה נועדה בדיוק לזה: בלי סיסמה או מפתח שחזור אף תוכנה לא יכולה לקרוא את הקבצים.':
     'That\'s exactly what encryption is for: without a password or recovery key no program can read the files.',
-  'אם Windows לא מצליח לפתוח את הכונן גם עם המפתח הנכון, כנראה שאזור הניהול של ההצפנה ניזוק. במקרה כזה כדאי ליצור תמונת דיסק ולפנות למעבדת שחזור.':
-    'If Windows can\'t unlock the drive even with the right key, the encryption\'s metadata area is probably damaged. In that case, create a disk image and contact a data recovery lab.',
   'פתיחה לסריקה':
     'Open for scanning',
   'לא ניתן לפתוח את הכונן':
@@ -1434,8 +1462,9 @@ const EN_FAQ = [
     From the phone's internal memory — no. Phones don't let a computer read their memory like a drive.
     If the phone has a <b>memory card</b>, take it out and connect it to the computer with a card reader — that can be scanned.`],
   ['The drive is locked with BitLocker', `
-    First unlock it in Windows (double-click the drive in File Explorer, with the password or recovery key),
-    then click the partition in the list and choose <b>Open for scanning</b>. Without the password or key there is no way to read the files.`],
+    Click the partition in the list and type the recovery key (48 digits) or the password. The program decrypts the drive itself,
+    and it appears in the list as another drive — even when Windows can't unlock it, even a deleted partition or a disk image.
+    If it is already unlocked in Windows, choose <b>Open for scanning</b>. Without the password or key there is no way to read the files.`],
   ['I have a Windows backup or a virtual machine (a VHD, VHDX or VMDK file)', `
     On the drives screen click <b>Open disk image</b> and choose the file. It opens as another drive in the list —
     without attaching it to Windows and without writing to it — and you can scan and recover from it like any drive.

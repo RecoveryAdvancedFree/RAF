@@ -118,6 +118,8 @@ internal sealed partial class Bridge
         "image.open" => OpenImage(p),
         "image.close" => CloseImage(p),
         "bitlocker.open" => OpenUnlockedVolume(p),
+        "bitlocker.inspect" => await Task.Run(() => InspectBitLocker(p)),
+        "bitlocker.unlock" => await Task.Run(() => UnlockBitLocker(p)),
 
         "scan.start" => await Tracked(LongOperation.Scan, () => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
@@ -280,7 +282,8 @@ internal sealed partial class Bridge
         problem = d.Problem,
         isImage = d.ImagePath is not null,
         imagePath = d.ImagePath,
-        isVolume = d.ImagePath is { } path && DevicePaths.IsVolumePath(path),
+        isVolume = d.ImagePath is { } path && DevicePaths.IsDecryptedVolume(path),
+        decrypted = d.ImagePath is { } own && DevicePaths.IsDecryptedPath(own),
         imageNote = d.ImageNote,
         imageDamaged = d.ImageDamaged,
         partitions = d.Partitions.Select(PartitionDto).ToList(),
@@ -968,7 +971,7 @@ internal sealed partial class Bridge
             files, new RecoveryOptions
             {
                 TargetFolder = target, PreservePaths = preservePaths,
-                Source = session.Disk.ImagePath is { } image && !DevicePaths.IsVolumePath(image)
+                Source = session.Disk.ImagePath is { } image && !DevicePaths.IsDecryptedVolume(image)
                     ? L.T("{0} · תמונת דיסק {1}", session.PartitionTitle, Path.GetFileName(image))
                     : $"{session.PartitionTitle} · {session.Disk.Model}",
             },
@@ -1321,6 +1324,34 @@ internal sealed partial class Bridge
 
         string title = string.IsNullOrWhiteSpace(part.Label) ? L.T("כונן {0}", part.DriveLetter) : $"{part.Label} ({part.DriveLetter})";
         var volume = ImageDisk.OpenUnlockedVolume(part.DriveLetter, part.SizeBytes, disk.LogicalSectorSize, title);
+        _images.RemoveAll(d => d.DiskNumber == volume.DiskNumber);
+        _images.Add(volume);
+
+        return new { number = volume.DiskNumber };
+    }
+
+    /// <summary>לפני הפתיחה: אילו מגנים הוגדרו לכונן, ואם אזור הניהול שלו נקרא בכלל.</summary>
+    private object InspectBitLocker(JsonObject? p)
+    {
+        var (disk, part) = FindPartition(p);
+        var info = BitLockerDisk.Inspect(disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize);
+        return new { protectors = info.Protectors, typedKey = info.TypedKey, suspended = info.Suspended, problem = info.Problem };
+    }
+
+    /// <summary>
+    /// פתיחת מחיצת BitLocker נעולה במפתח השחזור או בסיסמה — התוכנה מפענחת בעצמה,
+    /// והמחיצה מופיעה ככונן נוסף ברשימה. המפתח אינו נשמר בשום מקום.
+    /// </summary>
+    private object UnlockBitLocker(JsonObject? p)
+    {
+        var (disk, part) = FindPartition(p);
+        string key = p?["key"]?.GetValue<string>() ?? "";
+        string title = !string.IsNullOrWhiteSpace(part.Label) ? part.Label
+                     : part.DriveLetter.Length > 0 ? L.T("כונן {0}", part.DriveLetter)
+                     : disk.ImagePath is not null ? disk.Model
+                     : L.T("מחיצה {0}", part.Index);
+
+        var volume = BitLockerDisk.Unlock(disk.DiskNumber, part.OffsetBytes, part.SizeBytes, disk.LogicalSectorSize, key, title);
         _images.RemoveAll(d => d.DiskNumber == volume.DiskNumber);
         _images.Add(volume);
 

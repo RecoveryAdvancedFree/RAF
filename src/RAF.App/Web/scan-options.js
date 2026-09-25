@@ -45,48 +45,28 @@ function scanTechDetails() {
     </details>`;
 }
 
-/// מחיצת BitLocker. הדיסק הפיזי מחזיר רק תוכן מוצפן; אחרי שהנעילה נפתחת
-/// ב-Windows, התוכנה קוראת את המחיצה דרך Windows — מפוענחת — כדיסק נוסף ברשימה.
+/// מחיצת BitLocker. הדיסק הפיזי מחזיר רק תוכן מוצפן. שתי דרכים לקרוא אותה מפוענחת,
+/// כדיסק נוסף ברשימה: דרך Windows, כשהנעילה כבר פתוחה שם — או בפענוח של התוכנה
+/// עצמה, עם מפתח השחזור או הסיסמה (גם כש-Windows לא מצליח לפתוח אותה).
 function openBitLockerPanel(disk, part) {
+  if (!part.unlocked) {
+    openLockedBitLockerPanel(disk, part);
+    return;
+  }
   const letter = part.letter ? `<bdi>${esc(part.letter)}</bdi>` : '';
-  const body = part.unlocked
-    ? `${notice('ok-notice', Icon.lock, t('הנעילה פתוחה'),
+  const body = `${notice('ok-notice', Icon.lock, t('הנעילה פתוחה'),
         t('התוכנה תקרא את הכונן {0} דרך Windows, שמפענח אותו. הוא יופיע ברשימה ככונן נוסף, ' +
           'ואפשר יהיה להריץ עליו כל סוג סריקה — גם סריקה מתקדמת.', letter),
         t('BitLocker מצפין את כל המחיצה, כולל המקום שבו יושבים קבצים שנמחקו. קריאה ישירה מהכונן ' +
         'מחזירה רק תוכן מוצפן; דרך Windows כל אזור נקרא מפוענח.'))}
        ${notice('info', Icon.shield, t('קריאה בלבד'),
-        t('שום דבר לא ייכתב לכונן. אל תנעלו אותו מחדש ואל תנתקו אותו עד סוף השחזור.'))}`
-    : `${notice('warn', Icon.lock, t('הכונן נעול ב-BitLocker'),
-        t('התוכן שלו מוצפן, ולכן אי אפשר לסרוק אותו לפני שפותחים את הנעילה ב-Windows.'))}
-       <div class="section-label" style="margin-top:14px">${t('איך פותחים את הנעילה')}</div>
-       <ol class="image-steps">
-         ${letter
-           ? `<li>${t('פתחו את <b>סייר הקבצים</b> ולחצו פעמיים על הכונן <b>{0}</b>. Windows יבקש סיסמה או מפתח שחזור.', letter)}</li>`
-           : `<li>${t('לכונן אין אות כונן, ולכן Windows לא מציע לפתוח אותו. אם הוא חיצוני — נתקו וחברו אותו מחדש; ' +
-             'אחרת פתחו את <b>ניהול דיסקים</b> של Windows והקצו לו אות.')}</li>`}
-         <li>${t('אין סיסמה? <b>מפתח השחזור</b> הוא מספר של 48 ספרות. הוא נשמר בדרך כלל בחשבון Microsoft של מי שהגדיר את המחשב (בכתובת {0}), או הודפס ונשמר בקובץ כשההצפנה הופעלה.',
-               '<span class="ltr-inline">aka.ms/myrecoverykey</span>')}</li>
-         <li>${t('אחרי שהכונן נפתח, חזרו לכאן ולחצו <b>רענון</b>. ליד המחיצה יופיע "נעילה פתוחה".')}</li>
-       </ol>
-       ${notice('info', Icon.info, t('בלי המפתח אין דרך לשחזר'),
-        t('ההצפנה נועדה בדיוק לזה: בלי סיסמה או מפתח שחזור אף תוכנה לא יכולה לקרוא את הקבצים.'),
-        t('אם Windows לא מצליח לפתוח את הכונן גם עם המפתח הנכון, כנראה שאזור הניהול של ההצפנה ניזוק. ' +
-        'במקרה כזה כדאי ליצור תמונת דיסק ולפנות למעבדת שחזור.'), 'spaced')}`;
+        t('שום דבר לא ייכתב לכונן. אל תנעלו אותו מחדש ואל תנתקו אותו עד סוף השחזור.'))}`;
 
   el('panel').innerHTML = `
-    <div class="panel-head">
-      <div class="grow">
-        <div class="panel-title">${esc(partTitle(part))}</div>
-        <div class="panel-sub">${esc(disk.name)} · BitLocker · ${formatSize(part.size)}</div>
-      </div>
-      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
-    </div>
+    ${bitLockerHead(disk, part)}
     <div class="panel-body">${body}<div id="bitlocker-status"></div></div>
     <div class="panel-foot">
-      ${part.unlocked
-        ? `<button class="btn btn-primary" id="btn-bitlocker-open">${Icon.lock}<span>${t('פתיחה לסריקה')}</span></button>`
-        : `<button class="btn btn-primary" id="btn-bitlocker-refresh">${Icon.refresh}<span>${t('רענון')}</span></button>`}
+      <button class="btn btn-primary" id="btn-bitlocker-open">${Icon.lock}<span>${t('פתיחה לסריקה')}</span></button>
       <button class="btn" id="btn-cancel-bitlocker">${t('ביטול')}</button>
     </div>`;
 
@@ -94,23 +74,140 @@ function openBitLockerPanel(disk, part) {
   el('panel-close').onclick = closePanel;
   el('btn-cancel-bitlocker').onclick = closePanel;
 
-  const refresh = el('btn-bitlocker-refresh');
-  if (refresh) refresh.onclick = async () => { closePanel(); await loadDisks(); };
-
   const open = el('btn-bitlocker-open');
-  if (open) open.onclick = async () => {
+  open.onclick = async () => {
     open.disabled = true;
     try {
       const r = await Bridge.call('bitlocker.open', { disk: disk.number, part: part.index }, 0);
-      closePanel();
-      State.openDisks.add(r.number);
-      await loadDisks();
-      openScanPanel(r.number, 0);
+      await showOpenedVolume(r.number);
     } catch (err) {
       open.disabled = false;
       el('bitlocker-status').innerHTML = errorNotice(t('לא ניתן לפתוח את הכונן'), err, 'spaced');
     }
   };
+}
+
+function bitLockerHead(disk, part) {
+  return `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">${esc(partTitle(part))}</div>
+        <div class="panel-sub">${esc(disk.name)} · BitLocker · ${formatSize(part.size)}</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
+    </div>`;
+}
+
+/// הכונן המפוענח נוסף לרשימה, ומיד נפתחות אפשרויות הסריקה שלו.
+async function showOpenedVolume(number) {
+  closePanel();
+  State.openDisks.add(number);
+  await loadDisks();
+  openScanPanel(number, 0);
+}
+
+/// כונן נעול: מקלידים את מפתח השחזור או את הסיסמה, והתוכנה מפענחת בעצמה — כך נפתח
+/// גם כונן ש-Windows לא מצליח לפתוח: מחיצה שנמחקה, תמונת דיסק, או מערכת קבצים פגומה
+/// בתוך ההצפנה. הדרך דרך Windows נשארת, מקופלת, למי שמעדיף אותה.
+function openLockedBitLockerPanel(disk, part) {
+  const letter = part.letter ? `<bdi>${esc(part.letter)}</bdi>` : '';
+  const recoveryKeyWhere = t('<b>מפתח השחזור</b> הוא מספר של 48 ספרות. הוא נשמר בדרך כלל בחשבון Microsoft של מי שהגדיר את המחשב (בכתובת {0}), או הודפס ונשמר בקובץ כשההצפנה הופעלה.',
+    '<span class="ltr-inline">aka.ms/myrecoverykey</span>');
+
+  el('panel').innerHTML = `
+    ${bitLockerHead(disk, part)}
+    <div class="panel-body">
+      ${notice('warn', Icon.lock, t('הכונן נעול ב-BitLocker'),
+        t('התוכן שלו מוצפן. הקלידו את מפתח השחזור או את הסיסמה, והתוכנה תפענח אותו בעצמה — ' +
+          'גם אם Windows לא מצליח לפתוח אותו. הכונן המפוענח יופיע ברשימה ככונן נוסף.'))}
+      <div id="bitlocker-protectors" class="bitlocker-protectors">${t('בודק את הכונן…')}</div>
+      <div class="section-label" style="margin-top:14px"><label for="bitlocker-key">${t('מפתח שחזור או סיסמה')}</label></div>
+      <div class="key-field">
+        <input type="password" class="bitlocker-key" id="bitlocker-key" dir="ltr" autocomplete="off" spellcheck="false"
+               placeholder="000000-000000-000000-000000-000000-000000-000000-000000" aria-describedby="bitlocker-key-hint">
+        <button class="btn btn-sm" id="btn-bitlocker-show" type="button" aria-pressed="false">${t('הצגה')}</button>
+      </div>
+      <p class="confirm-hint" id="bitlocker-key-hint">${recoveryKeyWhere}</p>
+      <div id="bitlocker-status"></div>
+      <details class="scan-tech">
+        <summary>${t('אפשר גם לפתוח את הנעילה ב-Windows')}</summary>
+        <ol class="image-steps">
+          ${letter
+            ? `<li>${t('פתחו את <b>סייר הקבצים</b> ולחצו פעמיים על הכונן <b>{0}</b>. Windows יבקש סיסמה או מפתח שחזור.', letter)}</li>`
+            : `<li>${t('לכונן אין אות כונן, ולכן Windows לא מציע לפתוח אותו. אם הוא חיצוני — נתקו וחברו אותו מחדש; ' +
+              'אחרת פתחו את <b>ניהול דיסקים</b> של Windows והקצו לו אות.')}</li>`}
+          <li>${t('אחרי שהכונן נפתח, חזרו לכאן ולחצו <b>רענון</b>. ליד המחיצה יופיע "נעילה פתוחה".')}</li>
+        </ol>
+        <button class="btn btn-sm" id="btn-bitlocker-refresh">${Icon.refresh}<span>${t('רענון')}</span></button>
+      </details>
+      ${notice('info', Icon.info, t('בלי המפתח אין דרך לשחזר'),
+        t('ההצפנה נועדה בדיוק לזה: בלי סיסמה או מפתח שחזור אף תוכנה לא יכולה לקרוא את הקבצים.'),
+        t('המפתח משמש רק לפענוח בזמן שהתוכנה פתוחה. הוא לא נשמר בשום מקום, ושום דבר לא נכתב לכונן.'), 'spaced')}
+    </div>
+    <div class="panel-foot">
+      <button class="btn btn-primary" id="btn-bitlocker-unlock">${Icon.lock}<span>${t('פתיחה')}</span></button>
+      <button class="btn" id="btn-cancel-bitlocker">${t('ביטול')}</button>
+    </div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-cancel-bitlocker').onclick = closePanel;
+  el('btn-bitlocker-refresh').onclick = async () => { closePanel(); await loadDisks(); };
+
+  const input = el('bitlocker-key');
+  const show = el('btn-bitlocker-show');
+  show.onclick = () => {
+    const visible = input.type === 'password';
+    input.type = visible ? 'text' : 'password';
+    show.setAttribute('aria-pressed', String(visible));
+    show.textContent = visible ? t('הסתרה') : t('הצגה');
+    input.focus();
+  };
+
+  const unlock = el('btn-bitlocker-unlock');
+  let suspended = false;
+  const status = el('bitlocker-status');
+
+  unlock.onclick = async () => {
+    if (!input.value.trim() && !suspended) {
+      status.innerHTML = notice('warn', Icon.alert, '', t('הקלידו את מפתח השחזור או את הסיסמה של הכונן.'), null, 'spaced');
+      input.focus();
+      return;
+    }
+    unlock.disabled = input.disabled = true;
+    status.innerHTML = `<p class="confirm-hint">${t('בודק את המפתח… זה לוקח כמה שניות.')}</p>`;
+    try {
+      const r = await Bridge.call('bitlocker.unlock', { disk: disk.number, part: part.index, key: input.value }, 0);
+      input.value = '';
+      await showOpenedVolume(r.number);
+    } catch (err) {
+      unlock.disabled = input.disabled = false;
+      status.innerHTML = errorNotice(t('הכונן לא נפתח'), err, 'spaced');
+      input.select();
+    }
+  };
+  input.onkeydown = (e) => { if (e.key === 'Enter') unlock.click(); };
+  input.focus();
+
+  Bridge.call('bitlocker.inspect', { disk: disk.number, part: part.index }).then((info) => {
+    const box = el('bitlocker-protectors');
+    if (!box) return;
+    if (info.problem) {
+      box.innerHTML = notice('danger', Icon.alert, t('אזור הניהול של ההצפנה לא נקרא'), esc(info.problem),
+        t('אם הכונן גוסס, כדאי ליצור ממנו תמונת דיסק ולנסות לפתוח את התמונה. אם גם זה לא עוזר — מעבדת שחזור.'), 'spaced');
+      unlock.disabled = input.disabled = true;
+      return;
+    }
+    suspended = info.suspended;
+    box.innerHTML = info.suspended
+      ? notice('ok-notice', Icon.lock, t('ההגנה על הכונן מושהית'),
+          t('אפשר לפתוח אותו בלי מפתח — לחצו <b>פתיחה</b>.'), null, 'spaced')
+      : info.protectors.length
+      ? `<p class="confirm-hint">${t('הכונן ננעל עם: {0}.', info.protectors.map(esc).join(', '))}</p>` +
+        (info.typedKey ? '' : notice('warn', Icon.info, t('אין לכונן הזה מפתח שאפשר להקליד'),
+          t('הוא נפתח רק במחשב שבו הוצפן, או בקובץ מפתח. חברו אותו לאותו מחשב ופתחו אותו ב-Windows.'), null, 'spaced'))
+      : '';
+  }).catch(() => { const box = el('bitlocker-protectors'); if (box) box.textContent = ''; });
 }
 
 function findPart(diskNumber, partIndex) {

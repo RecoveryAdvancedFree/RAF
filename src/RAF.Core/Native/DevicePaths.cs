@@ -20,7 +20,7 @@ public static class DevicePaths
     /// <summary>רישום קובץ תמונה. קובץ שכבר נרשם מקבל את אותו מספר.</summary>
     public static int RegisterImage(string imagePath)
     {
-        string full = IsDevicePath(imagePath) ? imagePath : Path.GetFullPath(imagePath);
+        string full = IsDevicePath(imagePath) || IsDecryptedPath(imagePath) ? imagePath : Path.GetFullPath(imagePath);
 
         foreach (var pair in Images)
             if (string.Equals(pair.Value, full, StringComparison.OrdinalIgnoreCase))
@@ -31,7 +31,40 @@ public static class DevicePaths
         return number;
     }
 
-    public static void UnregisterImage(int number) => Images.TryRemove(number, out _);
+    public static void UnregisterImage(int number)
+    {
+        if (Images.TryRemove(number, out var path)) Decrypted.TryRemove(path, out _);
+    }
+
+    /// <summary>מחיצת BitLocker שהתוכנה פותחת בעצמה: על איזה דיסק היא, איפה, ואיך מפענחים.</summary>
+    internal sealed record DecryptedSource(int Disk, long Offset, Crypto.BitLockerVolume Volume);
+
+    private static readonly ConcurrentDictionary<string, DecryptedSource> Decrypted = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// רישום מחיצת BitLocker שנפתחה במפתח. היא מקבלת מספר כמו תמונה, והנתיב שלה
+    /// אינו קובץ ואינו התקן — <see cref="RawDevice"/> מזהה אותו, קורא מהדיסק שמתחתיו ומפענח.
+    /// </summary>
+    internal static int RegisterDecrypted(DecryptedSource source)
+    {
+        string path = $"{DecryptedPrefix}{source.Disk}@{source.Offset}";
+        Decrypted[path] = source;
+        return RegisterImage(path);
+    }
+
+    private const string DecryptedPrefix = "bitlocker:";
+
+    internal static DecryptedSource? DecryptedSourceOf(string path)
+        => path.StartsWith(DecryptedPrefix, StringComparison.Ordinal) && Decrypted.TryGetValue(path, out var s) ? s : null;
+
+    /// <summary>נתיב של מחיצת BitLocker שהתוכנה מפענחת בעצמה.</summary>
+    public static bool IsDecryptedPath(string path) => path.StartsWith(DecryptedPrefix, StringComparison.Ordinal);
+
+    /// <summary>
+    /// מחיצה מוצפנת שנקראת מפוענחת — דרך Windows או בפענוח של התוכנה. זה הכונן
+    /// עצמו, לא עותק שלו: אסור לכתוב אליו, והוא אינו "תמונה".
+    /// </summary>
+    public static bool IsDecryptedVolume(string path) => IsVolumePath(path) || IsDecryptedPath(path);
 
     public static bool IsImage(int number) => number >= FirstImageNumber;
 

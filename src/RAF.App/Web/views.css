@@ -554,6 +554,24 @@
 }
 .confirm-word:focus-visible { border-color: var(--accent); }
 
+/* מפתח BitLocker: 48 ספרות בקבוצות — משמאל לימין, ברוחב מלא */
+.key-field { display: flex; gap: 8px; align-items: center; }
+.bitlocker-key {
+  flex: 1; min-width: 0;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: ui-monospace, Consolas, monospace; font-size: 13px;
+  outline: 0;
+}
+.bitlocker-key:focus-visible { border-color: var(--accent); }
+.bitlocker-key:disabled { opacity: .6; }
+.bitlocker-protectors { margin-top: 10px; color: var(--text-dim); font-size: 13px; }
+.bitlocker-protectors .confirm-hint { margin: 0; }
+.key-field + .confirm-hint { margin-top: 8px; }
+
 .notice.ok-notice {
   background: var(--ok-soft);
   border: 1px solid var(--ok-line);
