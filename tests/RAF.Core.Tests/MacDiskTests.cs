@@ -6,7 +6,7 @@ namespace RAF.Core.Tests;
 
 /// <summary>
 /// כוננים במק — רק בבדיקה האוטומטית במק (RAF_MAC_DEVICE_TESTS=1), שמחברת קודם תמונת דיסק
-/// קטנה עם מחיצת exFAT בשם RAFTEST (hdiutil). רצה כמנהל, ולכן פותחת את הכונן ישירות;
+/// קטנה (64MB) עם מחיצת exFAT (hdiutil). רצה כמנהל, ולכן פותחת את הכונן ישירות;
 /// RAF_MAC_AUTHOPEN=1 מכריח את הדרך של authopen, שבה משתמש משתמש רגיל.
 /// </summary>
 public class MacDiskTests
@@ -18,7 +18,8 @@ public class MacDiskTests
     {
         if (!Enabled) return;
         var disks = MacDisks.Enumerate();
-        var test = disks.FirstOrDefault(d => d.Partitions.Any(p => p.Label == "RAFTEST"));
+        // שם המחיצה ב-Windows מגיע ממערכת ההפעלה; כאן מזהים את הכונן לפי הגודל ומערכת הקבצים.
+        var test = disks.FirstOrDefault(d => d.SizeBytes == 64L * 1024 * 1024 && d.Partitions.Any(p => p.FileSystem == FileSystemKind.ExFat));
         Assert.True(test is not null, "disks: " + string.Join(" | ", disks.Select(d =>
             $"{d.Model} {d.BusType} {d.SizeBytes} raw={d.RawAccessible} {d.Problem} [{string.Join(",", d.Partitions.Select(p => p.FileSystem + ":" + p.Label))}]")));
         Assert.True(test!.RawAccessible);

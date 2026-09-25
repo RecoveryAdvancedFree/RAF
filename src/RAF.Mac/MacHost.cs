@@ -30,7 +30,7 @@ internal sealed class MacHost : IHost
 
     public void Run()
     {
-        _window.Load($"{Scheme}://app/index.html");
+        _window.Load(new Uri($"{Scheme}://app/index.html"));
         _window.WaitForClose();
     }
 
