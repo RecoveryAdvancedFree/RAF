@@ -30,11 +30,18 @@ public sealed class ScanResult
     /// <summary>הסריקה נעצרה כי הכונן נותק — לא בגלל המשתמש.</summary>
     public bool Disconnected { get; init; }
 
+    /// <summary>
+    /// סריקה מתקדמת: מחיצות NTFS שטבלת הקבצים שלהן נמצאה בדרך, אף שמגזר האתחול אבד
+    /// (ראו NtfsRebuild). ההיסט יחסי לתחילת האזור שנסרק. אינו נשמר בקובץ הסריקה.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<RAF.Core.FileSystems.Ntfs.RebuiltNtfs> RebuiltNtfs { get; init; } = new();
+
     internal ScanResult WithDisconnected() => new()
     {
         Files = Files, Mode = Mode, Duration = Duration, Cancelled = Cancelled, FileSystem = FileSystem,
         RecordsExamined = RecordsExamined, BytesRead = BytesRead, Warnings = Warnings, Resume = Resume,
-        Disconnected = true,
+        Disconnected = true, RebuiltNtfs = RebuiltNtfs,
     };
 
     public int DeletedCount => Files.Count(f => f.IsDeleted);

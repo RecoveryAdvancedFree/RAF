@@ -699,6 +699,8 @@
 
 /* הודעת "הסריקה נעצרה" במסך התוצאות, עם כפתור ההמשך לצידה */
 .resume-strip { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+/* במסך התוצאות הפס יושב בין שורת הכלים לרשימה, שאין להן שוליים משלהן */
+.results > .resume-strip { margin: 10px 16px; flex-shrink: 0; }
 .resume-strip .notice { flex: 1; margin: 0; }
 .resume-strip .btn { flex-shrink: 0; }
 .recent-scan {

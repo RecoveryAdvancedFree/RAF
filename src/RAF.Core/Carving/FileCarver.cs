@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using RAF.Core.FileSystems;
+using RAF.Core.FileSystems.Ntfs;
 using RAF.Core.Model;
 using RAF.Core.Native;
 using RAF.Core.Signatures;
@@ -55,6 +56,16 @@ public sealed class FileCarver
     private long _bytesRead;
     private long _candidates;
 
+    /// <summary>
+    /// רשומות NTFS והקבצים שנמצאו — לבנייה מחדש של טבלת הקבצים, כשמגזר האתחול אבד
+    /// (ראו NtfsRebuild). רק בסריקה שלמה של כל האזור: לא בהמשך אחרי השהיה, ולא במקום פנוי בלבד.
+    /// </summary>
+    private NtfsRebuild? _rebuild;
+    private List<RebuiltNtfs> _rebuilt = new();
+
+    /// <summary>מערכת הקבצים של האזור נקראת כרגיל — אין מה לבנות בתחילתו.</summary>
+    internal bool ReadableFileSystem { get; set; }
+
     /// <summary>סריקה מתקדמת של מחיצה.</summary>
     /// <param name="freeSpaceOnly">
     /// לסרוק רק את המקום שמערכת הקבצים (fileSystem) מסמנת כפנוי. כשמפת ההקצאה
@@ -85,6 +96,7 @@ public sealed class FileCarver
                 Native.RawDevice.OpenFailure());
 
         long length = partitionSize > 0 ? partitionSize : reader.Length;
+        ReadableFileSystem = fileSystem is not (FileSystemKind.Raw or FileSystemKind.Unknown);
         if (freeSpaceOnly) _free = ReadFreeSpace(diskNumber, partitionOffset, length, sectorSize, fileSystem, progress);
 
         return Sweep(RawVolume.Open(reader, sectorSize), length, sectorSize, progress, token, checkpoint);
@@ -140,6 +152,7 @@ public sealed class FileCarver
         long start = ResumeFrom?.Resume?.Offset ?? 0;
         long allowed = ResumeFrom?.Resume?.NextAllowedStart ?? start;
         var pending = new List<PendingJpeg>();
+        _rebuild = ResumeFrom is null && _free is null ? new NtfsRebuild(sectorSize) : null;
 
         // בהמשך סריקה: מה שכבר נסרק, והקבצים שכבר נמצאו, מופיעים במפה מההתחלה.
         _map = new SectorMap(size);
@@ -153,6 +166,8 @@ public sealed class FileCarver
 
         BuildWarnings(files);
         bool stopped = token.IsCancellationRequested || _disconnected;
+        if (!stopped && _rebuild is not null)
+            _rebuilt = _rebuild.Infer(size, ReadableFileSystem ? new[] { 0L } : Array.Empty<long>());
         var resume = stopped && _stoppedAt >= 0 ? ResumeAt(_stoppedAt, _stoppedAllowed, size) : null;
         if (_disconnected)
             _warnings.Insert(0, L.T("הכונן נותק באמצע הסריקה, אחרי {0}% מהמחיצה. " +
@@ -247,6 +262,10 @@ public sealed class FileCarver
                     break;
                 }
 
+                // רשומת FILE נאספת גם בתוך קובץ שדולג: טבלת הקבצים עצמה אינה קובץ שנמצא.
+                if (main && _rebuild is not null && block[off] == (byte)'F')
+                    _rebuild.AddRecord(block.AsSpan(off, read - off), absolute);
+
                 if (absolute < nextAllowedStart || InSkipped(absolute)) continue;
                 if (_free is not null && !_free.IsFree(absolute)) continue;       // קובץ שנמחק מתחיל במקום פנוי
 
@@ -264,6 +283,7 @@ public sealed class FileCarver
                     break;
                 }
                 if (resolved.Bytes < 64) continue;
+                if (main) _rebuild?.AddSignature(signature, absolute);
 
                 bool wanted = Accept is null || Accept(signature);
 
@@ -414,6 +434,7 @@ public sealed class FileCarver
             RecordsExamined = _candidates,
             BytesRead = _bytesRead,
             Warnings = warnings,
+            RebuiltNtfs = _rebuilt,
         };
 
     // ------------------------------------------------------------ אימות JPEG

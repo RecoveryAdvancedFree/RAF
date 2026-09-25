@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using RAF.Core.Carving;
 using RAF.Core.Disks;
 using RAF.Core.FileSystems.Ntfs;
 using RAF.Core.Imaging;
@@ -110,6 +111,46 @@ public class NtfsRebuildTests : IDisposable
             Assert.True(found.OnExisting);
             Assert.Equal(listed.OffsetBytes, found.Offset);
             Assert.Equal(4096, found.Rebuilt!.ClusterSize);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
+
+    [Fact]
+    public async Task An_advanced_scan_of_the_area_finds_the_file_table_too()
+    {
+        // הרעיון המקורי: הסריקה לפי חתימות, שמוצאת קבצים בלי שמות, מוצאת בדרך גם את טבלת
+        // הקבצים — וממנה את המחיצה עצמה, עם השמות.
+        var disk = ImageDisk.Open(WipedDisk());
+        try
+        {
+            long size = disk.SizeBytes - PartitionOffset;
+            var result = await FileCarver.ScanAsync(disk.DiskNumber, PartitionOffset, size, 512, null, default);
+            _out.WriteLine($"{result.Files.Count} carved");
+
+            var rebuilt = Assert.Single(result.RebuiltNtfs);
+            Assert.Equal(0, rebuilt.Offset);                 // יחסית לאזור שנסרק — תחילתו
+            Assert.Equal(4096, rebuilt.ClusterSize);
+            Assert.True(rebuilt.Confirmed >= 20);
+        }
+        finally
+        {
+            ImageDisk.Close(disk.DiskNumber);
+        }
+    }
+
+    [Fact]
+    public async Task An_advanced_scan_of_a_readable_partition_reports_nothing_to_rebuild()
+    {
+        var disk = ImageDisk.Open(LinuxDriveTests.Unpack("ntfs-lost.raw", _temp));
+        try
+        {
+            var part = Assert.Single(disk.Partitions);
+            var result = await FileCarver.ScanAsync(disk.DiskNumber, part.OffsetBytes, part.SizeBytes, 512, null, default,
+                fileSystem: part.FileSystem);
+            Assert.Empty(result.RebuiltNtfs);
         }
         finally
         {

@@ -50,22 +50,31 @@ internal sealed class NtfsRebuild
         for (int s = 0; s + _sectorSize <= data.Length; s += _sectorSize)
         {
             var span = data[s..];
-            if (span[0] == (byte)'F' && span[1] == (byte)'I' && span[2] == (byte)'L' && span[3] == (byte)'E')
-            {
-                CollectRecord(span, at + s);
-                continue;
-            }
-
+            if (AddRecord(span, at + s)) continue;
             if (_signatureCount >= MaxSignatures) continue;
-            var signature = FileSignatures.Identify(span[..Math.Min(64, span.Length)]);
-            if (signature is null) continue;
-            foreach (string ext in signature.Extensions)
-            {
-                if (!_signatures.TryGetValue(ext, out var set)) _signatures[ext] = set = new HashSet<long>();
-                set.Add(at + s);
-            }
-            _signatureCount++;
+            if (FileSignatures.Identify(span[..Math.Min(64, span.Length)]) is { } signature) AddSignature(signature, at + s);
         }
+    }
+
+    /// <summary>קובץ שמתחיל כאן לפי החתימה שלו — מהסריקה המתקדמת, שכבר זיהתה אותו.</summary>
+    internal void AddSignature(FileSignature signature, long position)
+    {
+        if (_signatureCount >= MaxSignatures) return;
+        foreach (string ext in signature.Extensions)
+        {
+            if (!_signatures.TryGetValue(ext, out var set)) _signatures[ext] = set = new HashSet<long>();
+            set.Add(position);
+        }
+        _signatureCount++;
+    }
+
+    /// <summary>רשומת FILE שמתחילה כאן, אם יש. true — זו רשומה (גם אם לא נשמרה).</summary>
+    internal bool AddRecord(ReadOnlySpan<byte> span, long position)
+    {
+        if (span.Length < 48 || span[0] != (byte)'F' || span[1] != (byte)'I' || span[2] != (byte)'L' || span[3] != (byte)'E')
+            return false;
+        CollectRecord(span, position);
+        return true;
     }
 
     private void CollectRecord(ReadOnlySpan<byte> span, long position)

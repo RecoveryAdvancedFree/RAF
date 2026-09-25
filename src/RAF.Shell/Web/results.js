@@ -53,6 +53,12 @@ async function renderResults() {
         <button class="btn btn-primary" id="btn-resume-scan">${Icon.play}<span>${t('המשך הסריקה')}</span></button>
       </div>` : ''}
 
+      ${(s.rebuilt || []).length ? `<div class="resume-strip">
+        ${notice('ok-notice', Icon.check, t('נמצאה גם טבלת הקבצים של המחיצה'),
+          t('מגזר האתחול שלה אבד, אבל רשומות הקבצים שרדו. סריקה שלה מחזירה את הקבצים עם השמות והתיקיות המקוריים — גם קבצים מפוצלים.'))}
+        <button class="btn btn-primary" id="btn-scan-rebuilt">${Icon.search}<span>${t('סריקה עם שמות ותיקיות')}</span></button>
+      </div>` : ''}
+
       ${(s.warnings || []).length ? notesHtml(s.warnings.map(esc)) : ''}
 
       <div class="results-grid">
@@ -110,6 +116,13 @@ async function renderResults() {
   el('btn-recover').onclick = openRecoverPanel;
   el('btn-save-scan').onclick = saveScanAs;
   if (el('btn-resume-scan')) el('btn-resume-scan').onclick = () => resumeScan(null, s.partition);
+  if (el('btn-scan-rebuilt')) el('btn-scan-rebuilt').onclick = () => {
+    // הכונן המעודכן מהסריקה — בו המחיצה כבר מוצגת כ-NTFS.
+    const { disk, part } = s.rebuilt[0];
+    const i = State.disks.findIndex((d) => d.number === disk.number);
+    if (i >= 0) State.disks[i] = disk;
+    startScan(disk, disk.partitions.find((p) => p.index === part), 2, true);
+  };
   FileList.attach();
   updateRecoverBar();
 

@@ -502,6 +502,8 @@ internal sealed partial class Bridge
 
         _session = Session(result);
         var session = _session;
+        _scanRebuilt = AttachRebuilt(disk, offset, result);
+        _scanRebuiltFor = result;
 
         // סריקה שנעצרה עם נקודת המשך נשמרת מיד — כדי שאפשר יהיה להמשיך גם אחרי סגירת התוכנה.
         bool resumable = result.Resume is not null;
@@ -514,6 +516,47 @@ internal sealed partial class Bridge
         return paused
             ? new { paused = true, disconnected = result.Disconnected, percent = result.Resume!.Percent, files = result.Files.Count }
             : Summary();
+    }
+
+    /// <summary>המחיצות שהסריקה האחרונה בנתה מחדש: הכונן והמחיצה, לכפתור "סריקה עם שמות".</summary>
+    private List<(int Disk, int Part)> _scanRebuilt = new();
+    private ScanResult? _scanRebuiltFor;
+
+    /// <summary>
+    /// סריקה מתקדמת שמצאה בדרך את טבלת הקבצים של מחיצת NTFS שמגזר האתחול שלה אבד:
+    /// המחיצה נפתחת דרך מגזר שחושב (בזיכרון בלבד) — במקומה, אם זה האזור שנסרק, ואחרת
+    /// כמחיצה שנמצאה.
+    /// </summary>
+    private List<(int Disk, int Part)> AttachRebuilt(PhysicalDiskInfo disk, long offset, ScanResult result)
+    {
+        var attached = new List<(int, int)>();
+        if (result.RebuiltNtfs.Count == 0) return attached;
+
+        var found = _found.TryGetValue(disk.DiskNumber, out var list) ? list : _found[disk.DiskNumber] = new();
+        foreach (var relative in result.RebuiltNtfs)
+        {
+            var r = relative with { Offset = offset + relative.Offset };
+            VirtualRepair.ApplyRebuilt(disk.DiskNumber, r);
+            _rebuilt.Add((disk.DiskNumber, r.Offset));
+
+            var listed = disk.Partitions.FirstOrDefault(x => x.OffsetBytes == r.Offset && x.Index < FoundIndexBase);
+            if (listed is not null)
+            {
+                _readThrough[(disk.DiskNumber, r.Offset)] = FileSystemKind.Ntfs;
+                attached.Add((disk.DiskNumber, listed.Index));
+                continue;
+            }
+
+            found.RemoveAll(f => f.Offset == r.Offset);
+            found.Add(new FoundPartition { Offset = r.Offset, Size = r.Size, FileSystem = FileSystemKind.Ntfs, Rebuilt = r });
+        }
+
+        ApplyReadThrough(disk);
+        AttachFound(disk);
+        foreach (var r in result.RebuiltNtfs)
+            if (disk.Partitions.FirstOrDefault(x => x.OffsetBytes == offset + r.Offset && x.Index >= FoundIndexBase) is { } p)
+                attached.Add((disk.DiskNumber, p.Index));
+        return attached;
     }
 
     /// <summary>מפת הסקטורים לממשק: תו לכל ריבוע, הריבוע שהמעבר נמצא בו, וגודל האזור.</summary>
@@ -549,6 +592,10 @@ internal sealed partial class Bridge
             partial = session.Partial,
             resumePercent = session.Offline ? (double?)null : result.Resume?.Percent,
             selection = SelectionDto(session.Summary(null)),
+            // טבלת קבצים שנמצאה בסריקה מתקדמת — הכונן המעודכן, כדי שהממשק יוכל לסרוק אותה מיד.
+            rebuilt = ReferenceEquals(session.Result, _scanRebuiltFor)
+                ? _scanRebuilt.Select(x => new { disk = DiskDto(FindDisk(x.Disk)), part = x.Part }).ToArray()
+                : Array.Empty<object>(),
         };
     }
 
