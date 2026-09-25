@@ -253,7 +253,8 @@ async function rebuildVideo(path) {
 
 /// תמונה שתחילתה נהרסה: תמונת ייחוס מאותה מצלמה, תיקיית יעד, ובנייה.
 async function rebuildPhoto(path) {
-  const ref = await Bridge.call('doctor.pickReference', { kind: 'photo' }, 0);
+  const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1) : '';
+  const ref = await Bridge.call('doctor.pickReference', { kind: 'photo', ext }, 0);
   if (!ref.path) return;
   if (ref.problem) {
     const row = document.querySelector(`[data-rebuild-photo="${CSS.escape(path)}"]`)?.closest('.doc-row');
@@ -289,7 +290,9 @@ async function rebuildPhoto(path) {
       ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
     </div></div>
-    <p class="doc-hint">${t('התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.')}</p>`;
+    <p class="doc-hint">${ext.toLowerCase() === 'jpg' || ext.toLowerCase() === 'jpeg'
+      ? t('התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.')
+      : t('הקובץ המקורי לא שונה. פתחו את הקובץ המתוקן בתוכנת העריכה שלכם כדי לוודא שהוא נפתח.')}</p>`;
 
   el('doctor-foot').innerHTML = `
     ${r.folder ? `<button class="btn btn-primary" id="btn-doctor-open">${Icon.folder}<span>${t('פתיחת התיקייה')}</span></button>` : ''}

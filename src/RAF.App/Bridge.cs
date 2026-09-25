@@ -1751,16 +1751,18 @@ internal sealed partial class Bridge
     private object PickReference(JsonObject? p)
     {
         bool photo = p?["kind"]?.GetValue<string>() == "photo";
+        string ext = (p?["ext"]?.GetValue<string>() ?? "").TrimStart('.').ToLowerInvariant();
+        bool raw = photo && RAF.Core.Repair.TiffTransplant.RawExtensions.Contains(ext);
         string? selected = null;
         _form.InvokeOnUiSync(() =>
         {
             using var dialog = new OpenFileDialog
             {
-                Title = photo
-                    ? L.T("בחרו תמונה תקינה שצולמה באותה מצלמה ובאותן הגדרות")
+                Title = raw ? L.T("בחרו קובץ RAW תקין שצולם באותה מצלמה ובאותן הגדרות")
+                    : photo ? L.T("בחרו תמונה תקינה שצולמה באותה מצלמה ובאותן הגדרות")
                     : L.T("בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות"),
-                Filter = photo
-                    ? L.T("תמונות JPEG|*.jpg;*.jpeg|כל הקבצים|*.*")
+                Filter = raw ? L.T("קובצי {0}|*.{1}|כל הקבצים|*.*", ext.ToUpperInvariant(), ext)
+                    : photo ? L.T("תמונות JPEG|*.jpg;*.jpeg|כל הקבצים|*.*")
                     : L.T("סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*"),
                 CheckFileExists = true,
             };
@@ -1772,8 +1774,8 @@ internal sealed partial class Bridge
         string? problem = null;
         try
         {
-            problem = photo
-                ? RAF.Core.Repair.JpegTransplant.DescribeReference(selected)
+            problem = raw ? RAF.Core.Repair.TiffTransplant.DescribeReference(selected)
+                : photo ? RAF.Core.Repair.JpegTransplant.DescribeReference(selected)
                 : RAF.Core.Repair.Mp4Rebuilder.DescribeReference(selected);
         }
         catch (Exception ex)

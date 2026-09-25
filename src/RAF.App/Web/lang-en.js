@@ -937,6 +937,8 @@ Object.assign(EN, {
     'The photo wasn\'t repaired',
   'התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.':
     'The original photo wasn\'t changed. If the colors or brightness look different from usual, the camera probably changes its compression tables from photo to photo — try another sample photo, preferably one taken close to the damaged photo.',
+  'הקובץ המקורי לא שונה. פתחו את הקובץ המתוקן בתוכנת העריכה שלכם כדי לוודא שהוא נפתח.':
+    'The original file wasn\'t changed. Open the repaired file in your editing program to make sure it opens.',
   'צריך סרטון לדוגמה':
     'Needs a sample video',
   'לא ניתן לתקן':

@@ -61,6 +61,9 @@ public enum FileIssueKind
 
     /// <summary>תחילת התמונה (הטבלאות והמידות) נהרסה והנתונים שרדו. נבנית מחדש בעזרת תמונה תקינה מאותה מצלמה.</summary>
     PhotoHeaderLost,
+
+    /// <summary>תחילת קובץ RAW (רשימת התגיות) נהרסה והנתונים שרדו. נבנית מחדש בעזרת קובץ תקין מאותה מצלמה.</summary>
+    RawHeaderLost,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -90,7 +93,7 @@ public sealed class FileDiagnosis
     public bool NeedsReferenceVideo => Issues.Any(i => i.Kind == FileIssueKind.VideoIndexMissing);
 
     /// <summary>התיקון דורש תמונה תקינה מאותה מצלמה — ראו JpegTransplant.</summary>
-    public bool NeedsReferencePhoto => Issues.Any(i => i.Kind == FileIssueKind.PhotoHeaderLost);
+    public bool NeedsReferencePhoto => Issues.Any(i => i.Kind is FileIssueKind.PhotoHeaderLost or FileIssueKind.RawHeaderLost);
 
     // ---- נתונים פנימיים לשלב התיקון ----
     internal FileSignature? Format { get; init; }
@@ -208,6 +211,12 @@ public static class FileDoctor
             {
                 issues.Add(PhotoHeaderLost(survived));
             }
+            else if (TiffTransplant.RawExtensions.Contains(extension) && size <= TiffTransplant.MaxSize
+                     && !TiffTransplant.FirstIfdReadable(volume.ReadAt(0, 65536), size)
+                     && TiffTransplant.LostHeader(File.ReadAllBytes(path)))
+            {
+                issues.Add(RawHeaderLost());
+            }
             else
             {
                 issues.Add(new FileIssue(FileIssueKind.Unrecognized,
@@ -221,6 +230,22 @@ public static class FileDoctor
             issues.Add(new FileIssue(FileIssueKind.ExtensionMismatch,
                 L.T("התוכן הוא {0}, אך הסיומת היא .{1}. " +
                 "הסיומת הנכונה היא .{2}.", L.T(detected.Name), (extension.Length > 0 ? extension : L.T("(ללא)")), suggestedExtension), true));
+        }
+
+        // ---------------------------------------------- קובץ RAW: הרשימה הראשונה
+        // החתימה שלמה (או שוחזרה), אבל הרשימה שאחריה, שמצביעה לכל חלקי הקובץ, נהרסה.
+        if (format is not null && format.Structure == "tif" && TiffTransplant.RawExtensions.Contains(extension)
+            && size <= TiffTransplant.MaxSize && !issues.Any(i => i.Kind == FileIssueKind.RawHeaderLost))
+        {
+            // קודם תחילת הקובץ בלבד — קובץ תקין לא נקרא כולו.
+            byte[] start = volume.ReadAt(0, 65536);
+            if (detected is null) RestoreHeader(start, format);
+            if (!TiffTransplant.FirstIfdReadable(start, size))
+            {
+                byte[] all = File.ReadAllBytes(path);
+                if (detected is null) RestoreHeader(all, format);
+                if (TiffTransplant.LostHeader(all)) issues.Add(RawHeaderLost());
+            }
         }
 
         // ---------------------------------------------- סמן JPEG
@@ -522,6 +547,11 @@ public static class FileDoctor
         L.T("נתוני התמונה עצמם שרדו (⁦{0}⁩). אפשר לבנות את התחילה מחדש בעזרת תמונה תקינה אחת " +
         "שצולמה באותה מצלמה ובאותן הגדרות.", Size(survived)), false);
 
+    private static FileIssue RawHeaderLost() => new(FileIssueKind.RawHeaderLost,
+        L.T("תחילת קובץ ה-RAW נהרסה: הרשימה שאומרת היכן נמצאים נתוני החיישן והתצוגה המקדימה אבדה, ולכן תוכנות " +
+        "עריכה לא פותחות אותו, אף שהנתונים עצמם בקובץ. אפשר לבנות את התחילה מחדש בעזרת קובץ RAW תקין אחד " +
+        "שצולם באותה מצלמה ובאותן הגדרות."), false);
+
     private static byte[] UInt32(long value)
     {
         byte[] b = new byte[4];
@@ -651,7 +681,9 @@ public static class FileDoctor
     public static FileRepairResult RepairPhoto(string path, string referencePath, string outputFolder)
     {
         Directory.CreateDirectory(outputFolder);
-        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)), "jpg");
+        string extension = System.IO.Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+        bool raw = TiffTransplant.RawExtensions.Contains(extension);
+        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)), raw ? extension : "jpg");
 
         if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
             return new FileRepairResult { Message = L.T("נתיב היעד זהה לקובץ המקורי. התיקון בוטל.") };
@@ -659,7 +691,9 @@ public static class FileDoctor
         PhotoRebuildResult rebuilt;
         try
         {
-            rebuilt = JpegTransplant.Rebuild(path, referencePath, output);
+            rebuilt = raw
+                ? TiffTransplant.Rebuild(path, referencePath, output)
+                : JpegTransplant.Rebuild(path, referencePath, output);
         }
         catch
         {

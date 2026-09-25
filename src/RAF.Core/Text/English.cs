@@ -987,6 +987,28 @@ internal static class EnglishTexts
             "the restart interval",
         ["כל הכותרת (טבלאות, מידות והגדרות)"] =
             "the whole header (tables, dimensions and settings)",
+        ["בחרו קובץ RAW תקין שצולם באותה מצלמה ובאותן הגדרות"] =
+            "Choose a working RAW file shot with the same camera and the same settings",
+        ["קובצי {0}|*.{1}|כל הקבצים|*.*"] =
+            "{0} files|*.{1}|All files|*.*",
+        ["תחילת קובץ ה-RAW נהרסה: הרשימה שאומרת היכן נמצאים נתוני החיישן והתצוגה המקדימה אבדה, ולכן תוכנות עריכה לא פותחות אותו, אף שהנתונים עצמם בקובץ. אפשר לבנות את התחילה מחדש בעזרת קובץ RAW תקין אחד שצולם באותה מצלמה ובאותן הגדרות."] =
+            "The beginning of the RAW file is destroyed: the list that says where the sensor data and the preview are is lost, so editing programs won't open it, although the data itself is in the file. The beginning can be rebuilt using one working RAW file shot with the same camera and the same settings.",
+        ["קובץ הדוגמה גדול מדי."] =
+            "The sample file is too large.",
+        ["קובץ הדוגמה אינו קובץ RAW תקין. בחרו קובץ RAW תקין שצולם באותה מצלמה."] =
+            "The sample file is not a working RAW file. Choose a working RAW file shot with the same camera.",
+        ["קובץ הדוגמה הוא הקובץ הפגום עצמו. בחרו קובץ תקין אחר מאותה מצלמה."] =
+            "The sample file is the damaged file itself. Choose another working file from the same camera.",
+        ["הקובץ גדול מדי לבנייה מחדש."] =
+            "The file is too large to rebuild.",
+        ["מקובץ הדוגמה נלקחו {0} הבתים הראשונים: רשימות התגיות שנהרסו. מיקומי התצוגה המקדימה ונתוני החיישן ואורכיהם תוקנו לפי הקובץ עצמו, והשאר נשאר של הקובץ עצמו."] =
+            "The first {0} bytes were taken from the sample file: the tag lists that were destroyed. The positions and lengths of the preview and the sensor data were corrected to match the file itself, and the rest remains the file's own.",
+        ["פרטי הצילום (תאריך, חשיפה, איזון לבן) נלקחו מקובץ הדוגמה, כי אלה של הקובץ נדרסו. אם הצבעים נראים שונים, כוונו את איזון הלבן בתוכנת העריכה. אם הקובץ לא נפתח, קובץ הדוגמה צולם כנראה בהגדרת דחיסה אחרת (למשל בניקון: דחיסה ללא אובדן מול דחיסה רגילה) — נסו קובץ דוגמה אחר."] =
+            "The shooting details (date, exposure, white balance) were taken from the sample file, because the file's own were overwritten. If the colors look different, adjust the white balance in your editing program. If the file doesn't open, the sample was probably shot with a different compression setting (for example on Nikon: lossless versus regular compression) — try another sample file.",
+        ["תחילת הקובץ נבנתה מחדש, וכל החלקים שלו נמצאו במקומם."] =
+            "The beginning of the file was rebuilt, and all its parts were found in place.",
+        ["קובץ הדוגמה אינו מתאים לקובץ הפגום: המבנה שלו שונה, או שחלקים מהקובץ הפגום לא נמצאו. בחרו קובץ שצולם באותה מצלמה ובאותן הגדרות (סוג ה-RAW, גודלו ועומק הצבע). אם יש כמה, נסו קובץ אחר."] =
+            "The sample file doesn't match the damaged file: its structure is different, or parts of the damaged file weren't found. Choose a file shot with the same camera and the same settings (RAW type, size and bit depth). If you have several, try another one.",
         ["הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."] =
             "The video got a new index and was checked again — it should open and play.",
         ["האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: "] =
