@@ -46,6 +46,8 @@ internal sealed class FreeSpaceMap
             FileSystems.Ext.ExtVolume ext => (ext.Super.FirstDataBlock, ext.Super.BlocksCount - 1),
             FileSystems.Xfs.XfsVolume xfs => (0, xfs.TotalBlocks - 1),
             FileSystems.Btrfs.BtrfsVolume btrfs => (0, btrfs.Length / btrfs.SectorSize - 1),
+            FileSystems.Hfs.HfsVolume hfs => (0, hfs.TotalBlocks - 1),
+            FileSystems.Apfs.ApfsVolume apfs => (0, apfs.BlockCount - 1),
             _ => (-1, -1),
         };
         if (first < 0 || last < first) return null;

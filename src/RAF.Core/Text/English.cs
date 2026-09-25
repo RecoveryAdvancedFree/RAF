@@ -1264,6 +1264,23 @@ internal static class EnglishTexts
         ["מערך {0} בלי כותרת (של כרטיס RAID), שהתוכנה זיהתה והרכיבה מ-{1} כוננים: רצועה של {2}KB. הקריאה בלבד — שום דבר לא נכתב לכוננים."] =
             "{0} array without a header (from a RAID card), detected and assembled by the program from {1} drives: {2}KB stripe. Read-only — nothing is written to the drives.",
 
+        // מק
+        ["המחיצה אינה מכולת APFS תקינה, או שהכותרת שלה פגומה."] = "The partition isn't a valid APFS container, or its header is damaged.",
+        ["הכרך \"{0}\" מוצפן (FileVault, או מק עם שבב אבטחה של Apple). בלי המפתח של המחשב הזה אין דרך לקרוא אותו."] =
+            "The volume \"{0}\" is encrypted (FileVault, or a Mac with an Apple security chip). Without that computer's key there's no way to read it.",
+        ["קורא את הכרך {0}"] = "Reading the volume {0}",
+        ["קבצים שנמחקו מ-APFS נמצאים רק בסריקה עמוקה: היא עוברת על כל הכונן ומחפשת עותקים ישנים של הרשומות."] =
+            "Deleted files on APFS are found only by a Deep scan: it goes over the whole drive looking for old copies of the records.",
+        ["הקובץ דחוס בדחיסה של macOS (בדרך כלל קובצי מערכת ותוכנות), שעוד לא נתמכת."] =
+            "The file uses macOS compression (usually system files and apps), which isn't supported yet.",
+        ["נמצאו נתונים, והמקום שהקובץ תפס לא משמש קובץ קיים. {0}"] = "Data was found, and the space the file occupied isn't used by an existing file. {0}",
+        ["המחיצה אינה HFS+ תקינה, או שהכותרת שלה פגומה."] = "The partition isn't a valid HFS+, or its header is damaged.",
+        ["הקטלוג של המחיצה אינו נקרא."] = "The partition's catalog can't be read.",
+        ["קורא את הקטלוג"] = "Reading the catalog",
+        ["מחפש קבצים שנמחקו בקטלוג ובעותקים הישנים של הרשומות"] = "Looking for deleted files in the catalog and in old copies of the records",
+        ["{0} קבצים שנמחקו נמצאו ברשומות ישנות שנשארו בקטלוג וביומן של מערכת הקבצים."] =
+            "{0} deleted files were found in old records left in the file system's catalog and journal.",
+
         // btrfs
         ["מיקום התוכן פגום."] = "The content location is damaged.",
         ["לא ניתן היה לקרוא את התוכן מהכונן."] = "The content couldn't be read from the drive.",

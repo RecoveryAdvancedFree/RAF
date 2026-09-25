@@ -28,7 +28,9 @@ public static class VolumeScanner
         or FileSystemKind.Fat12
         or FileSystemKind.Ext
         or FileSystemKind.Xfs
-        or FileSystemKind.Btrfs;
+        or FileSystemKind.Btrfs
+        or FileSystemKind.Hfs
+        or FileSystemKind.Apfs;
 
     /// <summary>
     /// סריקת מחיצה במנוע המתאים לה. checkpoint מקבל נקודות ביניים — כרגע רק
@@ -128,6 +130,14 @@ public static class VolumeScanner
                 diskNumber, partitionOffset, partitionSize, sectorSize,
                 mode, includeExisting, trim, progress, token),
 
+            FileSystemKind.Apfs => Apfs.ApfsScanner.ScanAsync(
+                diskNumber, partitionOffset, partitionSize, sectorSize,
+                mode, includeExisting, trim, progress, token),
+
+            FileSystemKind.Hfs => Hfs.HfsScanner.ScanAsync(
+                diskNumber, partitionOffset, partitionSize, sectorSize,
+                mode, includeExisting, trim, progress, token),
+
             FileSystemKind.Btrfs => Btrfs.BtrfsScanner.ScanAsync(
                 diskNumber, partitionOffset, partitionSize, sectorSize,
                 mode, includeExisting, trim, progress, token),
@@ -156,6 +166,8 @@ public static class VolumeScanner
         FileSystemKind.Ext => ExtVolume.Open(reader),
         FileSystemKind.Xfs => XfsVolume.Open(reader),
         FileSystemKind.Btrfs => FileSystems.Btrfs.BtrfsVolume.Open(reader),
+        FileSystemKind.Hfs => FileSystems.Hfs.HfsVolume.Open(reader),
+        FileSystemKind.Apfs => FileSystems.Apfs.ApfsVolume.Open(reader),
         _ => null,
     };
 }

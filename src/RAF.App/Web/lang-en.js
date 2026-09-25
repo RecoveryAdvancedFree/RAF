@@ -593,8 +593,8 @@ Object.assign(EN, {
   'האזור לא נפתח': 'The volume didn\'t open',
   '<b>סריקה מתקדמת</b> עדיין תעבוד — היא אינה תלויה במערכת הקבצים.':
     'An <b>Advanced scan</b> will still work — it doesn\'t depend on the file system.',
-  'נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4, XFS ו-btrfs.':
-    'Supported: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4, XFS and btrfs.',
+  'נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4, XFS, btrfs, HFS+ ו-APFS.':
+    'Supported: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4, XFS, btrfs, HFS+ and APFS.',
   'המחיצה נקראת דרך עותק הגיבוי':
     'The partition is read through its backup copy',
   'בחרו <b>סריקה מהירה</b> — יוצגו כל הקבצים עם השמות, ולא רק קבצים שנמחקו.':
