@@ -1751,6 +1751,7 @@ internal sealed partial class Bridge
     private object PickReference(JsonObject? p)
     {
         bool photo = p?["kind"]?.GetValue<string>() == "photo";
+        bool database = p?["kind"]?.GetValue<string>() == "database";
         string ext = (p?["ext"]?.GetValue<string>() ?? "").TrimStart('.').ToLowerInvariant();
         bool raw = photo && RAF.Core.Repair.TiffTransplant.RawExtensions.Contains(ext);
         string? selected = null;
@@ -1758,10 +1759,12 @@ internal sealed partial class Bridge
         {
             using var dialog = new OpenFileDialog
             {
-                Title = raw ? L.T("בחרו קובץ RAW תקין שצולם באותה מצלמה ובאותן הגדרות")
+                Title = database ? L.T("בחרו מסד נתונים תקין של אותה אפליקציה")
+                    : raw ? L.T("בחרו קובץ RAW תקין שצולם באותה מצלמה ובאותן הגדרות")
                     : photo ? L.T("בחרו תמונה תקינה שצולמה באותה מצלמה ובאותן הגדרות")
                     : L.T("בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות"),
-                Filter = raw ? L.T("קובצי {0}|*.{1}|כל הקבצים|*.*", ext.ToUpperInvariant(), ext)
+                Filter = database ? L.T("מסדי נתונים|*.db;*.sqlite;*.sqlite3|כל הקבצים|*.*")
+                    : raw ? L.T("קובצי {0}|*.{1}|כל הקבצים|*.*", ext.ToUpperInvariant(), ext)
                     : photo ? L.T("תמונות JPEG|*.jpg;*.jpeg|כל הקבצים|*.*")
                     : L.T("סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*"),
                 CheckFileExists = true,
@@ -1774,7 +1777,8 @@ internal sealed partial class Bridge
         string? problem = null;
         try
         {
-            problem = raw ? RAF.Core.Repair.TiffTransplant.DescribeReference(selected)
+            problem = database ? RAF.Core.Repair.SqliteTransplant.DescribeReference(selected)
+                : raw ? RAF.Core.Repair.TiffTransplant.DescribeReference(selected)
                 : photo ? RAF.Core.Repair.JpegTransplant.DescribeReference(selected)
                 : RAF.Core.Repair.Mp4Rebuilder.DescribeReference(selected);
         }
@@ -1849,8 +1853,8 @@ internal sealed partial class Bridge
                 path, Path.GetFileName(path), d.Size, d.IsHealthy, d.CanRepair,
                 d.DetectedFormat, d.ExpectedFormat, d.SuggestedExtension,
                 d.Issues.Select(i => new IssueView(i.Kind.ToString(), i.Description, i.Fixable)).ToList(),
-                d.NeedsReferenceVideo || d.NeedsReferencePhoto,
-                d.NeedsReferencePhoto ? "photo" : d.NeedsReferenceVideo ? "video" : null);
+                d.NeedsReferenceVideo || d.NeedsReferencePhoto || d.NeedsReferenceDatabase,
+                d.NeedsReferencePhoto ? "photo" : d.NeedsReferenceDatabase ? "database" : d.NeedsReferenceVideo ? "video" : null);
         }
         catch (Exception ex)
         {

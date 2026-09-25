@@ -105,17 +105,19 @@ function renderDoctorList() {
   const fixable = files.filter((f) => !f.healthy && f.canRepair);
   const videos = files.filter((f) => f.referenceKind === 'video');
   const photos = files.filter((f) => f.referenceKind === 'photo');
-  const hopeless = files.length - healthy - fixable.length - [...videos, ...photos].filter((f) => !f.canRepair).length;
+  const databases = files.filter((f) => f.referenceKind === 'database');
+  const hopeless = files.length - healthy - fixable.length - [...videos, ...photos, ...databases].filter((f) => !f.canRepair).length;
 
   const rows = files.map((f) => {
     const [cls, label] = f.healthy ? ['ok', 'תקין']                                  // מתורגם בהצגה
       : f.canRepair ? ['warn', 'ניתן לתקן']                                              // מתורגם בהצגה
       : f.referenceKind === 'video' ? ['warn', 'צריך סרטון לדוגמה']                      // מתורגם בהצגה
-      : f.referenceKind === 'photo' ? ['warn', 'צריך תמונה לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
+      : f.referenceKind === 'photo' ? ['warn', 'צריך תמונה לדוגמה']                      // מתורגם בהצגה
+      : f.referenceKind === 'database' ? ['warn', 'צריך מסד לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
 
     const issues = f.issues.length
       ? `<ul class="doc-issues">${f.issues.map((i) =>
-          `<li class="${i.fixable || i.kind === 'VideoIndexMissing' || i.kind === 'PhotoHeaderLost' ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
+          `<li class="${i.fixable || ['VideoIndexMissing', 'PhotoHeaderLost', 'RawHeaderLost', 'DatabaseSchemaLost'].includes(i.kind) ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
       : '';
 
     return `
@@ -131,6 +133,8 @@ function renderDoctorList() {
           <button class="btn btn-sm doc-action" data-rebuild="${esc(f.path)}">${Icon.play}<span>${t('בחירת סרטון תקין מאותו מכשיר…')}</span></button>` : ''}
         ${f.referenceKind === 'photo' ? `
           <button class="btn btn-sm doc-action" data-rebuild-photo="${esc(f.path)}">${Icon.wrench}<span>${t('בחירת תמונה תקינה מאותה מצלמה…')}</span></button>` : ''}
+        ${f.referenceKind === 'database' ? `
+          <button class="btn btn-sm doc-action" data-rebuild-photo="${esc(f.path)}" data-kind="database">${Icon.wrench}<span>${t('בחירת מסד תקין של אותה אפליקציה…')}</span></button>` : ''}
       </div>`;
   }).join('');
 
@@ -143,6 +147,8 @@ function renderDoctorList() {
       <span><b>${videos.length}</b> ${plural(videos.length, 'סרטון שצריך סרטון לדוגמה', 'סרטונים שצריכים סרטון לדוגמה')}</span>` : ''}
       ${photos.length ? `<span class="sep">·</span>
       <span><b>${photos.length}</b> ${plural(photos.length, 'תמונה שצריכה תמונה לדוגמה', 'תמונות שצריכות תמונה לדוגמה')}</span>` : ''}
+      ${databases.length ? `<span class="sep">·</span>
+      <span><b>${databases.length}</b> ${plural(databases.length, 'מסד שצריך מסד לדוגמה', 'מסדים שצריכים מסד לדוגמה')}</span>` : ''}
       <span class="sep">·</span>
       <span><b class="danger-text">${hopeless}</b> ${t('לא ניתנים לתיקון')}</span>
     </div>
@@ -159,7 +165,7 @@ function renderDoctorList() {
     b.onclick = () => rebuildVideo(b.dataset.rebuild);
   });
   document.querySelectorAll('[data-rebuild-photo]').forEach((b) => {
-    b.onclick = () => rebuildPhoto(b.dataset.rebuildPhoto);
+    b.onclick = () => rebuildPhoto(b.dataset.rebuildPhoto, b.dataset.kind || 'photo');
   });
   el('btn-doctor-more').onclick = pickDoctorFiles;
   el('btn-doctor-close').onclick = closePanel;
@@ -252,9 +258,10 @@ async function rebuildVideo(path) {
 }
 
 /// תמונה שתחילתה נהרסה: תמונת ייחוס מאותה מצלמה, תיקיית יעד, ובנייה.
-async function rebuildPhoto(path) {
+async function rebuildPhoto(path, kind) {
   const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1) : '';
-  const ref = await Bridge.call('doctor.pickReference', { kind: 'photo', ext }, 0);
+  const database = kind === 'database';
+  const ref = await Bridge.call('doctor.pickReference', { kind, ext }, 0);
   if (!ref.path) return;
   if (ref.problem) {
     const row = document.querySelector(`[data-rebuild-photo="${CSS.escape(path)}"]`)?.closest('.doc-row');
@@ -268,14 +275,14 @@ async function rebuildPhoto(path) {
 
   el('doctor-body').innerHTML = `
     <div class="loading" style="height:200px"><div class="spinner"></div>
-      <p>${t('בונה מחדש את תחילת התמונה…')}</p></div>`;
+      <p>${t(database ? 'משחזר את המסד — טבלה אחר טבלה…' : 'בונה מחדש את תחילת התמונה…')}</p></div>`;
   el('doctor-foot').innerHTML = '';
 
   let r;
   try {
     r = await Bridge.call('doctor.rebuildPhoto', { path, reference: ref.path, output }, 0);
   } catch (err) {
-    el('doctor-body').innerHTML = errorNotice(t('בניית התמונה לא הושלמה'), err);
+    el('doctor-body').innerHTML = errorNotice(t(database ? 'שחזור המסד לא הושלם' : 'בניית התמונה לא הושלמה'), err);
     el('doctor-foot').innerHTML = `<button class="btn" id="btn-doctor-back">${t('חזרה לרשימה')}</button>`;
     el('btn-doctor-back').onclick = renderDoctorList;
     return;
@@ -283,14 +290,16 @@ async function rebuildPhoto(path) {
 
   el('doctor-body').innerHTML = `
     ${r.succeeded
-      ? notice('ok-notice', Icon.check, t('התמונה תוקנה'), esc(r.message))
-      : notice(r.output ? 'warn' : 'danger', Icon.alert, t(r.output ? 'התמונה תוקנה חלקית' : 'התמונה לא תוקנה'), esc(r.message))}
+      ? notice('ok-notice', Icon.check, t(database ? 'המסד שוחזר' : 'התמונה תוקנה'), esc(r.message))
+      : notice(r.output ? 'warn' : 'danger', Icon.alert, t(database ? (r.output ? 'המסד שוחזר חלקית' : 'המסד לא שוחזר')
+          : (r.output ? 'התמונה תוקנה חלקית' : 'התמונה לא תוקנה')), esc(r.message))}
     <div class="doc-list"><div class="doc-row">
       <div class="doc-top"><span class="doc-name"><bdi>${esc(r.name)}</bdi></span></div>
       ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
     </div></div>
-    <p class="doc-hint">${ext.toLowerCase() === 'jpg' || ext.toLowerCase() === 'jpeg'
+    <p class="doc-hint">${database ? t('המסד המקורי לא שונה. המסד המשוחזר נבנה מחדש במנוע SQLite ועבר את בדיקת השלמות שלו.')
+      : ext.toLowerCase() === 'jpg' || ext.toLowerCase() === 'jpeg'
       ? t('התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.')
       : t('הקובץ המקורי לא שונה. פתחו את הקובץ המתוקן בתוכנת העריכה שלכם כדי לוודא שהוא נפתח.')}</p>`;
 

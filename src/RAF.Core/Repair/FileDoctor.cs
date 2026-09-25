@@ -64,6 +64,9 @@ public enum FileIssueKind
 
     /// <summary>תחילת קובץ RAW (רשימת התגיות) נהרסה והנתונים שרדו. נבנית מחדש בעזרת קובץ תקין מאותה מצלמה.</summary>
     RawHeaderLost,
+
+    /// <summary>הדף הראשון של מסד SQLite (הכותרת ורשימת הטבלאות) נהרס. משוחזר בעזרת מסד תקין מאותה אפליקציה.</summary>
+    DatabaseSchemaLost,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -94,6 +97,9 @@ public sealed class FileDiagnosis
 
     /// <summary>התיקון דורש תמונה תקינה מאותה מצלמה — ראו JpegTransplant.</summary>
     public bool NeedsReferencePhoto => Issues.Any(i => i.Kind is FileIssueKind.PhotoHeaderLost or FileIssueKind.RawHeaderLost);
+
+    /// <summary>התיקון דורש מסד תקין מאותה אפליקציה — ראו SqliteTransplant.</summary>
+    public bool NeedsReferenceDatabase => Issues.Any(i => i.Kind == FileIssueKind.DatabaseSchemaLost);
 
     // ---- נתונים פנימיים לשלב התיקון ----
     internal FileSignature? Format { get; init; }
@@ -210,6 +216,10 @@ public static class FileDoctor
                      && JpegTransplant.SurvivingData(File.ReadAllBytes(path), 0) is { } survived)
             {
                 issues.Add(PhotoHeaderLost(survived));
+            }
+            else if (expected.Structure == "db" && size <= SqliteTransplant.MaxSize && SqliteTransplant.LostSchema(head, read, size))
+            {
+                issues.Add(DatabaseSchemaLost());
             }
             else if (TiffTransplant.RawExtensions.Contains(extension) && size <= TiffTransplant.MaxSize
                      && !TiffTransplant.FirstIfdReadable(volume.ReadAt(0, 65536), size)
@@ -378,7 +388,10 @@ public static class FileDoctor
         if (format is not null && format.Structure == "db")
         {
             byte[] restored = detected is null ? WithHeader(head, format) : head;
-            if (SqliteHeader.Check(restored, read, size) is { } sqlite)
+            // הדף הראשון נהרס כולו — לא רק הכותרת, אלא גם רשימת הטבלאות.
+            if (size <= SqliteTransplant.MaxSize && SqliteTransplant.LostSchema(restored, read, size))
+                issues.Add(DatabaseSchemaLost());
+            else if (SqliteHeader.Check(restored, read, size) is { } sqlite)
             {
                 if (sqlite.Patch is not null) patches.Add((16, sqlite.Patch));
                 issues.Add(new FileIssue(FileIssueKind.HeaderDamaged, sqlite.Problem, sqlite.Patch is not null));
@@ -547,6 +560,11 @@ public static class FileDoctor
         L.T("נתוני התמונה עצמם שרדו (⁦{0}⁩). אפשר לבנות את התחילה מחדש בעזרת תמונה תקינה אחת " +
         "שצולמה באותה מצלמה ובאותן הגדרות.", Size(survived)), false);
 
+    private static FileIssue DatabaseSchemaLost() => new(FileIssueKind.DatabaseSchemaLost,
+        L.T("הדף הראשון של מסד הנתונים נהרס: הכותרת ורשימת הטבלאות — מה שאומר איזה נתון שייך לאיזו טבלה — " +
+        "אבדו, ולכן המסד לא נפתח. שאר הדפים, עם השורות עצמן, נמצאים בקובץ. אפשר לשחזר את המסד בעזרת מסד תקין " +
+        "של אותה אפליקציה (למשל גיבוי ישן, או מסד ממכשיר אחר)."), false);
+
     private static FileIssue RawHeaderLost() => new(FileIssueKind.RawHeaderLost,
         L.T("תחילת קובץ ה-RAW נהרסה: הרשימה שאומרת היכן נמצאים נתוני החיישן והתצוגה המקדימה אבדה, ולכן תוכנות " +
         "עריכה לא פותחות אותו, אף שהנתונים עצמם בקובץ. אפשר לבנות את התחילה מחדש בעזרת קובץ RAW תקין אחד " +
@@ -683,7 +701,9 @@ public static class FileDoctor
         Directory.CreateDirectory(outputFolder);
         string extension = System.IO.Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
         bool raw = TiffTransplant.RawExtensions.Contains(extension);
-        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)), raw ? extension : "jpg");
+        bool database = FileSignatures.ForExtension(extension).FirstOrDefault()?.Structure == "db";
+        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)),
+            raw || database ? extension : "jpg");
 
         if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
             return new FileRepairResult { Message = L.T("נתיב היעד זהה לקובץ המקורי. התיקון בוטל.") };
@@ -691,8 +711,8 @@ public static class FileDoctor
         PhotoRebuildResult rebuilt;
         try
         {
-            rebuilt = raw
-                ? TiffTransplant.Rebuild(path, referencePath, output)
+            rebuilt = database ? SqliteTransplant.Rebuild(path, referencePath, output)
+                : raw ? TiffTransplant.Rebuild(path, referencePath, output)
                 : JpegTransplant.Rebuild(path, referencePath, output);
         }
         catch
@@ -712,7 +732,7 @@ public static class FileDoctor
             Applied = rebuilt.Applied,
             After = after,
             Message = after.IsHealthy
-                ? rebuilt.Message + L.T(" העותק נבדק מחדש — התמונה אמורה להיפתח.")
+                ? rebuilt.Message + (database ? "" : L.T(" העותק נבדק מחדש — התמונה אמורה להיפתח."))
                 : rebuilt.Message,
         };
     }

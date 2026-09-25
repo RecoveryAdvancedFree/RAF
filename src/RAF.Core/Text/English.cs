@@ -1009,6 +1009,40 @@ internal static class EnglishTexts
             "The beginning of the file was rebuilt, and all its parts were found in place.",
         ["קובץ הדוגמה אינו מתאים לקובץ הפגום: המבנה שלו שונה, או שחלקים מהקובץ הפגום לא נמצאו. בחרו קובץ שצולם באותה מצלמה ובאותן הגדרות (סוג ה-RAW, גודלו ועומק הצבע). אם יש כמה, נסו קובץ אחר."] =
             "The sample file doesn't match the damaged file: its structure is different, or parts of the damaged file weren't found. Choose a file shot with the same camera and the same settings (RAW type, size and bit depth). If you have several, try another one.",
+        ["בחרו מסד נתונים תקין של אותה אפליקציה"] =
+            "Choose a working database of the same app",
+        ["מסדי נתונים|*.db;*.sqlite;*.sqlite3|כל הקבצים|*.*"] =
+            "Databases|*.db;*.sqlite;*.sqlite3|All files|*.*",
+        ["הדף הראשון של מסד הנתונים נהרס: הכותרת ורשימת הטבלאות — מה שאומר איזה נתון שייך לאיזו טבלה — אבדו, ולכן המסד לא נפתח. שאר הדפים, עם השורות עצמן, נמצאים בקובץ. אפשר לשחזר את המסד בעזרת מסד תקין של אותה אפליקציה (למשל גיבוי ישן, או מסד ממכשיר אחר)."] =
+            "The first page of the database is destroyed: the header and the table list — what says which data belongs to which table — are lost, so the database won't open. The other pages, with the rows themselves, are in the file. The database can be restored using a working database of the same app (for example an old backup, or a database from another device).",
+        ["מסד הדוגמה עצמו פגום. בחרו מסד תקין."] =
+            "The sample database itself is damaged. Choose a working database.",
+        ["במסד הדוגמה אין טבלאות."] =
+            "The sample database has no tables.",
+        ["הקובץ שנבחר אינו מסד נתונים SQLite תקין."] =
+            "The selected file is not a working SQLite database.",
+        ["מסד הדוגמה הוא המסד הפגום עצמו. בחרו מסד תקין אחר מאותה אפליקציה."] =
+            "The sample database is the damaged database itself. Choose another working database from the same app.",
+        ["המסד גדול מדי לשחזור."] =
+            "The database is too large to restore.",
+        ["לא נמצאו במסד הפגום דפים של נתונים — גודל הדף שלו אינו ניתן לזיהוי."] =
+            "No data pages were found in the damaged database — its page size can't be identified.",
+        ["אף טבלה של מסד הדוגמה לא נמצאה במסד הפגום. בחרו מסד של אותה אפליקציה (ורצוי מאותה גרסה)."] =
+            "None of the sample database's tables were found in the damaged database. Choose a database of the same app (preferably the same version).",
+        ["רשימת הטבלאות ארוכה מדי כדי לבנות אותה מחדש."] =
+            "The table list is too long to rebuild.",
+        ["שוחזרו {0} טבלאות עם {1} שורות. הגדרות הטבלאות שלא שרדו נלקחו ממסד הדוגמה, והנתונים — מהמסד עצמו."] =
+            "{0} tables with {1} rows were restored. Table definitions that didn't survive were taken from the sample database, and the data from the database itself.",
+        ["{0} טבלאות לא נמצאו במסד הפגום ונוצרו ריקות: {1}."] =
+            "{0} tables weren't found in the damaged database and were created empty: {1}.",
+        ["{0} טבלאות נמצאו אבל לא ניתן היה לקרוא אותן (נתונים פגומים), והן ריקות: {1}."] =
+            "{0} tables were found but couldn't be read (damaged data), and are empty: {1}.",
+        ["{0} אינדקסים לא נבנו מחדש (הנתונים אינם מאפשרים אותם)."] =
+            "{0} indexes weren't rebuilt (the data doesn't allow them).",
+        ["המסד המשוחזר לא עבר את בדיקת השלמות של SQLite."] =
+            "The restored database didn't pass SQLite's integrity check.",
+        ["המסד שוחזר, ועבר את בדיקת השלמות של SQLite."] =
+            "The database was restored and passed SQLite's integrity check.",
         ["הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."] =
             "The video got a new index and was checked again — it should open and play.",
         ["האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: "] =

@@ -13,7 +13,7 @@ namespace RAF.Core.Repair;
 internal static class SqliteHeader
 {
     /// <summary>סוגי הדפים בעץ: פנימי ועלה, של טבלה ושל אינדקס.</summary>
-    private static bool IsTreePage(byte type) => type is 0x02 or 0x05 or 0x0A or 0x0D;
+    internal static bool IsTreePage(byte type) => type is 0x02 or 0x05 or 0x0A or 0x0D;
 
     /// <summary>גודל הדף כפי שהוא כתוב, או 0 כשהערך אינו חוקי.</summary>
     private static int DeclaredPageSize(ReadOnlySpan<byte> head)
@@ -59,36 +59,42 @@ internal static class SqliteHeader
     }
 
     /// <summary>
-    /// גודל הדף שבו החלק הגדול ביותר של גבולות הדפים נופל על תחילת עץ. 0 — אין גודל משכנע.
-    /// דפים שאינם עצים (רשימת דפים פנויים, המשך של רשומה ארוכה) קיימים גם במסד תקין,
-    /// ולכן לא נדרשת התאמה מלאה — אבל גודל קטן מדי נופל גם באמצע דפים, והיחס שלו נמוך.
+    /// גודל הדף שבו הכי הרבה דפים הם עצים תקינים. 0 — אין גודל משכנע.
+    ///
+    /// לא מספיק שהבית הראשון של הדף יהיה סוג של עץ: בקובץ קטן, גודל כפול מהאמיתי נופל רק
+    /// על חלק מהדפים ועלול לקבל יחס גבוה יותר במקרה. לכן נבדק כל דף עד הסוף — מספר התאים
+    /// וכל המצביעים לתאים. תאים נכתבים מסוף הדף, ולכן בגודל קטן מהאמיתי המצביעים חורגים
+    /// ממנו; בגודל גדול ממנו נבדקת רק חלק מהדפים. הגודל האמיתי הוא זה שהכי הרבה דפים תקינים בו.
     /// </summary>
-    private static int InferPageSize(Func<long, int, byte[]> read, long size)
+    internal static int InferPageSize(Func<long, int, byte[]> read, long size)
     {
-        int best = 0;
-        double bestRatio = 0;
-
+        int best = 0, bestCount = 0;
         for (int candidate = 512; candidate <= 65536; candidate <<= 1)
         {
             if (candidate >= size) break;
-
-            long pages = Math.Min(size / candidate, 64);
-            int hits = 0, samples = 0;
-            for (long page = 1; page < pages; page++)
-            {
-                byte[] b = read(page * candidate, 1);
-                if (b.Length < 1) break;
-                samples++;
-                if (IsTreePage(b[0])) hits++;
-            }
-            if (samples == 0) continue;
-
-            // בשוויון — הגודל הקטן יותר: גודל כפול מהאמיתי פוגע רק בכל דף שני, וגם
-            // שם כולם עצים. גודל קטן מהאמיתי, לעומתו, נופל באמצע דפים ומקבל יחס נמוך.
-            double ratio = hits / (double)samples;
-            if (ratio > bestRatio) { best = candidate; bestRatio = ratio; }
+            long pages = size / candidate;
+            long step = Math.Max(1, pages / 2000);
+            int count = 0;
+            for (long page = 1; page < pages; page += step)
+                if (SaneTreePage(read(page * candidate, candidate), candidate)) count++;
+            if (count > bestCount) { best = candidate; bestCount = count; }
         }
+        return bestCount >= 1 ? best : 0;
+    }
 
-        return bestRatio >= 0.3 ? best : 0;
+    private static bool SaneTreePage(byte[] page, int size)
+    {
+        if (page.Length < 12 || !IsTreePage(page[0])) return false;
+        int cells = BinaryPrimitives.ReadUInt16BigEndian(page.AsSpan(3));
+        int pointers = page[0] is 0x02 or 0x05 ? 12 : 8;
+        if (pointers + 2 * cells > page.Length) return false;
+        for (int i = 0; i < cells; i++)
+        {
+            int p = BinaryPrimitives.ReadUInt16BigEndian(page.AsSpan(pointers + 2 * i));
+            if (p < pointers + 2 * cells || p >= size) return false;
+        }
+        // דף פנימי: המצביע לדף הימני אינו אפס. עלה ריק: אזור התוכן מתחיל בסוף הדף.
+        if (pointers == 12 && BinaryPrimitives.ReadUInt32BigEndian(page.AsSpan(8)) == 0) return false;
+        return cells > 0 || BinaryPrimitives.ReadUInt16BigEndian(page.AsSpan(5)) is 0 || BinaryPrimitives.ReadUInt16BigEndian(page.AsSpan(5)) == size;
     }
 }

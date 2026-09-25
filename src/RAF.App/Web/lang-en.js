@@ -939,6 +939,26 @@ Object.assign(EN, {
     'The original photo wasn\'t changed. If the colors or brightness look different from usual, the camera probably changes its compression tables from photo to photo — try another sample photo, preferably one taken close to the damaged photo.',
   'הקובץ המקורי לא שונה. פתחו את הקובץ המתוקן בתוכנת העריכה שלכם כדי לוודא שהוא נפתח.':
     'The original file wasn\'t changed. Open the repaired file in your editing program to make sure it opens.',
+  'צריך מסד לדוגמה':
+    'Needs a sample database',
+  'בחירת מסד תקין של אותה אפליקציה…':
+    'Choose a working database of the same app…',
+  'מסד שצריך מסד לדוגמה':
+    'database needs a sample database',
+  'מסדים שצריכים מסד לדוגמה':
+    'databases need a sample database',
+  'משחזר את המסד — טבלה אחר טבלה…':
+    'Restoring the database — table by table…',
+  'שחזור המסד לא הושלם':
+    'Restoring the database didn\'t finish',
+  'המסד שוחזר':
+    'The database was restored',
+  'המסד שוחזר חלקית':
+    'The database was partially restored',
+  'המסד לא שוחזר':
+    'The database wasn\'t restored',
+  'המסד המקורי לא שונה. המסד המשוחזר נבנה מחדש במנוע SQLite ועבר את בדיקת השלמות שלו.':
+    'The original database wasn\'t changed. The restored database was rebuilt in the SQLite engine and passed its integrity check.',
   'צריך סרטון לדוגמה':
     'Needs a sample video',
   'לא ניתן לתקן':
