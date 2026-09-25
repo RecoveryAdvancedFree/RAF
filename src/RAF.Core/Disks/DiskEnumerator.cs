@@ -19,6 +19,8 @@ public static class DiskEnumerator
     {
         get
         {
+            // במק התוכנה לא רצה כמנהל: כל כונן נפתח דרך authopen, שמבקש את הסיסמה (ראו MacAuthOpen).
+            if (OperatingSystem.IsMacOS()) return true;
             if (!OperatingSystem.IsWindows()) return Environment.UserName == "root";
             try
             {
@@ -38,6 +40,7 @@ public static class DiskEnumerator
     /// </summary>
     public static int GetDiskNumberForPath(string path)
     {
+        if (OperatingSystem.IsMacOS()) return MacDisks.DiskOfPath(path);
         try
         {
             string? root = Path.GetPathRoot(Path.GetFullPath(path));
@@ -112,6 +115,8 @@ public static class DiskEnumerator
     /// </summary>
     public static List<PhysicalDiskInfo> EnumerateDisks(Action<PhysicalDiskInfo>? late)
     {
+        if (OperatingSystem.IsMacOS()) return MacDisks.Enumerate();
+
         var volumes = EnumerateVolumes();
 
         var probes = Enumerable.Range(0, MaxPhysicalDrives)

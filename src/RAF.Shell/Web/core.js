@@ -7,14 +7,25 @@
 
 /* ----------------------------------------------------------------- הגשר */
 
+// החלון שמציג את הממשק: ב-Windows — WebView2; במק — Photino (WKWebView). אותו גשר,
+// דרך העברה אחרת. במק יש לחלון שורת כותרת משלו, ולכן כפתורי החלון שלנו מוסתרים.
+const Host = window.chrome?.webview
+  ? { mac: false,
+      send: (text) => window.chrome.webview.postMessage(text),
+      listen: (fn) => window.chrome.webview.addEventListener('message', (e) => fn(e.data)) }
+  : { mac: true,
+      send: (text) => window.external.sendMessage(text),
+      listen: (fn) => window.external.receiveMessage(fn) };
+if (Host.mac) document.documentElement.classList.add('mac');
+
 const Bridge = (() => {
   const pending = new Map();
   const listeners = new Map();
   let counter = 0;
 
-  window.chrome.webview.addEventListener('message', (e) => {
+  Host.listen((data) => {
     let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
+    try { msg = JSON.parse(data); } catch { return; }
 
     // הודעה ללא מזהה היא אירוע יזום מהמנוע, למשל דיווח התקדמות.
     if (msg.event) {
@@ -40,7 +51,7 @@ const Bridge = (() => {
     const id = 'r' + (++counter);
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
-      window.chrome.webview.postMessage(JSON.stringify({ id, method, params: params || {} }));
+      Host.send(JSON.stringify({ id, method, params: params || {} }));
 
       // סריקה ושחזור עשויים להימשך שעות; שאר הבקשות מוגבלות בזמן.
       const limit = timeoutMs === 0 ? 0 : (timeoutMs || 120000);
@@ -449,11 +460,11 @@ const Help = (() => {
 const NOT_DRAG = '.win-btn, .step.link';
 
 el('titlebar').addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || e.target.closest(NOT_DRAG)) return;
+  if (Host.mac || e.button !== 0 || e.target.closest(NOT_DRAG)) return;
   Bridge.call('window.beginDrag', { hit: 2 });
 });
 el('titlebar').addEventListener('dblclick', (e) => {
-  if (!e.target.closest(NOT_DRAG)) Bridge.call('window.toggleMaximize');
+  if (!Host.mac && !e.target.closest(NOT_DRAG)) Bridge.call('window.toggleMaximize');
 });
 
 document.querySelectorAll('.resize-edge').forEach((edge) => {

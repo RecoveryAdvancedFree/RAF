@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    החלון של מק: מציג את אותו ממשק (RAF.Shell/Web) בדפדפן של המערכת (WKWebView), דרך Photino.
+    נבנה ל-osx-arm64 (שבב של Apple) ול-osx-x64 (Intel), ונארז כאפליקציה (.app) — ראו mac-app.sh.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>RAF.App</RootNamespace>
+    <AssemblyName>RAF.Mac</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Product>שחזור מתקדם חינם</Product>
+    <Version>0.6.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RAF.Core\RAF.Core.csproj" />
+    <ProjectReference Include="..\RAF.Shell\RAF.Shell.csproj" />
+  </ItemGroup>
+
+</Project>

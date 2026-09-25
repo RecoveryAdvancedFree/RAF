@@ -47,7 +47,9 @@ internal sealed class RawWriter : IDisposable
         {
             try
             {
-                var file = File.OpenHandle(devicePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                var file = RawDevice.MacDevice(devicePath)
+                    ? MacAuthOpen.Open(devicePath, write: true) ?? throw new UnauthorizedAccessException()
+                    : File.OpenHandle(devicePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
                 return new RawWriter(IntPtr.Zero, devicePath, sectorSize) { _file = file };
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

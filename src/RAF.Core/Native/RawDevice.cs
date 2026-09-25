@@ -74,11 +74,14 @@ internal sealed class RawDevice : IDisposable
         // מיושרות לסקטור, כפי שהתקן גולמי במק דורש.
         if (!OperatingSystem.IsWindows())
         {
-            SafeFileHandle file;
+            SafeFileHandle? file;
             try
             {
-                file = File.OpenHandle(devicePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
-                    sequential ? FileOptions.SequentialScan : FileOptions.RandomAccess);
+                // כונן במק דורש הרשאת מנהל: authopen מבקש סיסמה ופותח רק אותו (ראו MacAuthOpen).
+                file = MacDevice(devicePath)
+                    ? MacAuthOpen.Open(devicePath, write: false) ?? throw new UnauthorizedAccessException()
+                    : File.OpenHandle(devicePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+                        sequential ? FileOptions.SequentialScan : FileOptions.RandomAccess);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -141,6 +144,23 @@ internal sealed class RawDevice : IDisposable
         }
 
         return device;
+    }
+
+    /// <summary>
+    /// כונן במק שהמשתמש אינו רשאי לפתוח ישירות — דרך authopen. RAF_MAC_AUTHOPEN=1 מכריח
+    /// את הדרך הזו (לבדיקה אוטומטית, שרצה כמנהל ולכן פותחת ישירות).
+    /// </summary>
+    internal static bool MacDevice(string path)
+    {
+        if (!OperatingSystem.IsMacOS() || !path.StartsWith("/dev/", StringComparison.Ordinal)) return false;
+        if (Environment.GetEnvironmentVariable("RAF_MAC_AUTHOPEN") == "1") return true;
+        try
+        {
+            using var direct = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return false;
+        }
+        catch (UnauthorizedAccessException) { return true; }
+        catch (IOException) { return false; }
     }
 
     /// <summary>הכונן הווירטואלי שהקובץ מכיל, או null — תמונה רגילה או התקן.</summary>

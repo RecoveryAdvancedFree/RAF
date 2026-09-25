@@ -1,5 +1,5 @@
-# בדיקת המנוע במק: בנייה והרצת כל הבדיקות, בשני סוגי המעבדים (שבב של Apple ו-Intel).
-# מה שדורש את Windows (גישה ישירה לכוננים, המקודד של Windows) רץ רק ב-Windows.
+# המק: בדיקת המנוע, ובניית האפליקציה ובדיקתה — בשני סוגי המעבדים (שבב של Apple ו-Intel).
+# מה שדורש את Windows (המקודד של Windows בבדיקות) רץ רק ב-Windows.
 name: mac
 
 on:
@@ -22,9 +22,56 @@ jobs:
         run: dotnet build tests/RAF.Core.Tests -c Release
       - name: בדיקות
         run: dotnet test tests/RAF.Core.Tests -c Release --no-build --logger "trx;LogFileName=results.trx" --logger "console;verbosity=normal"
+
+      # כונן אמיתי במק: תמונת דיסק קטנה עם exFAT, מחוברת כמו כונן חיצוני.
+      - name: כונן לבדיקה
+        run: |
+          hdiutil create -size 64m -fs ExFAT -volname RAFTEST -layout MBRSPUD "$RUNNER_TEMP/test.dmg"
+          hdiutil attach "$RUNNER_TEMP/test.dmg"
+          diskutil list
+      - name: קריאת הכונן — ישירות (כמנהל)
+        run: sudo -E env "PATH=$PATH" RAF_MAC_DEVICE_TESTS=1 dotnet test tests/RAF.Core.Tests -c Release --no-build --filter "FullyQualifiedName~MacDiskTests" --logger "console;verbosity=normal"
+      - name: קריאת הכונן — דרך authopen
+        run: sudo -E env "PATH=$PATH" RAF_MAC_DEVICE_TESTS=1 RAF_MAC_AUTHOPEN=1 dotnet test tests/RAF.Core.Tests -c Release --no-build --filter "FullyQualifiedName~MacDiskTests" --logger "console;verbosity=normal"
+
       - name: תוצאות
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: results-${{ matrix.os }}
           path: tests/RAF.Core.Tests/TestResults/*.trx
+
+  app:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            rid: osx-arm64
+          - os: macos-15-intel
+            rid: osx-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: בניית האפליקציה
+        run: bash mac-app.sh ${{ matrix.rid }}
+      # הפעלה וצילום מסך — כדי לראות את החלון בלי מק.
+      - name: הפעלה וצילום מסך
+        run: |
+          APP="dist/mac/${{ matrix.rid }}/RAF.app/Contents/MacOS/RAF.Mac"
+          "$APP" > "$RUNNER_TEMP/app.log" 2>&1 &
+          sleep 30
+          screencapture -x "$RUNNER_TEMP/screenshot.png" || true
+          pkill -f RAF.Mac || true
+          cat "$RUNNER_TEMP/app.log" | tail -40
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-${{ matrix.rid }}
+          path: |
+            dist/mac/*.zip
+            ${{ runner.temp }}/screenshot.png
+            ${{ runner.temp }}/app.log

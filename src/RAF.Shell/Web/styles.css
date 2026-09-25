@@ -575,3 +575,6 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
 
 /* ערך במילים (למשל "כ-7 דקות", "מחשב…") — בכיוון השפה, בניגוד למספרים */
 .kv dd.words { direction: inherit; text-align: start; }
+
+/* במק לחלון יש שורת כותרת משלו: בלי כפתורי החלון שלנו ובלי שולי שינוי הגודל. */
+.mac #btn-tray, .mac #btn-min, .mac #btn-max, .mac #btn-close, .mac .resize-edge { display: none; }

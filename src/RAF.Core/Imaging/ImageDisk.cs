@@ -146,7 +146,7 @@ public static class ImageDisk
     /// מחיצה נושא את החתימה 55 AA כמו MBR, וקריאתו כטבלת מחיצות הייתה
     /// מפענחת קוד אתחול כאילו היו אלה רשומות מחיצה.
     /// </summary>
-    private static (PartitionScheme, List<PartitionInfo>) ReadLayout(
+    internal static (PartitionScheme, List<PartitionInfo>) ReadLayout(
         RawDevice device, int number, long size, ImageMap? map)
     {
         if (map?.Kind != "partition")

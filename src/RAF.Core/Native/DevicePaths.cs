@@ -131,7 +131,8 @@ public static class DevicePaths
         => IsImage(number) ? ImagePathOf(number) : $@"\\.\PhysicalDrive{number}";
 
     /// <summary>האם הנתיב הוא התקן (ולא קובץ רגיל).</summary>
-    internal static bool IsDevicePath(string path) => path.StartsWith(@"\\.\", StringComparison.Ordinal);
+    internal static bool IsDevicePath(string path)
+        => path.StartsWith(@"\\.\", StringComparison.Ordinal) || path.StartsWith("/dev/", StringComparison.Ordinal);
 
     /// <summary>נתיב של מחיצה מחוברת לפי האות שלה (\\.\E:) — נקראת דרך Windows, אחרי פענוח BitLocker.</summary>
     public static bool IsVolumePath(string path)
