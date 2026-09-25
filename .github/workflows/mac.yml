@@ -67,11 +67,22 @@ jobs:
           screencapture -x "$RUNNER_TEMP/screenshot.png" || true
           pkill -f RAF.Mac || true
           cat "$RUNNER_TEMP/app.log" | tail -40
+      # שוב, כמנהל: הכוננים נפתחים ישירות, בלי חלון הסיסמה — כדי לראות את רשימת הכוננים.
+      - name: צילום רשימת הכוננים (כמנהל)
+        run: |
+          hdiutil create -size 64m -fs ExFAT -volname RAFTEST -layout MBRSPUD "$RUNNER_TEMP/test.dmg"
+          hdiutil attach "$RUNNER_TEMP/test.dmg"
+          APP="dist/mac/${{ matrix.rid }}/RAF.app/Contents/MacOS/RAF.Mac"
+          sudo "$APP" > "$RUNNER_TEMP/app-admin.log" 2>&1 &
+          sleep 30
+          screencapture -x "$RUNNER_TEMP/screenshot-disks.png" || true
+          sudo pkill -f RAF.Mac || true
+          tail -20 "$RUNNER_TEMP/app-admin.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: app-${{ matrix.rid }}
           path: |
             dist/mac/*.zip
-            ${{ runner.temp }}/screenshot.png
-            ${{ runner.temp }}/app.log
+            ${{ runner.temp }}/screenshot*.png
+            ${{ runner.temp }}/app*.log
