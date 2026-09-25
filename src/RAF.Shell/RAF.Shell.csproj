@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    כל מה שמשותף לחלון של Windows ולחלון של מק: הגשר בין הממשק למנוע, ניהול הסריקה,
+    והממשק עצמו (Web). בלי תלות ב-Windows — החלון מספק את מה שתלוי בו דרך IHost.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>RAF.App</RootNamespace>
+    <AssemblyName>RAF.Shell</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RAF.Core\RAF.Core.csproj" />
+    <InternalsVisibleTo Include="RAF" />
+    <InternalsVisibleTo Include="RAF.Mac" />
+  </ItemGroup>
+
+  <!-- נכסי הממשק נצרבים לתוך הקובץ ומוגשים מהזיכרון (ללא חילוץ לדיסק) -->
+  <ItemGroup>
+    <EmbeddedResource Include="Web\**\*" LogicalName="RAF.Web.%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

@@ -15,7 +15,7 @@ import { pathToFileURL } from 'url';
 const SRC = 'src';
 const HEB = /[֐-׿]/;
 const EXEMPT = new Set([
-  'RAF.App/Display.cs',                        // תוויות — הממשק מתרגם (lang-en.js)
+  'RAF.Shell/Display.cs',                      // תוויות — הממשק מתרגם (lang-en.js)
   'RAF.Core/Signatures/FileSignatures.cs',     // שמות סוגי קבצים — הממשק מתרגם; גם שמות תיקיות בסריקה מתקדמת
 ]);
 

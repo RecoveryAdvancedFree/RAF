@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 
-const WEB = path.join('src', 'RAF.App', 'Web');
+const WEB = path.join('src', 'RAF.Shell', 'Web');
 const HEB = /[֐-׿]/;
 
 const ctx = {};

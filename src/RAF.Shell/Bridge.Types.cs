@@ -1,3 +1,4 @@
+using RAF.App.Dialogs;
 using System.Text.Json.Nodes;
 using RAF.Core.Signatures;
 
@@ -27,7 +28,7 @@ internal sealed partial class Bridge
     {
         // קבצים שכבר נבחרו (למשל בגרירה אל החלון) — בלי חלון בחירה.
         string[] selected = p?["paths"]?.AsArray().Select(n => n!.GetValue<string>()).ToArray() ?? Array.Empty<string>();
-        if (selected.Length == 0) _form.InvokeOnUiSync(() =>
+        if (selected.Length == 0) _host.InvokeOnUiSync(() =>
         {
             using var dialog = new OpenFileDialog
             {
@@ -36,7 +37,7 @@ internal sealed partial class Bridge
                 Multiselect = true,
                 CheckFileExists = true,
             };
-            if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileNames;
+            if (dialog.ShowDialog(_host) == DialogResult.OK) selected = dialog.FileNames;
         });
 
         if (selected.Length == 0) return new { picked = false };

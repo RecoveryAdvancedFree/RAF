@@ -59,6 +59,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RAF.Core\RAF.Core.csproj" />
+    <!-- הגשר, הסריקה והממשק (Web) — משותפים לחלון של Windows ולחלון של מק -->
+    <ProjectReference Include="..\RAF.Shell\RAF.Shell.csproj" />
   </ItemGroup>
 
   <!--
@@ -87,9 +89,5 @@
     </ItemGroup>
   </Target>
 
-  <!-- נכסי הממשק נצרבים לתוך ה-EXE ומוגשים מהזיכרון (ללא חילוץ לדיסק) -->
-  <ItemGroup>
-    <EmbeddedResource Include="Web\**\*" LogicalName="RAF.Web.%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
 
 </Project>

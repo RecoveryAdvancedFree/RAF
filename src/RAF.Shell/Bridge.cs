@@ -1,3 +1,4 @@
+using RAF.App.Dialogs;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -21,7 +22,7 @@ namespace RAF.App;
 /// </summary>
 internal sealed partial class Bridge
 {
-    private readonly MainForm _form;
+    private readonly IHost _host;
     private List<PhysicalDiskInfo> _disks = new();
 
     /// <summary>תמונות דיסק שנפתחו. נשמרות בנפרד, כי רענון הרשימה מונה מחדש רק כוננים.</summary>
@@ -44,9 +45,9 @@ internal sealed partial class Bridge
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    internal Bridge(MainForm form)
+    internal Bridge(IHost form)
     {
-        _form = form;
+        _host = form;
         LoadCustomTypes();
     }
 
@@ -151,13 +152,12 @@ internal sealed partial class Bridge
         "recover.cancel" => Cancel(_recoverCancel),
         "recover.openFolder" => OpenFolder(p),
 
-        "window.theme" => _form.InvokeOnUi(() => _form.ApplyTheme(p?["dark"]?.GetValue<bool>() ?? true)),
-        "window.minimize" => _form.InvokeOnUi(() => _form.WindowState = FormWindowState.Minimized),
-        "window.toTray" => _form.InvokeOnUi(() => _form.Tray.Send()),
-        "window.toggleMaximize" => _form.InvokeOnUi(_form.ToggleMaximize),
-        "window.close" => _form.InvokeOnUi(_form.Close),
-        "window.beginDrag" => _form.InvokeOnUi(() =>
-            NativeChrome.BeginWindowAction(_form.Handle, p?["hit"]?.GetValue<int>() ?? NativeChrome.HTCAPTION)),
+        "window.theme" => _host.InvokeOnUi(() => _host.ApplyTheme(p?["dark"]?.GetValue<bool>() ?? true)),
+        "window.minimize" => _host.InvokeOnUi(_host.Minimize),
+        "window.toTray" => _host.InvokeOnUi(_host.ToTray),
+        "window.toggleMaximize" => _host.InvokeOnUi(_host.ToggleMaximize),
+        "window.close" => _host.InvokeOnUi(_host.Close),
+        "window.beginDrag" => _host.InvokeOnUi(() => _host.BeginDrag(p?["hit"]?.GetValue<int>() ?? 2 /* HTCAPTION */)),
 
         _ => throw new InvalidOperationException(L.T("שיטה לא מוכרת: {0}", method)),
     };
@@ -169,21 +169,21 @@ internal sealed partial class Bridge
     private async Task<T> Tracked<T>(LongOperation kind, Func<Task<T>> operation)
     {
         RunningOperation = kind;
-        _form.Taskbar.Start();
+        _host.Taskbar.Start();
         try
         {
             T result = await operation();
-            _form.Taskbar.Finish(failed: false);
+            _host.Taskbar.Finish(failed: false);
             return result;
         }
         catch (OperationCanceledException)
         {
-            _form.Taskbar.Clear();
+            _host.Taskbar.Clear();
             throw;
         }
         catch
         {
-            _form.Taskbar.Finish(failed: true);
+            _host.Taskbar.Finish(failed: true);
             throw;
         }
         finally
@@ -205,7 +205,7 @@ internal sealed partial class Bridge
             foreach (var pair in p)
                 lines.Add($"  {pair.Key,-22}: {pair.Value}");
 
-        _form.WriteDiagnostics(string.Join(Environment.NewLine, lines));
+        _host.WriteDiagnostics(string.Join(Environment.NewLine, lines));
         return null;
     }
 
@@ -213,12 +213,12 @@ internal sealed partial class Bridge
     {
         // מדדי החלון נקראים על תהליכון הממשק, ומשמשים לאבחון בעיות פריסה.
         (int Width, int Height, int ClientWidth, int ClientHeight, int Dpi) m = default;
-        _form.InvokeOnUiSync(() => m = _form.Metrics());
+        _host.InvokeOnUiSync(() => m = _host.Metrics());
 
         return new
         {
             appName = L.T("שחזור מתקדם חינם"),
-            version = typeof(Bridge).Assembly.GetName().Version?.ToString(3) ?? "0.1.0",
+            version = (System.Reflection.Assembly.GetEntryAssembly() ?? typeof(Bridge).Assembly).GetName().Version?.ToString(3) ?? "0.1.0",
             elevated = DiskEnumerator.IsElevated,
             machine = Environment.MachineName,
             windowWidth = m.Width,
@@ -458,7 +458,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 120) return;
             lastPush = DateTime.UtcNow;
 
-            _form.Taskbar.Report(sp.Percent);
+            _host.Taskbar.Report(sp.Percent);
             PushEvent("scan.progress", new
             {
                 stage = sp.Stage,
@@ -745,31 +745,11 @@ internal sealed partial class Bridge
             session.PartitionSize, session.SectorSize, file, maxRead);
         if (data.Length == 0) return new { ok = false };
 
-        try
-        {
-            using var input = new MemoryStream(data);
-            using var image = System.Drawing.Image.FromStream(input, false, false);
-
-            double scale = Math.Min(1.0, (double)box / Math.Max(image.Width, image.Height));
-            int w = Math.Max(1, (int)(image.Width * scale));
-            int h = Math.Max(1, (int)(image.Height * scale));
-
-            using var thumb = new System.Drawing.Bitmap(w, h);
-            using (var g = System.Drawing.Graphics.FromImage(thumb))
-            {
-                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
-                g.DrawImage(image, 0, 0, w, h);
-            }
-
-            using var output = new MemoryStream();
-            thumb.Save(output, System.Drawing.Imaging.ImageFormat.Jpeg);
-            return new { ok = true, data = Convert.ToBase64String(output.ToArray()) };
-        }
-        catch
-        {
-            // נתונים שאינם מפוענחים כתמונה — קובץ פגום או זיהוי שגוי.
-            return new { ok = false };
-        }
+        // ההקטנה אצל החלון (ב-Windows — System.Drawing). חלון שלא מקטין: תמונה קטנה עוברת
+        // כמו שהיא, והדפדפן מקטין אותה בעצמו; גדולה — סמל במקומה.
+        byte[]? thumb = _host.Thumbnail(data, box);
+        if (thumb is null && data.Length <= 3 * 1024 * 1024) thumb = data;
+        return thumb is null ? new { ok = false } : new { ok = true, data = Convert.ToBase64String(thumb) };
     }
 
     private object PreviewOf(ScanSession session, RecoveredFile file, int maxPreview)
@@ -907,7 +887,7 @@ internal sealed partial class Bridge
     {
         string? selected = null;
 
-        _form.InvokeOnUiSync(() =>
+        _host.InvokeOnUiSync(() =>
         {
             using var dialog = new FolderBrowserDialog
             {
@@ -916,7 +896,7 @@ internal sealed partial class Bridge
                 ShowNewFolderButton = true,
             };
 
-            if (dialog.ShowDialog(_form) == DialogResult.OK)
+            if (dialog.ShowDialog(_host) == DialogResult.OK)
                 selected = dialog.SelectedPath;
         });
 
@@ -962,7 +942,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 100) return;
             lastPush = DateTime.UtcNow;
 
-            _form.Taskbar.Report(rp.Percent);
+            _host.Taskbar.Report(rp.Percent);
             PushEvent("recover.progress", new
             {
                 file = rp.CurrentFile,
@@ -1008,14 +988,12 @@ internal sealed partial class Bridge
     /// פתיחת תיקייה בסייר הקבצים. רק תיקייה קיימת — הנתיב מגיע מהממשק, ולכן
     /// הוא מועבר כארגומנט יחיד ל-explorer ולא כפקודה.
     /// </summary>
-    private static object? OpenFolder(JsonObject? p)
+    private object? OpenFolder(JsonObject? p)
     {
         string path = p?["path"]?.GetValue<string>() ?? "";
         if (!Directory.Exists(path)) throw new InvalidOperationException(L.T("התיקייה לא נמצאה."));
 
-        var start = new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = false };
-        start.ArgumentList.Add(Path.GetFullPath(path));
-        System.Diagnostics.Process.Start(start);
+        _host.OpenFolder(Path.GetFullPath(path));
         return null;
     }
 
@@ -1042,7 +1020,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 150 && hp.Percent < 100) return;
             lastPush = DateTime.UtcNow;
 
-            _form.Taskbar.Report(hp.Percent);
+            _host.Taskbar.Report(hp.Percent);
             PushEvent("hunt.progress", new
             {
                 percent = hp.Percent,
@@ -1181,7 +1159,7 @@ internal sealed partial class Bridge
         string suggested = $"RAF-{baseName.Trim()}-{DateTime.Now:yyyyMMdd-HHmm}.img";
 
         string? selected = null;
-        _form.InvokeOnUiSync(() =>
+        _host.InvokeOnUiSync(() =>
         {
             using var dialog = new SaveFileDialog
             {
@@ -1196,7 +1174,7 @@ internal sealed partial class Bridge
                 OverwritePrompt = false,
             };
 
-            if (dialog.ShowDialog(_form) == DialogResult.OK)
+            if (dialog.ShowDialog(_host) == DialogResult.OK)
                 selected = dialog.FileName;
         });
 
@@ -1251,7 +1229,7 @@ internal sealed partial class Bridge
             if ((DateTime.UtcNow - lastPush).TotalMilliseconds < 150) return;
             lastPush = DateTime.UtcNow;
 
-            _form.Taskbar.Report(ip.Percent);
+            _host.Taskbar.Report(ip.Percent);
             PushEvent("image.progress", new
             {
                 pass = ip.Pass,
@@ -1295,7 +1273,7 @@ internal sealed partial class Bridge
 
         if (string.IsNullOrEmpty(path))
         {
-            _form.InvokeOnUiSync(() =>
+            _host.InvokeOnUiSync(() =>
             {
                 using var dialog = new OpenFileDialog
                 {
@@ -1307,7 +1285,7 @@ internal sealed partial class Bridge
                     CheckFileExists = true,
                 };
 
-                if (dialog.ShowDialog(_form) == DialogResult.OK)
+                if (dialog.ShowDialog(_host) == DialogResult.OK)
                     path = dialog.FileName;
             });
 
@@ -1596,7 +1574,7 @@ internal sealed partial class Bridge
     private object PickUndoFile()
     {
         string? selected = null;
-        _form.InvokeOnUiSync(() =>
+        _host.InvokeOnUiSync(() =>
         {
             using var dialog = new OpenFileDialog
             {
@@ -1604,7 +1582,7 @@ internal sealed partial class Bridge
                 Filter = L.T("קובצי ביטול|RAF-undo-*.bin|כל הקבצים|*.*"),
                 CheckFileExists = true,
             };
-            if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
+            if (dialog.ShowDialog(_host) == DialogResult.OK) selected = dialog.FileName;
         });
         return new { path = selected };
     }
@@ -1643,7 +1621,7 @@ internal sealed partial class Bridge
     {
         string[] selected = Array.Empty<string>();
 
-        _form.InvokeOnUiSync(() =>
+        _host.InvokeOnUiSync(() =>
         {
             using var dialog = new OpenFileDialog
             {
@@ -1652,7 +1630,7 @@ internal sealed partial class Bridge
                 CheckFileExists = true,
             };
 
-            if (dialog.ShowDialog(_form) == DialogResult.OK)
+            if (dialog.ShowDialog(_host) == DialogResult.OK)
                 selected = dialog.FileNames;
         });
 
@@ -1756,7 +1734,7 @@ internal sealed partial class Bridge
         string ext = (p?["ext"]?.GetValue<string>() ?? "").TrimStart('.').ToLowerInvariant();
         bool raw = photo && RAF.Core.Repair.TiffTransplant.RawExtensions.Contains(ext);
         string? selected = null;
-        _form.InvokeOnUiSync(() =>
+        _host.InvokeOnUiSync(() =>
         {
             using var dialog = new OpenFileDialog
             {
@@ -1772,7 +1750,7 @@ internal sealed partial class Bridge
                     : L.T("סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*"),
                 CheckFileExists = true,
             };
-            if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
+            if (dialog.ShowDialog(_host) == DialogResult.OK) selected = dialog.FileName;
         });
 
         if (selected is null) return new { path = (string?)null, problem = (string?)null };
@@ -1907,7 +1885,7 @@ internal sealed partial class Bridge
     private void PushEvent(string name, object data)
     {
         string payload = JsonSerializer.Serialize(new { @event = name, data }, JsonOptions);
-        _form.PostToWeb(payload);
+        _host.PostToWeb(payload);
     }
 
     private static string Ok(string id, object? data) =>

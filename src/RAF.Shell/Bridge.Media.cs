@@ -1,4 +1,3 @@
-using Microsoft.Web.WebView2.Core;
 using RAF.Core.Recovery;
 
 namespace RAF.App;
@@ -29,53 +28,11 @@ internal sealed partial class Bridge
         _ => null,
     };
 
-    /// <summary>מענה לבקשת קטע מהנגן. הקריאה מהכונן ברקע, והתשובה על תהליכון הממשק.</summary>
-    internal async void ServeMedia(CoreWebView2WebResourceRequestedEventArgs e, CoreWebView2Environment env, string idText)
-    {
-        // הדחייה מסתיימת פעם אחת בלבד, ב-finally. בלי using: Dispose היה מסיים
-        // אותה שוב, ו-WebView2 זורק על סיום כפול ("A method was called at an unexpected time").
-        //
-        // הפונקציה רצה ברקע (async void): שגיאה שיוצאת ממנה מפילה חלון שגיאה למשתמש.
-        // לכן כל שלב עטוף — גם מתן התשובה, כי הנגן מבטל בקשות כשמדלגים בסרטון,
-        // ותשובה לבקשה שבוטלה נדחית.
-        CoreWebView2Deferral deferral;
-        try { deferral = e.GetDeferral(); }
-        catch { return; }
-
-        CoreWebView2WebResourceResponse response;
-        try
-        {
-            string range = e.Request.Headers.Contains("Range") ? e.Request.Headers.GetHeader("Range") : "";
-            var chunk = await Task.Run(() => ReadMediaChunk(idText, range));
-
-            if (chunk is null)
-            {
-                response = env.CreateWebResourceResponse(null, 404, "Not Found", "");
-            }
-            else
-            {
-                var (data, start, total, mime) = chunk.Value;
-                long end = start + data.Length - 1;
-                string headers =
-                    $"Content-Type: {mime}\r\n" +
-                    "Accept-Ranges: bytes\r\n" +
-                    $"Content-Range: bytes {start}-{end}/{total}\r\n" +
-                    $"Content-Length: {data.Length}\r\n" +
-                    "Cache-Control: no-store\r\n";
-                response = env.CreateWebResourceResponse(new MemoryStream(data), 206, "Partial Content", headers);
-            }
-        }
-        catch
-        {
-            try { response = env.CreateWebResourceResponse(null, 500, "Error", ""); }
-            catch { response = null!; }
-        }
-
-        try { if (response is not null) e.Response = response; } catch { /* הבקשה בוטלה בינתיים */ }
-        try { deferral.Complete(); } catch { /* הבקשה בוטלה בינתיים */ }
-    }
-
-    private (byte[] Data, long Start, long Total, string Mime)? ReadMediaChunk(string idText, string range)
+    /// <summary>
+    /// קטע מקובץ לנגן: הנתונים, ההיסט, האורך הכולל וסוג התוכן. null — אין קובץ כזה.
+    /// range — כותרת ה-Range של הבקשה ("bytes=START-END"), או ריקה. החלון עונה בה לדפדפן שלו.
+    /// </summary>
+    internal (byte[] Data, long Start, long Total, string Mime)? ReadMediaChunk(string idText, string range)
     {
         if (!long.TryParse(idText, out long id) || _session is not { Offline: false } session) return null;
         var file = session.ById(id);

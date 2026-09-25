@@ -1,3 +1,4 @@
+using RAF.App.Dialogs;
 using System.Text.Json.Nodes;
 using RAF.Core.Disks;
 using RAF.Core.Imaging;
@@ -23,7 +24,7 @@ internal sealed partial class Bridge
     /// <summary>כמה שמירות אוטומטיות נשמרות; הישנות נמחקות.</summary>
     private const int KeepAutosaves = 10;
 
-    private static string AppVersion => typeof(Bridge).Assembly.GetName().Version?.ToString(3) ?? "";
+    private static string AppVersion => (System.Reflection.Assembly.GetEntryAssembly() ?? typeof(Bridge).Assembly).GetName().Version?.ToString(3) ?? "";
 
     /// <summary>
     /// הסבר למה אסור לכתוב לתיקייה, או null אם מותר. כשלא ידוע על איזה דיסק
@@ -98,7 +99,7 @@ internal sealed partial class Bridge
         foreach (char c in RAF.Core.Text.FileNames.Invalid) title = title.Replace(c, '_');
 
         string? path = null;
-        _form.InvokeOnUiSync(() =>
+        _host.InvokeOnUiSync(() =>
         {
             using var dialog = new SaveFileDialog
             {
@@ -108,7 +109,7 @@ internal sealed partial class Bridge
                 DefaultExt = ScanArchive.Extension.TrimStart('.'),
                 OverwritePrompt = true,
             };
-            if (dialog.ShowDialog(_form) == DialogResult.OK) path = dialog.FileName;
+            if (dialog.ShowDialog(_host) == DialogResult.OK) path = dialog.FileName;
         });
 
         if (path is null) return new { path = (string?)null };
@@ -197,7 +198,7 @@ internal sealed partial class Bridge
         string? path = p?["path"]?.GetValue<string>();
         if (string.IsNullOrEmpty(path))
         {
-            _form.InvokeOnUiSync(() =>
+            _host.InvokeOnUiSync(() =>
             {
                 using var dialog = new OpenFileDialog
                 {
@@ -205,7 +206,7 @@ internal sealed partial class Bridge
                     Filter = L.T("סריקת RAF (*{0})|*{1}", ScanArchive.Extension, ScanArchive.Extension),
                     CheckFileExists = true,
                 };
-                if (dialog.ShowDialog(_form) == DialogResult.OK) path = dialog.FileName;
+                if (dialog.ShowDialog(_host) == DialogResult.OK) path = dialog.FileName;
             });
             if (string.IsNullOrEmpty(path)) return new { cancelled = true };
         }

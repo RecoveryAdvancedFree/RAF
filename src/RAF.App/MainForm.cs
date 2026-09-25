@@ -8,7 +8,7 @@ namespace RAF.App;
 /// חלון ראשי ללא מסגרת, המארח את הממשק כולו ב-WebView2.
 /// שורת הכותרת, הכפתורים והגרירה ממומשים בממשק עצמו לצורך מראה אחיד ומודרני.
 /// </summary>
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private readonly WebView2 _webView;
     private readonly Bridge _bridge;
@@ -85,7 +85,7 @@ internal sealed class MainForm : Form
     }
 
     /// <summary>התאמת צבעי החלון עצמו לערכת הנושא של הממשק.</summary>
-    internal void ApplyTheme(bool dark)
+    public void ApplyTheme(bool dark)
     {
         _dark = dark;
         var color = dark ? Color.FromArgb(11, 13, 18) : Color.FromArgb(243, 245, 249);
@@ -181,7 +181,7 @@ internal sealed class MainForm : Form
         // נגן התצוגה המקדימה: קטעים מקובץ שנמצא בסריקה, נקראים מהכונן לפי בקשה.
         if (fileName.StartsWith("media/", StringComparison.Ordinal))
         {
-            _bridge.ServeMedia(e, env, fileName["media/".Length..]);
+            ServeMedia(e, env, fileName["media/".Length..]);
             return;
         }
 
@@ -245,7 +245,7 @@ internal sealed class MainForm : Form
     /// כתיבת קובץ אבחון לתיקיית הזמניים. משמש לאיתור בעיות פריסה
     /// ללא צורך שהמשתמש יקרא מספרים מהמסך.
     /// </summary>
-    internal void WriteDiagnostics(string pageMetrics)
+    public void WriteDiagnostics(string pageMetrics)
     {
         try
         {
@@ -281,13 +281,13 @@ internal sealed class MainForm : Form
     }
 
     /// <summary>נתוני אבחון על החלון ועל קנה המידה, להצגה בשורת המצב.</summary>
-    internal (int Width, int Height, int ClientWidth, int ClientHeight, int Dpi) Metrics()
+    public (int Width, int Height, int ClientWidth, int ClientHeight, int Dpi) Metrics()
         => (Width, Height, ClientSize.Width, ClientSize.Height, DeviceDpi);
 
     // ------------------------------------------------------------ שליטת חלון
 
     /// <summary>הרצת פעולה על תהליכון הממשק והחזרת null, לשימוש הגשר.</summary>
-    internal object? InvokeOnUi(Action action)
+    public object? InvokeOnUi(Action action)
     {
         if (InvokeRequired) BeginInvoke(action);
         else action();
@@ -298,14 +298,14 @@ internal sealed class MainForm : Form
     /// הרצת פעולה על תהליכון הממשק והמתנה לסיומה.
     /// נדרש לתיבות דו-שיח, שחייבות לרוץ על תהליכון הממשק ולהחזיר תוצאה.
     /// </summary>
-    internal void InvokeOnUiSync(Action action)
+    public void InvokeOnUiSync(Action action)
     {
         if (InvokeRequired) Invoke(action);
         else action();
     }
 
     /// <summary>שליחת הודעה יזומה לממשק, לדיווחי התקדמות.</summary>
-    internal void PostToWeb(string payload)
+    public void PostToWeb(string payload)
     {
         if (!_webViewReady || IsDisposed) return;
 
@@ -322,7 +322,7 @@ internal sealed class MainForm : Form
         });
     }
 
-    internal void ToggleMaximize() =>
+    public void ToggleMaximize() =>
         WindowState = WindowState == FormWindowState.Maximized
             ? FormWindowState.Normal
             : FormWindowState.Maximized;

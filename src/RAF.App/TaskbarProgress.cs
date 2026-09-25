@@ -8,7 +8,7 @@ namespace RAF.App;
 ///
 /// שגיאה נשארת אדומה עד שחוזרים לחלון, כדי שלא תיעלם בלי שמישהו ראה אותה.
 /// </summary>
-internal sealed partial class TaskbarProgress
+internal sealed partial class TaskbarProgress : ITaskbar
 {
     private readonly Form _form;
     private readonly ITaskbarList3? _taskbar;
@@ -37,7 +37,7 @@ internal sealed partial class TaskbarProgress
     }
 
     /// <summary>תחילת פעולה ארוכה: פס "עובד" עד שמגיע אחוז ראשון.</summary>
-    internal void Start() => OnUi(() =>
+    public void Start() => OnUi(() =>
     {
         _showingError = false;
         Tray?.Progress(null);
@@ -45,7 +45,7 @@ internal sealed partial class TaskbarProgress
     });
 
     /// <summary>אחוז ההתקדמות; null משאיר פס "עובד".</summary>
-    internal void Report(double? percent) => OnUi(() =>
+    public void Report(double? percent) => OnUi(() =>
     {
         Tray?.Progress(percent);
         if (_taskbar is null || _showingError) return;
@@ -61,7 +61,7 @@ internal sealed partial class TaskbarProgress
     });
 
     /// <summary>סיום הפעולה. בהצלחה הפס נעלם; בשגיאה ברקע הוא נשאר אדום. בשני המקרים — הבהוב, אם החלון ברקע.</summary>
-    internal void Finish(bool failed) => OnUi(() =>
+    public void Finish(bool failed) => OnUi(() =>
     {
         Tray?.Finished(failed, cancelled: false);
         bool watching = Form.ActiveForm == _form;
@@ -95,7 +95,7 @@ internal sealed partial class TaskbarProgress
     });
 
     /// <summary>ביטול: הפס נעלם בלי הבהוב.</summary>
-    internal void Clear() => OnUi(() =>
+    public void Clear() => OnUi(() =>
     {
         _showingError = false;
         Tray?.Finished(failed: false, cancelled: true);
