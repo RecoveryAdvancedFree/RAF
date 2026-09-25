@@ -570,8 +570,12 @@ public static class RecoveryWriter
 
         if (options.PreservePaths && !string.IsNullOrEmpty(file.Path))
         {
+            // בסריקה מתקדמת התיקיות הן שמות סוגים ("מסמך PDF") — נכתבות בשפת הממשק.
+            // שם תיקייה אמיתי ממערכת הקבצים נשאר כמו שהוא.
+            bool typeFolders = file.Source == DiscoverySource.Carving;
             var segments = file.Path
                 .Split('\\', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => typeFolders ? L.T(s) : s)
                 .Select(SanitizeSegment)
                 .Where(s => s.Length > 0);
 
