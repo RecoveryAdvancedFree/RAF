@@ -25,9 +25,9 @@ internal static class Program
     private static void ReportCrash(Exception? ex)
     {
         MessageBox.Show(
-            "אירעה שגיאה בלתי צפויה:\n\n" + (ex?.Message ?? "שגיאה לא ידועה") +
-            "\n\nפירוט טכני:\n" + (ex?.StackTrace ?? ""),
-            "שחזור מתקדם חינם — שגיאה",
+            L.T("אירעה שגיאה בלתי צפויה:\n\n") + (ex?.Message ?? L.T("שגיאה לא ידועה")) +
+            L.T("\n\nפירוט טכני:\n") + (ex?.StackTrace ?? ""),
+            L.T("שחזור מתקדם חינם — שגיאה"),
             MessageBoxButtons.OK, MessageBoxIcon.Error,
             MessageBoxDefaultButton.Button1,
             MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);

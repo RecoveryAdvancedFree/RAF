@@ -74,7 +74,7 @@ public sealed class DriveHealth
                         ? new DriveHealth
                         {
                             Level = HealthLevel.Bad, Source = "Windows",
-                            Problems = { "Windows מדווח שהכונן צפוי להיכשל" },
+                            Problems = { L.T("Windows מדווח שהכונן צפוי להיכשל") },
                         }
                         : Unknown;
             }
@@ -179,19 +179,19 @@ public sealed class DriveHealth
         void Flag(HealthLevel l, string text) { problems.Add(text); if (l > level) level = l; }
 
         if ((critical & 0x01) != 0 || (spareThreshold > 0 && spare < spareThreshold))
-            Flag(HealthLevel.Bad, $"שטח הרזרבה להחלפת תאים שנשחקו כמעט נגמר ({spare}%)");
+            Flag(HealthLevel.Bad, L.T("שטח הרזרבה להחלפת תאים שנשחקו כמעט נגמר ({0}%)", spare));
         if ((critical & 0x04) != 0)
-            Flag(HealthLevel.Bad, "הכונן מדווח שהאמינות שלו נפגעה");
+            Flag(HealthLevel.Bad, L.T("הכונן מדווח שהאמינות שלו נפגעה"));
         if ((critical & 0x08) != 0)
-            Flag(HealthLevel.Bad, "הכונן עבר למצב קריאה בלבד — כך כוננים מגינים על עצמם לפני כשל");
+            Flag(HealthLevel.Bad, L.T("הכונן עבר למצב קריאה בלבד — כך כוננים מגינים על עצמם לפני כשל"));
         if ((critical & 0x02) != 0)
-            Flag(HealthLevel.Caution, "הכונן מדווח על טמפרטורה חריגה");
+            Flag(HealthLevel.Caution, L.T("הכונן מדווח על טמפרטורה חריגה"));
         if (mediaErrors > 0)
-            Flag(HealthLevel.Caution, $"{mediaErrors:N0} שגיאות נתונים שלא תוקנו");
+            Flag(HealthLevel.Caution, L.T("{0} שגיאות נתונים שלא תוקנו", mediaErrors.ToString("N0")));
         if (used >= 100)
-            Flag(HealthLevel.Caution, $"הכונן עבר את אורך החיים המתוכנן ({used}% נוצלו)");
+            Flag(HealthLevel.Caution, L.T("הכונן עבר את אורך החיים המתוכנן ({0}% נוצלו)", used));
         else if (used >= 90)
-            Flag(HealthLevel.Caution, $"הכונן קרוב לסוף אורך החיים המתוכנן ({used}% נוצלו)");
+            Flag(HealthLevel.Caution, L.T("הכונן קרוב לסוף אורך החיים המתוכנן ({0}% נוצלו)", used));
 
         return new DriveHealth
         {
@@ -259,15 +259,15 @@ public sealed class DriveHealth
         void Flag(HealthLevel l, string text) { problems.Add(text); if (l > level) level = l; }
 
         if (predictFailure == true || belowThreshold)
-            Flag(HealthLevel.Bad, "הכונן עצמו מדווח שהוא צפוי להיכשל");
+            Flag(HealthLevel.Bad, L.T("הכונן עצמו מדווח שהוא צפוי להיכשל"));
         if (pending > 0)
-            Flag(HealthLevel.Bad, $"{pending:N0} סקטורים שאינם נקראים כרגע");
+            Flag(HealthLevel.Bad, L.T("{0} סקטורים שאינם נקראים כרגע", $"{pending:N0}"));
         if (uncorrectable > 0)
-            Flag(HealthLevel.Bad, $"{uncorrectable:N0} סקטורים שלא ניתן היה לתקן");
+            Flag(HealthLevel.Bad, L.T("{0} סקטורים שלא ניתן היה לתקן", $"{uncorrectable:N0}"));
         if (reallocated > 0)
-            Flag(HealthLevel.Caution, $"{reallocated:N0} סקטורים פגומים כבר הוחלפו ברזרבה");
+            Flag(HealthLevel.Caution, L.T("{0} סקטורים פגומים כבר הוחלפו ברזרבה", $"{reallocated:N0}"));
         if (reported > 0)
-            Flag(HealthLevel.Caution, $"{reported:N0} שגיאות קריאה שדווחו למחשב");
+            Flag(HealthLevel.Caution, L.T("{0} שגיאות קריאה שדווחו למחשב", $"{reported:N0}"));
 
         return new DriveHealth
         {

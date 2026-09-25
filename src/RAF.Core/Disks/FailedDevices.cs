@@ -49,7 +49,7 @@ public static class FailedDevices
                     continue;
 
                 string name = Property(set, ref data, SPDRP_FRIENDLYNAME)
-                              ?? Property(set, ref data, SPDRP_DEVICEDESC) ?? "התקן לא מזוהה";
+                              ?? Property(set, ref data, SPDRP_DEVICEDESC) ?? L.T("התקן לא מזוהה");
                 string ids = (Property(set, ref data, SPDRP_HARDWAREID) ?? "") + "|" +
                              (Property(set, ref data, SPDRP_COMPATIBLEIDS) ?? "");
 
@@ -62,7 +62,7 @@ public static class FailedDevices
 
                 result.Add(new FailedDevice
                 {
-                    Name = enumFailure && !storage ? "התקן USB שנכשל בזיהוי" : name.Trim(),
+                    Name = enumFailure && !storage ? L.T("התקן USB שנכשל בזיהוי") : name.Trim(),
                     WindowsName = name.Trim(),
                     ProblemCode = (int)problem,
                     Problem = Describe((int)problem, enumFailure),
@@ -79,30 +79,30 @@ public static class FailedDevices
     private static string Describe(int code, bool enumFailure)
     {
         if (enumFailure)
-            return "משהו מחובר ליציאת ה-USB, אך הוא לא הצליח אפילו להציג את עצמו ל-Windows. " +
-                   "כך נראה לרוב כונן שהבקר שלו או המתאם שלו תקולים.";
+            return L.T("משהו מחובר ליציאת ה-USB, אך הוא לא הצליח אפילו להציג את עצמו ל-Windows. " +
+                   "כך נראה לרוב כונן שהבקר שלו או המתאם שלו תקולים.");
 
         return code switch
         {
-            10 => "Windows מרגיש שהכונן מחובר, אך לא הצליח להפעיל אותו (קוד 10).",
-            43 => "Windows עצר את הכונן כי הוא דיווח על תקלה (קוד 43).",
-            28 => "לא מותקן לכונן מנהל התקן (קוד 28).",
-            22 => "הכונן מושבת ב-Windows (קוד 22).",
-            19 or 31 or 39 => $"יש בעיה במנהל ההתקן של הכונן (קוד {code}).",
-            _ => $"Windows מדווח על בעיה בכונן (קוד {code}).",
+            10 => L.T("Windows מרגיש שהכונן מחובר, אך לא הצליח להפעיל אותו (קוד 10)."),
+            43 => L.T("Windows עצר את הכונן כי הוא דיווח על תקלה (קוד 43)."),
+            28 => L.T("לא מותקן לכונן מנהל התקן (קוד 28)."),
+            22 => L.T("הכונן מושבת ב-Windows (קוד 22)."),
+            19 or 31 or 39 => L.T("יש בעיה במנהל ההתקן של הכונן (קוד {0}).", code),
+            _ => L.T("Windows מדווח על בעיה בכונן (קוד {0}).", code),
         };
     }
 
     private static string Advise(int code, bool usb)
     {
         if (code == 22)
-            return "אפשר להפעיל אותו מחדש במנהל ההתקנים: קליק ימני על הכונן ← \"הפעל התקן\".";
+            return L.T("אפשר להפעיל אותו מחדש במנהל ההתקנים: קליק ימני על הכונן ← \"הפעל התקן\".");
 
-        var tips = new StringBuilder("נתקו את הכונן, המתינו כמה שניות וחברו אותו מחדש. ");
+        var tips = new StringBuilder(L.T("נתקו את הכונן, המתינו כמה שניות וחברו אותו מחדש. "));
         if (usb)
-            tips.Append("נסו יציאת USB אחרת — עדיף יציאה בגב המחשב — וכבל או מתאם אחר. ");
-        tips.Append("בכונן קשיח פנימי: חיבור ישיר בכבל SATA במקום מתאם USB מצליח לעיתים קרובות " +
-                    "גם כשהמתאם נכשל. כשהכונן יזוהה — צרו ממנו תמונה לפני כל דבר אחר.");
+            tips.Append(L.T("נסו יציאת USB אחרת — עדיף יציאה בגב המחשב — וכבל או מתאם אחר. "));
+        tips.Append(L.T("בכונן קשיח פנימי: חיבור ישיר בכבל SATA במקום מתאם USB מצליח לעיתים קרובות " +
+                    "גם כשהמתאם נכשל. כשהכונן יזוהה — צרו ממנו תמונה לפני כל דבר אחר."));
         return tips.ToString();
     }
 

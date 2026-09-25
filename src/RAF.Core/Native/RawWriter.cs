@@ -29,14 +29,14 @@ internal sealed class RawWriter : IDisposable
         // כונן BitLocker פתוח נקרא דרך האות שלו (\\.\E:) — לעולם לא כותבים אליו:
         // כתיבה שם הייתה עוברת הצפנה ונוחתת על הנתונים שמנסים להציל.
         if (DevicePaths.IsVolumePath(devicePath))
-            throw new InvalidOperationException("כונן שנפתח דרך Windows הוא לקריאה בלבד — התוכנה אינה כותבת אליו.");
+            throw new InvalidOperationException(L.T("כונן שנפתח דרך Windows הוא לקריאה בלבד — התוכנה אינה כותבת אליו."));
 
         // קובץ VHD/VHDX/VMDK: כתיבה ישירה הייתה הורסת את מבנה הכונן הווירטואלי.
         if (!DevicePaths.IsDevicePath(devicePath) && File.Exists(devicePath))
         {
             using var probe = RawDevice.TryOpen(devicePath, sectorSize);
             if (probe?.Virtual is not null)
-                throw new InvalidOperationException("כונן וירטואלי נפתח לקריאה בלבד — התוכנה אינה כותבת אליו.");
+                throw new InvalidOperationException(L.T("כונן וירטואלי נפתח לקריאה בלבד — התוכנה אינה כותבת אליו."));
         }
 
         IntPtr handle = Win32.CreateFile(

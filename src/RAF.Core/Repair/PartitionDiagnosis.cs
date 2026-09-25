@@ -73,7 +73,7 @@ public static class PartitionDiagnosis
             return new PartitionDiagnosisResult
             {
                 Outlook = RepairOutlook.Unreadable,
-                Summary = "לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל.",
+                Summary = L.T("לא ניתן לפתוח את הדיסק לקריאה. ודאו שהתוכנה פועלת בהרשאות מנהל."),
             };
         }
 
@@ -87,8 +87,8 @@ public static class PartitionDiagnosis
             {
                 Outlook = RepairOutlook.Healthy,
                 DetectedFileSystem = primaryKind,
-                Summary = $"תחילת המחיצה (מגזר האתחול) תקינה ומזהה מערכת קבצים {Name(primaryKind)}. " +
-                          "אין צורך בתיקון.",
+                Summary = L.T("תחילת המחיצה (מגזר האתחול) תקינה ומזהה מערכת קבצים {0}. " +
+                          "אין צורך בתיקון.", Name(primaryKind)),
             };
         }
 
@@ -112,13 +112,13 @@ public static class PartitionDiagnosis
                 PrimaryOffset = 0,
                 RepairLength = candidate.Length,
                 Summary =
-                    $"תחילת המחיצה (מגזר האתחול) פגומה, אך נמצא עותק גיבוי תקין של {Name(kind)} " +
-                    $"{candidate.Description}. " +
-                    "העותק נבדק והתפענח בהצלחה.",
+                    L.T("תחילת המחיצה (מגזר האתחול) פגומה, אך נמצא עותק גיבוי תקין של {0} " +
+                    "{1}. " +
+                    "העותק נבדק והתפענח בהצלחה.", Name(kind), candidate.Description),
                 WhatWillChange =
-                    $"התיקון יעתיק {candidate.Length:N0} בתים מעותק הגיבוי אל תחילת המחיצה. " +
+                    L.T("התיקון יעתיק {0} בתים מעותק הגיבוי אל תחילת המחיצה. " +
                     "זו כתיבה לדיסק המקור. התוכנה תשמור תחילה עותק של מה שיוחלף, " +
-                    "כדי שניתן יהיה לבטל את הפעולה.",
+                    "כדי שניתן יהיה לבטל את הפעולה.", candidate.Length.ToString("N0")),
             };
         }
 
@@ -126,9 +126,9 @@ public static class PartitionDiagnosis
         {
             Outlook = RepairOutlook.NoBackup,
             Summary =
-                "תחילת המחיצה (מגזר האתחול) פגומה, ולא נמצא עותק גיבוי תקין במקומות שבהם הוא נשמר. " +
+                L.T("תחילת המחיצה (מגזר האתחול) פגומה, ולא נמצא עותק גיבוי תקין במקומות שבהם הוא נשמר. " +
                 "לא ניתן לתקן את המחיצה, אך עדיין אפשר לשחזר ממנה קבצים בסריקה מתקדמת, " +
-                "שאינה תלויה במערכת הקבצים.",
+                "שאינה תלויה במערכת הקבצים."),
         };
     }
 
@@ -143,18 +143,18 @@ public static class PartitionDiagnosis
         // NTFS: עותק בסקטור האחרון של המחיצה.
         if (partitionSize > sectorSize)
             yield return new BackupCandidate(
-                partitionSize - sectorSize, 512, "בסוף המחיצה, במקום שבו NTFS שומר את הגיבוי");
+                partitionSize - sectorSize, 512, L.T("בסוף המחיצה, במקום שבו NTFS שומר את הגיבוי"));
 
         // NTFS מדווח לעיתים גודל הקטן בסקטור אחד; נבדק גם המיקום הסמוך.
         if (partitionSize > sectorSize * 2)
             yield return new BackupCandidate(
-                partitionSize - sectorSize * 2, 512, "סמוך לסוף המחיצה, במקום שבו NTFS שומר את הגיבוי");
+                partitionSize - sectorSize * 2, 512, L.T("סמוך לסוף המחיצה, במקום שבו NTFS שומר את הגיבוי"));
 
         // FAT32: עותק בסקטור 6.
-        yield return new BackupCandidate(6L * sectorSize, 512, "בתחילת המחיצה, במקום שבו FAT32 שומר את הגיבוי");
+        yield return new BackupCandidate(6L * sectorSize, 512, L.T("בתחילת המחיצה, במקום שבו FAT32 שומר את הגיבוי"));
 
         // exFAT: אזור אתחול משני בסקטורים 12 עד 23.
-        yield return new BackupCandidate(12L * sectorSize, 512, "בתחילת המחיצה, באזור הגיבוי של exFAT");
+        yield return new BackupCandidate(12L * sectorSize, 512, L.T("בתחילת המחיצה, באזור הגיבוי של exFAT"));
     }
 
     /// <summary>זיהוי מערכת קבצים ממגזר אתחול.</summary>

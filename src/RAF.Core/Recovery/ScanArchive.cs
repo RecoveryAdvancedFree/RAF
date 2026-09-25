@@ -135,7 +135,7 @@ public sealed class ScanArchive
 
         var header = ReadHeader(reader);
         if (header.FormatVersion > CurrentFormat)
-            throw new InvalidDataException("הקובץ נשמר בגרסה חדשה יותר של התוכנה. עדכנו את RAF כדי לפתוח אותו.");
+            throw new InvalidDataException(L.T("הקובץ נשמר בגרסה חדשה יותר של התוכנה. עדכנו את RAF כדי לפתוח אותו."));
 
         return Guard(() => JsonSerializer.Deserialize<ScanArchive>(reader.ReadToEnd(), Options));
     }
@@ -165,7 +165,7 @@ public sealed class ScanArchive
         }
         catch (Exception ex) when (ex is JsonException or InvalidDataException or EndOfStreamException)
         {
-            throw new InvalidDataException("זה אינו קובץ סריקה של RAF, או שהקובץ פגום.");
+            throw new InvalidDataException(L.T("זה אינו קובץ סריקה של RAF, או שהקובץ פגום."));
         }
     }
 }

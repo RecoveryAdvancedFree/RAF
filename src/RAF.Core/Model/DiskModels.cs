@@ -42,7 +42,7 @@ public sealed class PhysicalDiskInfo
 
     /// <summary>שם ידידותי להצגה, לדוגמה: "Samsung SSD 990 PRO 2TB".</summary>
     public string DisplayName =>
-        string.IsNullOrWhiteSpace(Model) ? $"דיסק {DiskNumber}" : Model.Trim();
+        string.IsNullOrWhiteSpace(Model) ? L.T("דיסק {0}", DiskNumber) : Model.Trim();
 }
 
 /// <summary>
@@ -140,9 +140,9 @@ public sealed class RecoveryProfile
                 Parallelism = 1,
                 SequentialOrder = true,
                 SuccessOutlook = carving ? 85 : 90,
-                Rationale = "דיסק מגנטי מסתובב: הסריקה תתבצע ברצף מתחילת הדיסק ועד סופו, " +
+                Rationale = L.T("דיסק מגנטי מסתובב: הסריקה תתבצע ברצף מתחילת הדיסק ועד סופו, " +
                             "בבלוקים של 4MB ובזרם קריאה יחיד, כדי למנוע תנועות ראש מיותרות. " +
-                            "בדיסק מסוג זה נתונים שנמחקו נשארים על הצלחת עד לדריסה — סיכויי השחזור גבוהים.",
+                            "בדיסק מסוג זה נתונים שנמחקו נשארים על הצלחת עד לדריסה — סיכויי השחזור גבוהים."),
             },
 
             MediaKind.Ssd or MediaKind.NvmeSsd => new RecoveryProfile
@@ -153,13 +153,13 @@ public sealed class RecoveryProfile
                 SequentialOrder = false,
                 SuccessOutlook = disk.Trim == TrimState.Enabled ? (carving ? 25 : 40) : 80,
                 Rationale = disk.Media == MediaKind.NvmeSsd
-                    ? "כונן NVMe: אין עלות גישה אקראית, ולכן הסריקה תרוץ ב-8 ערוצים מקבילים " +
-                      "כדי לנצל את התורים הפנימיים של הבקר ולהגיע למהירות מרבית."
-                    : "כונן SSD: אין עלות גישה אקראית, ולכן הסריקה תרוץ ב-4 ערוצים מקבילים.",
+                    ? L.T("כונן NVMe: אין עלות גישה אקראית, ולכן הסריקה תרוץ ב-8 ערוצים מקבילים " +
+                      "כדי לנצל את התורים הפנימיים של הבקר ולהגיע למהירות מרבית.")
+                    : L.T("כונן SSD: אין עלות גישה אקראית, ולכן הסריקה תרוץ ב-4 ערוצים מקבילים."),
                 Warning = disk.Trim == TrimState.Enabled
-                    ? "שימו לב: הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM), " +
+                    ? L.T("שימו לב: הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM), " +
                       "לרוב תוך דקות. שחזור אפשרי בעיקר לקבצים שנמחקו " +
-                      "לאחרונה מאוד. מומלץ לכבות את המחשב ולסרוק בהקדם האפשרי."
+                      "לאחרונה מאוד. מומלץ לכבות את המחשב ולסרוק בהקדם האפשרי.")
                     : null,
             },
 
@@ -171,10 +171,10 @@ public sealed class RecoveryProfile
                 SequentialOrder = true,
                 SuccessOutlook = 88,
                 Rationale = disk.Media == MediaKind.MemoryCard
-                    ? "כרטיס זיכרון: רוב הכרטיסים אינם מוחקים מעצמם תוכן של קבצים שנמחקו (TRIM), ולכן הוא " +
-                      "נשאר על הכרטיס. הסריקה תתבצע ברצף, בקצב שמתאים לכרטיס."
-                    : "התקן USB נייד: רוב ההתקנים אינם מוחקים מעצמם תוכן של קבצים שנמחקו (TRIM), ולכן הוא " +
-                      "נשאר על ההתקן. הסריקה תתבצע ברצף, בקצב שמתאים להתקן.",
+                    ? L.T("כרטיס זיכרון: רוב הכרטיסים אינם מוחקים מעצמם תוכן של קבצים שנמחקו (TRIM), ולכן הוא " +
+                      "נשאר על הכרטיס. הסריקה תתבצע ברצף, בקצב שמתאים לכרטיס.")
+                    : L.T("התקן USB נייד: רוב ההתקנים אינם מוחקים מעצמם תוכן של קבצים שנמחקו (TRIM), ולכן הוא " +
+                      "נשאר על ההתקן. הסריקה תתבצע ברצף, בקצב שמתאים להתקן."),
             },
 
             MediaKind.Image => new RecoveryProfile
@@ -184,10 +184,10 @@ public sealed class RecoveryProfile
                 Parallelism = 1,
                 SequentialOrder = true,
                 SuccessOutlook = carving ? 85 : 90,
-                Rationale = "תמונת דיסק: הסריקה קוראת את קובץ התמונה בלבד, ברצף ובבלוקים של 4MB. " +
-                            "הכונן המקורי אינו נקרא כלל — כך ניתן לסרוק שוב ושוב בלי לסכן כונן חלש.",
+                Rationale = L.T("תמונת דיסק: הסריקה קוראת את קובץ התמונה בלבד, ברצף ובבלוקים של 4MB. " +
+                            "הכונן המקורי אינו נקרא כלל — כך ניתן לסרוק שוב ושוב בלי לסכן כונן חלש."),
                 Warning = disk.ImageDamaged
-                    ? "בתמונה זו יש אזורים שלא נקראו מהכונן המקורי. קבצים שישבו בהם יחזרו פגומים חלקית."
+                    ? L.T("בתמונה זו יש אזורים שלא נקראו מהכונן המקורי. קבצים שישבו בהם יחזרו פגומים חלקית.")
                     : null,
             },
 
@@ -197,7 +197,7 @@ public sealed class RecoveryProfile
                 Parallelism = 1,
                 SequentialOrder = true,
                 SuccessOutlook = 50,
-                Rationale = "תקליטור: קריאה רציפה איטית בבלוקים קטנים, עם סבלנות לשגיאות קריאה.",
+                Rationale = L.T("תקליטור: קריאה רציפה איטית בבלוקים קטנים, עם סבלנות לשגיאות קריאה."),
             },
 
             _ => new RecoveryProfile
@@ -206,7 +206,7 @@ public sealed class RecoveryProfile
                 Parallelism = 2,
                 SequentialOrder = true,
                 SuccessOutlook = 60,
-                Rationale = "סוג ההתקן לא זוהה בוודאות — נבחרה אסטרטגיית סריקה מאוזנת.",
+                Rationale = L.T("סוג ההתקן לא זוהה בוודאות — נבחרה אסטרטגיית סריקה מאוזנת."),
             },
         };
     }

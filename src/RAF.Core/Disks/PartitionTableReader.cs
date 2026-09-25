@@ -138,6 +138,7 @@ internal static class PartitionTableReader
         return result;
     }
 
+    // לא לתרגום: מכאן — תוויות קצרות; הממשק מתרגם (lang-en.js), ו"שמור למערכת" גם מושווה שם
     private static string GptTypeName(Guid type)
     {
         if (type == GuidBasicData) return "נתונים בסיסיים";
@@ -150,6 +151,7 @@ internal static class PartitionTableReader
         if (type == GuidAppleHfs) return "Apple HFS+";
         return "מחיצה";
     }
+    // לא לתרגום: עד כאן
 
     // ---------------------------------------------------------------- MBR
 
@@ -258,14 +260,14 @@ internal static class PartitionTableReader
         0x07 when detected == FileSystemKind.ExFat => "exFAT",
         0x07 => "NTFS / exFAT",
         0x0B or 0x0C => "FAT32",
-        0x11 or 0x14 or 0x16 or 0x17 or 0x1B or 0x1C or 0x1E => "מחיצה מוסתרת",
-        0x27 => "שחזור Windows",
+        0x11 or 0x14 or 0x16 or 0x17 or 0x1B or 0x1C or 0x1E => "מחיצה מוסתרת",   // לא לתרגום: תווית
+        0x27 => "שחזור Windows",   // לא לתרגום: תווית
         0x82 => "Linux Swap",
         0x83 => "Linux",
         0x8E => "Linux LVM",
         0xA5 or 0xA6 => "BSD",
         0xAF => "Apple HFS+",
         0xFD => "Linux RAID",
-        _ => $"סוג 0x{type:X2}",
+        _ => L.T("סוג 0x{0}", type.ToString("X2")),
     };
 }

@@ -31,8 +31,8 @@ internal sealed partial class Bridge
         {
             using var dialog = new OpenFileDialog
             {
-                Title = "בחרו כמה קבצים תקינים מאותו סוג — שלושה ומעלה",
-                Filter = "כל הקבצים (*.*)|*.*",
+                Title = L.T("בחרו כמה קבצים תקינים מאותו סוג — שלושה ומעלה"),
+                Filter = L.T("כל הקבצים (*.*)|*.*"),
                 Multiselect = true,
                 CheckFileExists = true,
             };
@@ -56,7 +56,7 @@ internal sealed partial class Bridge
 
     private object SaveCustomType(JsonObject? p)
     {
-        var learned = _learned ?? throw new InvalidOperationException("לא נלמד סוג חדש. בחרו קבצים לדוגמה קודם.");
+        var learned = _learned ?? throw new InvalidOperationException(L.T("לא נלמד סוג חדש. בחרו קבצים לדוגמה קודם."));
 
         string name = (p?["name"]?.GetValue<string>() ?? "").Trim();
         if (name.Length == 0) name = learned.Name;

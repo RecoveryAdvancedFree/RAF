@@ -228,7 +228,7 @@ internal static class CarvedMetadata
             }
         }
 
-        if (extension == "m4a") folder = "שמע M4A";
+        if (extension == "m4a") folder = "שמע M4A";   // לא לתרגום: תווית, הממשק מתרגם
         date = Sane(date);
         if (date is null && extension is null) return null;
         return new CarvedInfo(date is { } d ? Stamp(d) : null, date, extension, folder);
@@ -290,7 +290,7 @@ internal static class CarvedMetadata
         { 0xC0, 0xEF, 0x19, 0xBC, 0x4D, 0x5B, 0xCF, 0x11, 0xA8, 0xFD, 0x00, 0x80, 0x5F, 0x5C, 0x44, 0x2B };
 
     private static CarvedInfo? Asf(byte[] header)
-        => header.AsSpan().IndexOf(AsfVideoMedia) >= 0 ? null : new CarvedInfo(null, null, "wma", "שמע Windows Media");
+        => header.AsSpan().IndexOf(AsfVideoMedia) >= 0 ? null : new CarvedInfo(null, null, "wma", "שמע Windows Media");   // לא לתרגום: תווית, הממשק מתרגם
 
     /// <summary>
     /// DVD: חבילות של 2048 בתים, ובחבילה הראשונה מנת ניווט (00 00 01 BF) — זה VOB
@@ -309,7 +309,7 @@ internal static class CarvedMetadata
         var body = h.AsSpan(27 + h[26]);
         if (body.StartsWith("OpusHead"u8)) return new CarvedInfo(null, null, "opus");
         if (body.Length > 7 && body[0] == 0x80 && body[1..7].SequenceEqual("theora"u8))
-            return new CarvedInfo(null, null, "ogv", "וידאו OGG");
+            return new CarvedInfo(null, null, "ogv", "וידאו OGG");   // לא לתרגום: תווית, הממשק מתרגם
         return null;
     }
 
@@ -603,16 +603,16 @@ internal static class CarvedMetadata
         string? mimetype = Has("mimetype") && Part("mimetype") is { } m ? Encoding.ASCII.GetString(m).Trim() : null;
 
         (string Ext, string Folder)? kind =
-            Has("word/document.xml") ? (Has("word/vbaProject.bin") ? "docm" : "docx", "מסמך Word")
-            : Has("xl/workbook.xml") ? (Has("xl/vbaProject.bin") ? "xlsm" : "xlsx", "גיליון Excel")
-            : Has("ppt/presentation.xml") ? (Has("ppt/vbaProject.bin") ? "pptm" : "pptx", "מצגת PowerPoint")
-            : Has("visio/document.xml") ? ("vsdx", "שרטוט Visio")
-            : mimetype == "application/vnd.oasis.opendocument.text" ? ("odt", "מסמך OpenDocument")
-            : mimetype == "application/vnd.oasis.opendocument.spreadsheet" ? ("ods", "גיליון OpenDocument")
-            : mimetype == "application/vnd.oasis.opendocument.presentation" ? ("odp", "מצגת OpenDocument")
-            : mimetype == "application/epub+zip" ? ("epub", "ספר אלקטרוני")
-            : Has("AndroidManifest.xml") && Has("classes.dex") ? ("apk", "אפליקציית אנדרואיד")
-            : Has("META-INF/MANIFEST.MF") ? ("jar", "ארכיון Java")
+            Has("word/document.xml") ? (Has("word/vbaProject.bin") ? "docm" : "docx", "מסמך Word")   // לא לתרגום: תווית, הממשק מתרגם
+            : Has("xl/workbook.xml") ? (Has("xl/vbaProject.bin") ? "xlsm" : "xlsx", "גיליון Excel")   // לא לתרגום: תווית, הממשק מתרגם
+            : Has("ppt/presentation.xml") ? (Has("ppt/vbaProject.bin") ? "pptm" : "pptx", "מצגת PowerPoint")   // לא לתרגום: תווית, הממשק מתרגם
+            : Has("visio/document.xml") ? ("vsdx", "שרטוט Visio")   // לא לתרגום: תווית, הממשק מתרגם
+            : mimetype == "application/vnd.oasis.opendocument.text" ? ("odt", "מסמך OpenDocument")   // לא לתרגום: תווית, הממשק מתרגם
+            : mimetype == "application/vnd.oasis.opendocument.spreadsheet" ? ("ods", "גיליון OpenDocument")   // לא לתרגום: תווית, הממשק מתרגם
+            : mimetype == "application/vnd.oasis.opendocument.presentation" ? ("odp", "מצגת OpenDocument")   // לא לתרגום: תווית, הממשק מתרגם
+            : mimetype == "application/epub+zip" ? ("epub", "ספר אלקטרוני")   // לא לתרגום: תווית, הממשק מתרגם
+            : Has("AndroidManifest.xml") && Has("classes.dex") ? ("apk", "אפליקציית אנדרואיד")   // לא לתרגום: תווית, הממשק מתרגם
+            : Has("META-INF/MANIFEST.MF") ? ("jar", "ארכיון Java")   // לא לתרגום: תווית, הממשק מתרגם
             : null;
 
         string? title = null;
@@ -683,10 +683,10 @@ internal static class CarvedMetadata
         }
 
         (string Ext, string Folder)? kind =
-            names.Contains("WordDocument") ? ("doc", "מסמך Word ישן")
-            : names.Contains("Workbook") || names.Contains("Book") ? ("xls", "גיליון Excel ישן")
-            : names.Contains("PowerPoint Document") ? ("ppt", "מצגת PowerPoint ישנה")
-            : names.Any(n => n.StartsWith("__substg1.0_", StringComparison.Ordinal)) ? ("msg", "הודעת Outlook")
+            names.Contains("WordDocument") ? ("doc", "מסמך Word ישן")   // לא לתרגום: תווית, הממשק מתרגם
+            : names.Contains("Workbook") || names.Contains("Book") ? ("xls", "גיליון Excel ישן")   // לא לתרגום: תווית, הממשק מתרגם
+            : names.Contains("PowerPoint Document") ? ("ppt", "מצגת PowerPoint ישנה")   // לא לתרגום: תווית, הממשק מתרגם
+            : names.Any(n => n.StartsWith("__substg1.0_", StringComparison.Ordinal)) ? ("msg", "הודעת Outlook")   // לא לתרגום: תווית, הממשק מתרגם
             : null;
 
         return kind is null ? null : new CarvedInfo(null, null, kind.Value.Ext, kind.Value.Folder);

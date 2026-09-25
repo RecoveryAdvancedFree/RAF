@@ -56,7 +56,7 @@ internal sealed partial class Bridge
         try
         {
             var request = JsonNode.Parse(rawMessage)?.AsObject()
-                          ?? throw new InvalidOperationException("בקשה ריקה");
+                          ?? throw new InvalidOperationException(L.T("בקשה ריקה"));
 
             id = request["id"]?.GetValue<string>() ?? "";
             method = request["method"]?.GetValue<string>() ?? "";
@@ -67,7 +67,7 @@ internal sealed partial class Bridge
         }
         catch (OperationCanceledException)
         {
-            return Fail(id, new FriendlyError("הפעולה בוטלה.", null, null), method);
+            return Fail(id, new FriendlyError(L.T("הפעולה בוטלה."), null, null), method);
         }
         catch (Exception ex)
         {
@@ -78,6 +78,8 @@ internal sealed partial class Bridge
     private async Task<object?> DispatchAsync(string method, JsonObject? p) => method switch
     {
         "system.info" => SystemInfo(),
+        // שפת ההודעות שהמנוע כותב (ראו RAF.Core.Text.L). הודעה שכבר נכתבה נשארת בשפתה.
+        "system.language" => L.Language = p?["lang"]?.GetValue<string>() == "en" ? "en" : "he",
         "diag.report" => WriteDiagnostics(p),
         "disks.list" => await Task.Run(ListDisks),
         "disks.health" => await DisksHealthAsync(),
@@ -86,7 +88,7 @@ internal sealed partial class Bridge
         "repair.diagnose" => await Task.Run(() => Diagnose(p)),
         "repair.apply" => await Task.Run(() => ApplyRepair(p)),
         "repair.readThrough" => await Task.Run(() => ReadThrough(p)),
-        "repair.pickFolder" => PickFolder("בחרו תיקייה לגיבוי — חייבת להיות על כונן אחר"),
+        "repair.pickFolder" => PickFolder(L.T("בחרו תיקייה לגיבוי — חייבת להיות על כונן אחר")),
         "undo.pickFile" => PickUndoFile(),
 
         "types.list" => ListCustomTypes(),
@@ -97,7 +99,7 @@ internal sealed partial class Bridge
         "undo.apply" => await Task.Run(() => ApplyUndo(p)),
 
         "doctor.pickFiles" => PickFiles(),
-        "doctor.pickFolder" => PickFolder("בחרו תיקייה לשמירת הקבצים המתוקנים"),
+        "doctor.pickFolder" => PickFolder(L.T("בחרו תיקייה לשמירת הקבצים המתוקנים")),
         "doctor.diagnose" => await Task.Run(() => DoctorDiagnose(p)),
         "doctor.diagnoseFolder" => await Task.Run(() => DoctorDiagnoseFolder(p)),
         "doctor.repair" => await Task.Run(() => DoctorRepair(p)),
@@ -148,7 +150,7 @@ internal sealed partial class Bridge
         "window.beginDrag" => _form.InvokeOnUi(() =>
             NativeChrome.BeginWindowAction(_form.Handle, p?["hit"]?.GetValue<int>() ?? NativeChrome.HTCAPTION)),
 
-        _ => throw new InvalidOperationException($"שיטה לא מוכרת: {method}"),
+        _ => throw new InvalidOperationException(L.T("שיטה לא מוכרת: {0}", method)),
     };
 
     /// <summary>
@@ -206,7 +208,7 @@ internal sealed partial class Bridge
 
         return new
         {
-            appName = "שחזור מתקדם חינם",
+            appName = L.T("שחזור מתקדם חינם"),
             version = typeof(Bridge).Assembly.GetName().Version?.ToString(3) ?? "0.1.0",
             elevated = DiskEnumerator.IsElevated,
             machine = Environment.MachineName,
@@ -357,16 +359,16 @@ internal sealed partial class Bridge
 
         var disk = FindDisk(diskNumber);
         var part = disk.Partitions.FirstOrDefault(x => x.Index == partIndex)
-                   ?? throw new InvalidOperationException("המחיצה לא נמצאה. רענן את רשימת הדיסקים.");
+                   ?? throw new InvalidOperationException(L.T("המחיצה לא נמצאה. רענן את רשימת הדיסקים."));
 
         if (!VolumeScanner.CanScan(part.FileSystem, mode))
             throw new InvalidOperationException(
-                $"מערכת הקבצים {Display.FileSystem(part.FileSystem)} אינה נתמכת לסריקת מטא-דאטה. " +
-                "נסו סריקה מתקדמת, שאינה תלויה במערכת הקבצים.");
+                L.T("מערכת הקבצים {0} אינה נתמכת לסריקת מטא-דאטה. " +
+                "נסו סריקה מתקדמת, שאינה תלויה במערכת הקבצים.", L.T(Display.FileSystem(part.FileSystem))));
 
         string title = !string.IsNullOrEmpty(part.Label) ? part.Label
-            : !string.IsNullOrEmpty(part.DriveLetter) ? "כונן " + part.DriveLetter
-            : "מחיצה " + part.Index;
+            : !string.IsNullOrEmpty(part.DriveLetter) ? L.T("כונן ") + part.DriveLetter
+            : L.T("מחיצה ") + part.Index;
 
         return await RunScanAsync(disk, part.OffsetBytes, part.SizeBytes, part.FileSystem, title,
             mode, includeExisting, freeSpaceOnly, types, resumeFrom: null, NewAutosavePath(title));
@@ -390,11 +392,11 @@ internal sealed partial class Bridge
     {
         string? path = p?["path"]?.GetValue<string>() ?? _session?.SavedPath;
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
-            throw new InvalidOperationException("קובץ הסריקה שממנו ממשיכים לא נמצא.");
+            throw new InvalidOperationException(L.T("קובץ הסריקה שממנו ממשיכים לא נמצא."));
 
         var archive = await Task.Run(() => ScanArchive.Load(path));
         var resume = archive.Result.Resume
-                     ?? throw new InvalidOperationException("הסריקה הזו הסתיימה, או שאי אפשר להמשיך אותה.");
+                     ?? throw new InvalidOperationException(L.T("הסריקה הזו הסתיימה, או שאי אפשר להמשיך אותה."));
 
         // הרשימה מתרעננת קודם: כונן שנותק עדיין מופיע ברשימה הישנה, וכונן שחובר מחדש
         // עוד לא — ובשני המקרים הייתה מתקבלת שגיאת פתיחה במקום "הכונן אינו מחובר".
@@ -408,7 +410,7 @@ internal sealed partial class Bridge
             _disks.Add(disk);
         }
         if (disk is null)
-            throw new InvalidOperationException("הכונן שנסרק אינו מחובר. חברו אותו, רעננו את רשימת הכוננים ונסו שוב.");
+            throw new InvalidOperationException(L.T("הכונן שנסרק אינו מחובר. חברו אותו, רעננו את רשימת הכוננים ונסו שוב."));
 
         // מערכת הקבצים של המחיצה — בשביל מפת המקום הפנוי. מחיצה שאינה ברשימה נסרקת כולה.
         var part = disk.Partitions.FirstOrDefault(x => x.OffsetBytes == archive.PartitionOffset);
@@ -533,11 +535,11 @@ internal sealed partial class Bridge
     private static IEnumerable<string> SessionWarnings(ScanSession session)
     {
         if (session.Offline)
-            yield return "הכונן שנסרק אינו מחובר, ולכן אפשר רק לעיין ברשימה — בלי תצוגה מקדימה ובלי שחזור. " +
-                         "חברו את הכונן, חזרו לרשימת הכוננים ופתחו את הסריקה שוב.";
+            yield return L.T("הכונן שנסרק אינו מחובר, ולכן אפשר רק לעיין ברשימה — בלי תצוגה מקדימה ובלי שחזור. " +
+                         "חברו את הכונן, חזרו לרשימת הכוננים ופתחו את הסריקה שוב.");
         if (session.Partial)
-            yield return "זו נקודת ביניים שנשמרה באמצע סריקה, ולא כל המחיצה נסרקה. " +
-                         "הקבצים שברשימה ניתנים לשחזור; כדי למצוא את השאר — הריצו את הסריקה שוב.";
+            yield return L.T("זו נקודת ביניים שנשמרה באמצע סריקה, ולא כל המחיצה נסרקה. " +
+                         "הקבצים שברשימה ניתנים לשחזור; כדי למצוא את השאר — הריצו את הסריקה שוב.");
     }
 
     /// <summary>רמה אחת בעץ התוצאות: תיקיות המשנה שבנתיב. הקבצים נמשכים דרך scan.list.</summary>
@@ -586,7 +588,7 @@ internal sealed partial class Bridge
     private object ListView(JsonObject? p)
     {
         var session = RequireSession();
-        var query = ReadView(p?["view"]) ?? throw new ArgumentException("חסרה תצוגה בבקשה.");
+        var query = ReadView(p?["view"]) ?? throw new ArgumentException(L.T("חסרה תצוגה בבקשה."));
         var view = session.View(query);
         int offset = Math.Clamp(p?["offset"]?.GetValue<int>() ?? 0, 0, view.Count);
         int count = Math.Clamp(p?["count"]?.GetValue<int>() ?? 200, 0, 1000);
@@ -703,7 +705,7 @@ internal sealed partial class Bridge
         long id = p?["id"]?.GetValue<long>() ?? -1;
 
         var file = session.ById(id)
-                   ?? throw new InvalidOperationException("הקובץ לא נמצא בתוצאות הסריקה.");
+                   ?? throw new InvalidOperationException(L.T("הקובץ לא נמצא בתוצאות הסריקה."));
 
         const int maxPreview = 512 * 1024;
         return PreviewOf(session, file, maxPreview);
@@ -766,7 +768,7 @@ internal sealed partial class Bridge
             session.SectorSize, file, maxPreview);
 
         if (head.Length == 0)
-            return new { kind = "none", name = file.Name, reason = "לא ניתן לקרוא את תוכן הקובץ." };
+            return new { kind = "none", name = file.Name, reason = L.T("לא ניתן לקרוא את תוכן הקובץ.") };
 
         var signature = FileSignatures.Identify(head);
         string hex = HexDump(head, 256);
@@ -882,12 +884,12 @@ internal sealed partial class Bridge
             Encoding.UTF8;
 
         string text = encoding.GetString(data);
-        return text.Length > maxChars ? text[..maxChars] + "\n\n… (התצוגה נקטעה)" : text;
+        return text.Length > maxChars ? text[..maxChars] + L.T("\n\n… (התצוגה נקטעה)") : text;
     }
 
     // ------------------------------------------------------------ שחזור
 
-    private object PickFolder() => PickFolder("בחרו תיקיית יעד לשחזור — חייבת להיות על כונן אחר");
+    private object PickFolder() => PickFolder(L.T("בחרו תיקיית יעד לשחזור — חייבת להיות על כונן אחר"));
 
     private object PickFolder(string description)
     {
@@ -937,7 +939,7 @@ internal sealed partial class Bridge
         var files = session.SelectedFiles();
 
         if (files.Count == 0)
-            throw new InvalidOperationException("לא נבחרו קבצים לשחזור.");
+            throw new InvalidOperationException(L.T("לא נבחרו קבצים לשחזור."));
 
         _recoverCancel?.Cancel();
         _recoverCancel = new CancellationTokenSource();
@@ -967,7 +969,7 @@ internal sealed partial class Bridge
             {
                 TargetFolder = target, PreservePaths = preservePaths,
                 Source = session.Disk.ImagePath is { } image && !DevicePaths.IsVolumePath(image)
-                    ? $"{session.PartitionTitle} · תמונת דיסק {Path.GetFileName(image)}"
+                    ? L.T("{0} · תמונת דיסק {1}", session.PartitionTitle, Path.GetFileName(image))
                     : $"{session.PartitionTitle} · {session.Disk.Model}",
             },
             progress, _recoverCancel.Token);
@@ -997,7 +999,7 @@ internal sealed partial class Bridge
     private static object? OpenFolder(JsonObject? p)
     {
         string path = p?["path"]?.GetValue<string>() ?? "";
-        if (!Directory.Exists(path)) throw new InvalidOperationException("התיקייה לא נמצאה.");
+        if (!Directory.Exists(path)) throw new InvalidOperationException(L.T("התיקייה לא נמצאה."));
 
         var start = new System.Diagnostics.ProcessStartInfo("explorer.exe") { UseShellExecute = false };
         start.ArgumentList.Add(Path.GetFullPath(path));
@@ -1085,7 +1087,7 @@ internal sealed partial class Bridge
                 // מחיצה שתחילתה נהרסה אינה נקראת ישירות — היא מוצגת כלא מזוהה,
                 // והממשק מוביל אותה לאבחון ולקריאה דרך עותק הגיבוי.
                 FileSystem = f.BootSectorDamaged ? FileSystemKind.Raw : f.FileSystem,
-                TypeName = "מחיצה שנמצאה · " + Display.FileSystem(f.FileSystem),
+                TypeName = L.T("מחיצה שנמצאה · ") + Display.FileSystem(f.FileSystem),
                 Label = f.Label,
                 IsUnmounted = true,
             });
@@ -1102,7 +1104,7 @@ internal sealed partial class Bridge
     {
         var (disk, part) = FindPartition(p);
         var found = FoundFor(disk, part)
-                    ?? throw new InvalidOperationException("זו אינה מחיצה שנמצאה בסריקת כונן.");
+                    ?? throw new InvalidOperationException(L.T("זו אינה מחיצה שנמצאה בסריקת כונן."));
 
         var plan = PartitionTableWriter.Plan(disk, found);
         return new { canRestore = plan.CanRestore, explanation = plan.Explanation, whatWillChange = plan.WhatWillChange };
@@ -1112,11 +1114,11 @@ internal sealed partial class Bridge
     {
         var (disk, part) = FindPartition(p);
         var found = FoundFor(disk, part)
-                    ?? throw new InvalidOperationException("זו אינה מחיצה שנמצאה בסריקת כונן.");
+                    ?? throw new InvalidOperationException(L.T("זו אינה מחיצה שנמצאה בסריקת כונן."));
 
         string undoFolder = p?["undoFolder"]?.GetValue<string>() ?? "";
         if (string.IsNullOrWhiteSpace(undoFolder))
-            throw new InvalidOperationException("יש לבחור תיקייה לגיבוי לפני הכתיבה.");
+            throw new InvalidOperationException(L.T("יש לבחור תיקייה לגיבוי לפני הכתיבה."));
         RequireConfirmWord(p);
 
         var result = PartitionTableWriter.Restore(disk, found, undoFolder);
@@ -1143,16 +1145,16 @@ internal sealed partial class Bridge
         int partIndex = p?["part"]?.GetValue<int>() ?? -1;
 
         if (partIndex < 0)
-            return (disk, null, 0, disk.SizeBytes, $"{disk.DisplayName} (דיסק {disk.DiskNumber}, {disk.BusType})");
+            return (disk, null, 0, disk.SizeBytes, L.T("{0} (דיסק {1}, {2})", disk.DisplayName, disk.DiskNumber, L.T(disk.BusType)));
 
         var part = disk.Partitions.FirstOrDefault(x => x.Index == partIndex)
-                   ?? throw new InvalidOperationException("המחיצה לא נמצאה. רענן את רשימת הדיסקים.");
+                   ?? throw new InvalidOperationException(L.T("המחיצה לא נמצאה. רענן את רשימת הדיסקים."));
 
-        string name = !string.IsNullOrEmpty(part.DriveLetter) ? "כונן " + part.DriveLetter
-            : !string.IsNullOrEmpty(part.Label) ? part.Label : "מחיצה " + part.Index;
+        string name = !string.IsNullOrEmpty(part.DriveLetter) ? L.T("כונן ") + part.DriveLetter
+            : !string.IsNullOrEmpty(part.Label) ? part.Label : L.T("מחיצה ") + part.Index;
 
         return (disk, part, part.OffsetBytes, part.SizeBytes,
-            $"{disk.DisplayName} (דיסק {disk.DiskNumber}) · {name} · {Display.FileSystem(part.FileSystem)}");
+            L.T("{0} (דיסק {1}) · {2} · {3}", disk.DisplayName, disk.DiskNumber, name, L.T(Display.FileSystem(part.FileSystem))));
     }
 
     private object PickImageTarget(JsonObject? p)
@@ -1171,12 +1173,12 @@ internal sealed partial class Bridge
         {
             using var dialog = new SaveFileDialog
             {
-                Title = "שמירת תמונת הדיסק — בחרו כונן אחר מהכונן המקורי",
+                Title = L.T("שמירת תמונת הדיסק — בחרו כונן אחר מהכונן המקורי"),
                 FileName = suggested,
                 // כונן שלם: אפשר גם VHD, ש-Windows מחבר ככונן בלחיצה כפולה.
                 Filter = part is null
-                    ? "תמונת דיסק גולמית (*.img)|*.img|כונן וירטואלי שאפשר לחבר ב-Windows (*.vhd)|*.vhd"
-                    : "תמונת דיסק גולמית (*.img)|*.img",
+                    ? L.T("תמונת דיסק גולמית (*.img)|*.img|כונן וירטואלי שאפשר לחבר ב-Windows (*.vhd)|*.vhd")
+                    : L.T("תמונת דיסק גולמית (*.img)|*.img"),
                 DefaultExt = "img",
                 // תמונה קיימת אינה בהכרח דריסה — אפשר להמשיך ממנה. הלוח מסביר מה יקרה.
                 OverwritePrompt = false,
@@ -1285,11 +1287,11 @@ internal sealed partial class Bridge
             {
                 using var dialog = new OpenFileDialog
                 {
-                    Title = "פתיחת תמונת דיסק",
-                    Filter = "תמונות דיסק וכוננים וירטואליים (*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk;*.e01)|*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk;*.e01|" +
+                    Title = L.T("פתיחת תמונת דיסק"),
+                    Filter = L.T("תמונות דיסק וכוננים וירטואליים (*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk;*.e01)|*.img;*.dd;*.raw;*.bin;*.vhd;*.vhdx;*.vmdk;*.e01|" +
                              "כוננים וירטואליים של Windows (*.vhd;*.vhdx)|*.vhd;*.vhdx|" +
                              "כוננים של VirtualBox ו-VMware (*.vmdk)|*.vmdk|" +
-                             "תמונות של כלי חקירה (*.e01)|*.e01|כל הקבצים (*.*)|*.*",
+                             "תמונות של כלי חקירה (*.e01)|*.e01|כל הקבצים (*.*)|*.*"),
                     CheckFileExists = true,
                 };
 
@@ -1315,9 +1317,9 @@ internal sealed partial class Bridge
     {
         var (disk, part) = FindPartition(p);
         if (part.FileSystem != FileSystemKind.BitLocker || part.DriveLetter.Length == 0)
-            throw new InvalidOperationException("המחיצה אינה כונן BitLocker עם אות כונן.");
+            throw new InvalidOperationException(L.T("המחיצה אינה כונן BitLocker עם אות כונן."));
 
-        string title = string.IsNullOrWhiteSpace(part.Label) ? $"כונן {part.DriveLetter}" : $"{part.Label} ({part.DriveLetter})";
+        string title = string.IsNullOrWhiteSpace(part.Label) ? L.T("כונן {0}", part.DriveLetter) : $"{part.Label} ({part.DriveLetter})";
         var volume = ImageDisk.OpenUnlockedVolume(part.DriveLetter, part.SizeBytes, disk.LogicalSectorSize, title);
         _images.RemoveAll(d => d.DiskNumber == volume.DiskNumber);
         _images.Add(volume);
@@ -1421,7 +1423,7 @@ internal sealed partial class Bridge
         string undoFolder = p?["undoFolder"]?.GetValue<string>() ?? "";
 
         if (string.IsNullOrWhiteSpace(undoFolder))
-            throw new InvalidOperationException("יש לבחור תיקייה לגיבוי לפני התיקון.");
+            throw new InvalidOperationException(L.T("יש לבחור תיקייה לגיבוי לפני התיקון."));
         RequireConfirmWord(p);
 
         var diagnosis = PartitionDiagnosis.Diagnose(
@@ -1456,8 +1458,8 @@ internal sealed partial class Bridge
         {
             using var dialog = new OpenFileDialog
             {
-                Title = "בחרו את קובץ הביטול שנשמר בזמן התיקון",
-                Filter = "קובצי ביטול|RAF-undo-*.bin|כל הקבצים|*.*",
+                Title = L.T("בחרו את קובץ הביטול שנשמר בזמן התיקון"),
+                Filter = L.T("קובצי ביטול|RAF-undo-*.bin|כל הקבצים|*.*"),
                 CheckFileExists = true,
             };
             if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
@@ -1477,7 +1479,7 @@ internal sealed partial class Bridge
             canUndo = check.CanUndo,
             message = check.Message,
             what = file is null ? null
-                : file.Kind == UndoKind.PartitionTable ? "החזרת מחיצה לטבלת המחיצות" : "תיקון מחיצה",
+                : file.Kind == UndoKind.PartitionTable ? L.T("החזרת מחיצה לטבלת המחיצות") : L.T("תיקון מחיצה"),
             created = file?.Created,
             diskName = check.Disk?.DisplayName,
             diskSize = check.Disk?.SizeBytes,
@@ -1503,7 +1505,7 @@ internal sealed partial class Bridge
         {
             using var dialog = new OpenFileDialog
             {
-                Title = "בחרו קבצים לבדיקה ולתיקון",
+                Title = L.T("בחרו קבצים לבדיקה ולתיקון"),
                 Multiselect = true,
                 CheckFileExists = true,
             };
@@ -1536,7 +1538,7 @@ internal sealed partial class Bridge
     {
         string folder = p?["folder"]?.GetValue<string>() ?? "";
         if (!Directory.Exists(folder))
-            throw new InvalidOperationException("התיקייה לא נמצאה.");
+            throw new InvalidOperationException(L.T("התיקייה לא נמצאה."));
 
         var files = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories)
             .Take(5000)
@@ -1558,7 +1560,7 @@ internal sealed partial class Bridge
         string output = p?["output"]?.GetValue<string>() ?? "";
 
         if (string.IsNullOrWhiteSpace(output))
-            throw new InvalidOperationException("יש לבחור תיקייה לשמירת הקבצים המתוקנים.");
+            throw new InvalidOperationException(L.T("יש לבחור תיקייה לשמירת הקבצים המתוקנים."));
 
         var results = paths.Select(path =>
         {
@@ -1610,8 +1612,8 @@ internal sealed partial class Bridge
         {
             using var dialog = new OpenFileDialog
             {
-                Title = "בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות",
-                Filter = "סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*",
+                Title = L.T("בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות"),
+                Filter = L.T("סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*"),
                 CheckFileExists = true,
             };
             if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
@@ -1637,7 +1639,7 @@ internal sealed partial class Bridge
         string reference = p?["reference"]?.GetValue<string>() ?? "";
         string output = p?["output"]?.GetValue<string>() ?? "";
         if (string.IsNullOrWhiteSpace(output))
-            throw new InvalidOperationException("יש לבחור תיקייה לשמירת הסרטון המתוקן.");
+            throw new InvalidOperationException(L.T("יש לבחור תיקייה לשמירת הסרטון המתוקן."));
 
         var last = DateTime.MinValue;
         var progress = new Progress<double>(percent =>
@@ -1681,7 +1683,7 @@ internal sealed partial class Bridge
         {
             return new DiagnosisView(
                 path, Path.GetFileName(path), 0, false, false, null, null, null,
-                new List<IssueView> { new("Error", "לא ניתן לקרוא את הקובץ. " + FriendlyError.From(ex).Text, false) });
+                new List<IssueView> { new("Error", L.T("לא ניתן לקרוא את הקובץ. ") + FriendlyError.From(ex).Text, false) });
         }
     }
 
@@ -1692,17 +1694,17 @@ internal sealed partial class Bridge
     {
         var disk = FindDisk(p?["disk"]?.GetValue<int>() ?? -1);
         var part = disk.Partitions.FirstOrDefault(x => x.Index == (p?["part"]?.GetValue<int>() ?? -1))
-                   ?? throw new InvalidOperationException("המחיצה לא נמצאה. רענן את רשימת הדיסקים.");
+                   ?? throw new InvalidOperationException(L.T("המחיצה לא נמצאה. רענן את רשימת הדיסקים."));
 
         return (disk, part);
     }
 
     private PhysicalDiskInfo FindDisk(int number)
         => _disks.FirstOrDefault(d => d.DiskNumber == number)
-           ?? throw new InvalidOperationException("הדיסק לא נמצא. רענן את רשימת הדיסקים.");
+           ?? throw new InvalidOperationException(L.T("הדיסק לא נמצא. רענן את רשימת הדיסקים."));
 
     private ScanSession RequireSession()
-        => _session ?? throw new InvalidOperationException("לא בוצעה סריקה עדיין.");
+        => _session ?? throw new InvalidOperationException(L.T("לא בוצעה סריקה עדיין."));
 
     private static object? Cancel(CancellationTokenSource? source)
     {
@@ -1732,7 +1734,7 @@ internal sealed partial class Bridge
     /// <summary>
     /// המילה שהמשתמש מקליד לפני כתיבה לכונן — בכל שפת ממשק המילה שלה (confirmWord בממשק).
     /// </summary>
-    private static readonly string[] ConfirmWords = { "מאשר", "CONFIRM" };
+    private static readonly string[] ConfirmWords = { "מאשר", "CONFIRM" };   // לא לתרגום: תווית, הממשק מתרגם
 
     /// <summary>
     /// בדיקה כפולה למילת האישור: הממשק לא מאפשר ללחוץ בלעדיה, אבל הכתיבה לכונן
@@ -1742,7 +1744,7 @@ internal sealed partial class Bridge
     {
         string typed = p?["confirm"]?.GetValue<string>()?.Trim() ?? "";
         if (!ConfirmWords.Any(w => string.Equals(typed, w, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"כדי לכתוב לכונן יש להקליד את המילה \"{ConfirmWords[0]}\". שום דבר לא נכתב.");
+            throw new InvalidOperationException(L.T("כדי לכתוב לכונן יש להקליד את המילה \"{0}\". שום דבר לא נכתב.", ConfirmWords[0]));
     }
 
     /// <summary>הפעולות היחידות שכותבות לכונן המקור. בכל השאר, שגיאה אינה נוגעת בו.</summary>

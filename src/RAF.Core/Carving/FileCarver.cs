@@ -95,7 +95,7 @@ public sealed class FileCarver
         int diskNumber, long partitionOffset, long length, int sectorSize, FileSystemKind fileSystem,
         IProgress<ScanProgress>? progress)
     {
-        progress?.Report(new ScanProgress { Stage = "קורא את מפת המקום הפנוי" });
+        progress?.Report(new ScanProgress { Stage = L.T("קורא את מפת המקום הפנוי") });
         FreeSpaceMap? map = null;
         try
         {
@@ -109,9 +109,9 @@ public sealed class FileCarver
         }
 
         _warnings.Add(map is null
-            ? "מפת המקום הפנוי של מערכת הקבצים אינה נקראת, ולכן נסרקה המחיצה כולה."
-            : $"נסרק רק המקום הפנוי — {Percent(map.FreeBytes, map.TotalBytes)} מהמחיצה. קבצים שנמחקו נמצאים שם; " +
-              "המקום התפוס מכיל את הקבצים הקיימים. אחרי פירמוט, או כשמבנה המחיצה פגום, אפשר לסרוק את כולה.");
+            ? L.T("מפת המקום הפנוי של מערכת הקבצים אינה נקראת, ולכן נסרקה המחיצה כולה.")
+            : L.T("נסרק רק המקום הפנוי — {0} מהמחיצה. קבצים שנמחקו נמצאים שם; " +
+              "המקום התפוס מכיל את הקבצים הקיימים. אחרי פירמוט, או כשמבנה המחיצה פגום, אפשר לסרוק את כולה.", Percent(map.FreeBytes, map.TotalBytes)));
         return map;
 
         static string Percent(long part, long whole) => whole > 0 ? $"{part * 100.0 / whole:N0}%" : "0%";
@@ -155,8 +155,8 @@ public sealed class FileCarver
         bool stopped = token.IsCancellationRequested || _disconnected;
         var resume = stopped && _stoppedAt >= 0 ? ResumeAt(_stoppedAt, _stoppedAllowed, size) : null;
         if (_disconnected)
-            _warnings.Insert(0, $"הכונן נותק באמצע הסריקה, אחרי {resume?.Percent ?? 0:0.#}% מהמחיצה. " +
-                                "הסריקה נשמרה — חברו את הכונן שוב והמשיכו מאותה נקודה.");
+            _warnings.Insert(0, L.T("הכונן נותק באמצע הסריקה, אחרי {0}% מהמחיצה. " +
+                                "הסריקה נשמרה — חברו את הכונן שוב והמשיכו מאותה נקודה.", (resume?.Percent ?? 0).ToString("0.#")));
         var result = Result(files, clock, stopped, _warnings, resume);
         return _disconnected ? result.WithDisconnected() : result;
     }
@@ -304,7 +304,7 @@ public sealed class FileCarver
                 reported = at;
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "סורק את המחיצה אחר חתימות קבצים",
+                    Stage = L.T("סורק את המחיצה אחר חתימות קבצים"),
                     Percent = at * 100.0 / size,
                     FilesFound = files.Count,
                     BytesProcessed = at,
@@ -324,7 +324,7 @@ public sealed class FileCarver
                 long done = Math.Min(at + scanLimit, to);
                 checkpoint(Result(files.ToList(), clock, cancelled: true, new List<string>
                 {
-                    $"נקודת ביניים: נשמרה אחרי {done * 100.0 / size:0.#}% מהמחיצה. קבצים שאחרי נקודה זו אינם ברשימה.",
+                    L.T("נקודת ביניים: נשמרה אחרי {0}% מהמחיצה. קבצים שאחרי נקודה זו אינם ברשימה.", (done * 100.0 / size).ToString("0.#")),
                 }, ResumeAt(done, nextAllowedStart, size)));
             }
         }
@@ -410,7 +410,7 @@ public sealed class FileCarver
             Mode = ScanMode.Advanced,
             Duration = clock.Elapsed,
             Cancelled = cancelled,
-            FileSystem = "סריקת חתימות",
+            FileSystem = L.T("סריקת חתימות"),
             RecordsExamined = _candidates,
             BytesRead = _bytesRead,
             Warnings = warnings,
@@ -485,7 +485,7 @@ public sealed class FileCarver
 
             progress?.Report(new ScanProgress
             {
-                Stage = "מאמת את התמונות שנמצאו",
+                Stage = L.T("מאמת את התמונות שנמצאו"),
                 Percent = 100.0 * (i + 1) / pending.Count,
                 FilesFound = files.Count,
                 BytesProcessed = size,
@@ -592,8 +592,8 @@ public sealed class FileCarver
                 },
                 Quality = RecoveryQuality.Good,
                 QualityReason =
-                    $"הקובץ היה מפוצל לשני חלקים על הכונן. החלק השני נמצא {Kb(pair.Gap)} אחרי סוף הראשון, " +
-                    "והחיבור אומת בפענוח של כל התמונה עד סופה.",
+                    L.T("הקובץ היה מפוצל לשני חלקים על הכונן. החלק השני נמצא {0} אחרי סוף הראשון, " +
+                    "והחיבור אומת בפענוח של כל התמונה עד סופה.", Kb(pair.Gap)),
                 Content = ContentCheck.HasData,
             };
         }
@@ -613,8 +613,8 @@ public sealed class FileCarver
                 Extents = new List<DataExtent> { new(startSector, sectors, false) },
                 Quality = RecoveryQuality.Poor,
                 QualityReason =
-                    $"נתוני התמונה משתבשים אחרי כ-{jpeg.Fraction:P0} ממנה. כנראה הקובץ היה מפוצל והמשכו " +
-                    "לא נמצא, או שחלקו נדרס. החלק העליון של התמונה ייפתח, והשאר יוצג משובש.",
+                    L.T("נתוני התמונה משתבשים אחרי כ-{0} ממנה. כנראה הקובץ היה מפוצל והמשכו " +
+                    "לא נמצא, או שחלקו נדרס. החלק העליון של התמונה ייפתח, והשאר יוצג משובש.", jpeg.Fraction.ToString("P0")),
                 Content = ContentCheck.HasData,
             };
         }
@@ -622,20 +622,20 @@ public sealed class FileCarver
         string reason = resolved.Confidence switch
         {
             LengthConfidence.Exact =>
-                $"הקובץ זוהה כ{signature.Name} לפי חתימתו, ומבנהו נקרא מתחילתו ועד סופו — " +
-                "כלומר גם הזיהוי וגם האורך מאומתים.",
+                L.T("הקובץ זוהה כ{0} לפי חתימתו, ומבנהו נקרא מתחילתו ועד סופו — " +
+                "כלומר גם הזיהוי וגם האורך מאומתים.", L.T(signature.Name)),
             LengthConfidence.Declared =>
-                $"הקובץ זוהה כ{signature.Name} לפי חתימתו, ואורכו נקרא משדה הגודל שבכותרת. " +
-                "לקובץ אמיתי האורך מדויק.",
+                L.T("הקובץ זוהה כ{0} לפי חתימתו, ואורכו נקרא משדה הגודל שבכותרת. " +
+                "לקובץ אמיתי האורך מדויק.", L.T(signature.Name)),
             LengthConfidence.Footer =>
-                $"הקובץ זוהה כ{signature.Name} לפי חתימתו, ואורכו נקבע לפי חתימת הסיום שנמצאה.",
+                L.T("הקובץ זוהה כ{0} לפי חתימתו, ואורכו נקבע לפי חתימת הסיום שנמצאה.", L.T(signature.Name)),
             _ =>
-                $"הקובץ זוהה כ{signature.Name} לפי חתימת הפתיחה בלבד. הפורמט אינו נושא את אורכו, " +
-                "ולכן נלקח גודל מרבי סביר — ייתכן שהקובץ יכיל נתונים עודפים בסופו.",
+                L.T("הקובץ זוהה כ{0} לפי חתימת הפתיחה בלבד. הפורמט אינו נושא את אורכו, " +
+                "ולכן נלקח גודל מרבי סביר — ייתכן שהקובץ יכיל נתונים עודפים בסופו.", L.T(signature.Name)),
         };
 
         if (jpeg is { Verified: true })
-            reason += " נתוני התמונה עצמם פוענחו מתחילתם ועד סופם — התמונה שלמה.";
+            reason += L.T(" נתוני התמונה עצמם פוענחו מתחילתם ועד סופם — התמונה שלמה.");
 
         return new RecoveredFile
         {
@@ -663,27 +663,27 @@ public sealed class FileCarver
     private void BuildWarnings(List<RecoveredFile> files)
     {
         _warnings.Add(
-            "בסריקה מתקדמת השמות והתיקיות המקוריים אינם נשמרים: הם היו רשומים במערכת הקבצים, " +
+            L.T("בסריקה מתקדמת השמות והתיקיות המקוריים אינם נשמרים: הם היו רשומים במערכת הקבצים, " +
             "והסריקה הזו אינה נעזרת בה. הקבצים מסודרים בתיקיות לפי סוגם, ומקבלים שם לפי מה ששמור " +
             "בתוכם — תאריך הצילום ודגם המצלמה, כותרת המסמך או שם השיר. קובץ שאין בו מידע כזה " +
-            "מקבל מספר.");
+            "מקבל מספר."));
 
         if (files.Count == 0)
         {
-            _warnings.Add("לא אותרו חתימות קבצים מוכרות במחיצה.");
+            _warnings.Add(L.T("לא אותרו חתימות קבצים מוכרות במחיצה."));
             return;
         }
 
         int guessed = files.Count(f => f.Quality == RecoveryQuality.Good);
         if (guessed > 0)
             _warnings.Add(
-                $"ב-{guessed:N0} קבצים לא ניתן היה לקבוע את האורך המדויק מתוך מבנה הקובץ. " +
+                L.T("ב-{0} קבצים לא ניתן היה לקבוע את האורך המדויק מתוך מבנה הקובץ. " +
                 "הם ישוחזרו בגודל מרבי, וייתכן שיכילו נתונים עודפים בסופם — " +
-                "ברוב הפורמטים הדבר אינו מפריע לפתיחת הקובץ.");
+                "ברוב הפורמטים הדבר אינו מפריע לפתיחת הקובץ.", guessed.ToString("N0")));
 
         // קובץ מפוצל: JPEG בשני מקטעים מחובר ומאומת; בשאר הפורמטים זו עדיין מגבלה מהותית.
         _warnings.Add(
-            "קובץ שהיה מפוצל על הכונן: תמונת JPEG בשני חלקים מחוברת ומאומתת בפענוח. " +
-            "בשאר סוגי הקבצים הסריקה מניחה שהקובץ רציף — קובץ מפוצל ישוחזר חלקית בלבד.");
+            L.T("קובץ שהיה מפוצל על הכונן: תמונת JPEG בשני חלקים מחוברת ומאומתת בפענוח. " +
+            "בשאר סוגי הקבצים הסריקה מניחה שהקובץ רציף — קובץ מפוצל ישוחזר חלקית בלבד."));
     }
 }

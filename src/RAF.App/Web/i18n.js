@@ -56,7 +56,7 @@ const I18n = (() => {
 
   /// החלפת שפה: הכיוון, הטקסט הקבוע, והמסך הנוכחי נבנה מחדש. באמצע פעולה ארוכה —
   /// לא: המסך שלה נבנה מההתקדמות שמגיעה מהמנוע, ובנייה מחדש הייתה מאבדת אותו.
-  function toggle() {
+  async function toggle() {
     if (typeof Steps !== 'undefined' && Steps.busy) {
       setStatus(lang === 'en' ? 'The language can be changed when the current operation ends.'
                               : 'אפשר להחליף שפה בסיום הפעולה.');   // לא לתרגום: יש כאן את שתי השפות
@@ -67,13 +67,13 @@ const I18n = (() => {
     applyDocument();
     renderButton();
     translateStatic();
-    Bridge.call('system.language', { lang }).catch(() => {});
-
     Help.close();
     closePanel();
     Theme.refresh();
     renderStatusInfo();
     Steps.set(Steps.current);
+    // המנוע עובר לשפה החדשה לפני שמבקשים ממנו שוב את המסך (למשל ההסברים ברשימת הכוננים)
+    await Bridge.call('system.language', { lang }).catch(() => {});
     if (el('filelist') && State.summary) renderResults();
     else loadDisks();
   }

@@ -29,15 +29,15 @@ internal sealed record FriendlyError(string Message, string? Advice, string? Det
     private const int ErrorNoSuchDevice = 433;
     private const int ErrorMediaChanged = 1110;
 
-    private const string FailingDrive =
-        "אם זה חוזר, ייתכן שהכונן מתחיל להיכשל. מומלץ ליצור ממנו תמונת דיסק ולעבוד מהתמונה — " +
-        "כך כל קריאה נוספת לא תסכן אותו.";
+    private static string FailingDrive =>
+        L.T("אם זה חוזר, ייתכן שהכונן מתחיל להיכשל. מומלץ ליצור ממנו תמונת דיסק ולעבוד מהתמונה — " +
+        "כך כל קריאה נוספת לא תסכן אותו.");
 
     internal static FriendlyError From(Exception ex)
     {
-        // הודעה בעברית נוסחה בתוכנה עצמה, כבר עם ההסבר המלא — גם כשהיא IOException.
-        // רק הודעות של Windows ו-.NET, שמגיעות באנגלית, מתורגמות כאן.
-        if (IsHebrew(ex.Message))
+        // הודעה שנוסחה בתוכנה עצמה כבר כוללת את ההסבר המלא — גם כשהיא IOException.
+        // רק הודעות של Windows ו-.NET מתורגמות כאן.
+        if (L.IsOwnText(ex.Message))
             return new FriendlyError(ex.Message, null, null);
 
         int code = ex.HResult & 0xFFFF;
@@ -46,70 +46,68 @@ internal sealed record FriendlyError(string Message, string? Advice, string? Det
         return ex switch
         {
             UnauthorizedAccessException => new(
-                "Windows לא אישר גישה לקובץ או לתיקייה.",
-                "ודאו שהתוכנה פועלת עם הרשאות מנהל, ושהקובץ אינו פתוח בתוכנה אחרת. " +
-                "אם זו תיקיית מערכת — בחרו תיקייה אחרת.",
+                L.T("Windows לא אישר גישה לקובץ או לתיקייה."),
+                L.T("ודאו שהתוכנה פועלת עם הרשאות מנהל, ושהקובץ אינו פתוח בתוכנה אחרת. " +
+                "אם זו תיקיית מערכת — בחרו תיקייה אחרת."),
                 detail),
 
             PathTooLongException => new(
-                "הנתיב ארוך מדי.",
-                "בחרו תיקיית יעד קרובה יותר לשורש הכונן, למשל D:\\שחזור.",
+                L.T("הנתיב ארוך מדי."),
+                L.T("בחרו תיקיית יעד קרובה יותר לשורש הכונן, למשל D:\\שחזור."),
                 detail),
 
             FileNotFoundException or DirectoryNotFoundException => new(
-                "הקובץ או התיקייה לא נמצאו.",
-                "ייתכן שהם נמחקו, הועברו או שהכונן נותק. רעננו ונסו שוב.",
+                L.T("הקובץ או התיקייה לא נמצאו."),
+                L.T("ייתכן שהם נמחקו, הועברו או שהכונן נותק. רעננו ונסו שוב."),
                 detail),
 
             IOException => code switch
             {
                 ErrorNotReady or ErrorDeviceNotConnected or ErrorNoSuchDevice or ErrorMediaChanged => new(
-                    "הכונן לא מגיב — ייתכן שהוא נותק.",
-                    "בדקו שהכונן מחובר היטב (ב-USB נסו יציאה אחרת, בלי מפצל), ורעננו את רשימת הכוננים.",
+                    L.T("הכונן לא מגיב — ייתכן שהוא נותק."),
+                    L.T("בדקו שהכונן מחובר היטב (ב-USB נסו יציאה אחרת, בלי מפצל), ורעננו את רשימת הכוננים."),
                     detail),
 
                 ErrorCrc or ErrorSectorNotFound or ErrorReadFault or ErrorGenFailure or ErrorIoDevice => new(
-                    "הכונן לא הצליח לקרוא חלק מהנתונים.",
+                    L.T("הכונן לא הצליח לקרוא חלק מהנתונים."),
                     FailingDrive,
                     detail),
 
                 ErrorDiskFull or ErrorHandleDiskFull => new(
-                    "אין מספיק מקום פנוי בכונן היעד.",
-                    "פנו מקום או בחרו כונן אחר, ונסו שוב. מה שכבר נכתב נשאר במקומו.",
+                    L.T("אין מספיק מקום פנוי בכונן היעד."),
+                    L.T("פנו מקום או בחרו כונן אחר, ונסו שוב. מה שכבר נכתב נשאר במקומו."),
                     detail),
 
                 ErrorSharingViolation or ErrorLockViolation => new(
-                    "הקובץ פתוח בתוכנה אחרת.",
-                    "סגרו את התוכנה שמשתמשת בו ונסו שוב.",
+                    L.T("הקובץ פתוח בתוכנה אחרת."),
+                    L.T("סגרו את התוכנה שמשתמשת בו ונסו שוב."),
                     detail),
 
                 ErrorAccessDenied => new(
-                    "Windows לא אישר גישה.",
-                    "ודאו שהתוכנה פועלת עם הרשאות מנהל, ושאף תוכנה אחרת אינה נועלת את הכונן.",
+                    L.T("Windows לא אישר גישה."),
+                    L.T("ודאו שהתוכנה פועלת עם הרשאות מנהל, ושאף תוכנה אחרת אינה נועלת את הכונן."),
                     detail),
 
                 ErrorFileNotFound or ErrorPathNotFound => new(
-                    "הקובץ או התיקייה לא נמצאו.",
-                    "ייתכן שהם נמחקו, הועברו או שהכונן נותק. רעננו ונסו שוב.",
+                    L.T("הקובץ או התיקייה לא נמצאו."),
+                    L.T("ייתכן שהם נמחקו, הועברו או שהכונן נותק. רעננו ונסו שוב."),
                     detail),
 
                 ErrorFilenameTooLong => new(
-                    "הנתיב ארוך מדי.",
-                    "בחרו תיקיית יעד קרובה יותר לשורש הכונן, למשל D:\\שחזור.",
+                    L.T("הנתיב ארוך מדי."),
+                    L.T("בחרו תיקיית יעד קרובה יותר לשורש הכונן, למשל D:\\שחזור."),
                     detail),
 
-                _ => new("אירעה שגיאה בקריאה או בכתיבה.", "נסו שוב. " + FailingDrive, detail),
+                _ => new(L.T("אירעה שגיאה בקריאה או בכתיבה."), L.T("נסו שוב. ") + FailingDrive, detail),
             },
 
             _ => new(
-                "אירעה שגיאה לא צפויה.",
-                "נסו שוב. אם זה חוזר, סגרו את התוכנה ופתחו אותה מחדש.",
+                L.T("אירעה שגיאה לא צפויה."),
+                L.T("נסו שוב. אם זה חוזר, סגרו את התוכנה ופתחו אותה מחדש."),
                 detail),
         };
     }
 
     /// <summary>ההודעה והעצה בשורה אחת, למקומות שמציגים טקסט יחיד.</summary>
     internal string Text => Advice is null ? Message : $"{Message} {Advice}";
-
-    private static bool IsHebrew(string text) => text.Any(c => c is >= 'א' and <= 'ת');
 }

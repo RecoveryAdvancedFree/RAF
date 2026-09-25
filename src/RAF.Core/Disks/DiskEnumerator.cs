@@ -137,13 +137,13 @@ public static class DiskEnumerator
             {
                 if (d is null || late is null) return;
                 Bounded.TryRun(() => BuildDisk(d, volumes), LayoutLimit, out var full);
-                late(full ?? Unresponsive(d, volumes, "הכונן ענה באיחור, אך לא ניתן היה לקרוא ממנו את טבלת המחיצות."));
+                late(full ?? Unresponsive(d, volumes, L.T("הכונן ענה באיחור, אך לא ניתן היה לקרוא ממנו את טבלת המחיצות.")));
             });
 
         if (!describedInTime)
             return Unresponsive(new DiskDescription { Number = number }, volumes,
-                "הכונן מחובר, אך אינו עונה אפילו לשאילתת המאפיינים הבסיסית. זה סימן מובהק לכונן פגום, " +
-                "או לחיבור (כבל / מתאם USB) שאינו תקין.");
+                L.T("הכונן מחובר, אך אינו עונה אפילו לשאילתת המאפיינים הבסיסית. זה סימן מובהק לכונן פגום, " +
+                "או לחיבור (כבל / מתאם USB) שאינו תקין."));
 
         if (description is null) return null;   // אין דיסק במספר הזה
 
@@ -155,8 +155,8 @@ public static class DiskEnumerator
         return readInTime && disk is not null
             ? disk
             : Unresponsive(description, volumes,
-                "הכונן זוהה, אך אינו עונה לבקשות קריאה. זה סימן לכונן פגום. התוכנה ממשיכה לנסות " +
-                "ברקע, והרשימה תתעדכן אם הוא יענה.");
+                L.T("הכונן זוהה, אך אינו עונה לבקשות קריאה. זה סימן לכונן פגום. התוכנה ממשיכה לנסות " +
+                "ברקע, והרשימה תתעדכן אם הוא יענה."));
     }
 
     /// <summary>מה שידוע על כונן מתוך שאילתות מאפיינים, ללא קריאה מהמדיה.</summary>
@@ -525,8 +525,8 @@ public static class DiskEnumerator
         Win32.StorageBusType.Sd => "SD",
         Win32.StorageBusType.Mmc => "MMC",
         Win32.StorageBusType.Atapi => "ATAPI",
-        Win32.StorageBusType.Virtual or Win32.StorageBusType.FileBackedVirtual => "וירטואלי",
+        Win32.StorageBusType.Virtual or Win32.StorageBusType.FileBackedVirtual => "וירטואלי",   // לא לתרגום: תווית, הממשק מתרגם
         Win32.StorageBusType.Spaces => "Storage Spaces",
-        _ => "לא ידוע",
+        _ => "לא ידוע",   // לא לתרגום: תווית, הממשק מתרגם
     };
 }

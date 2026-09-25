@@ -149,7 +149,7 @@ public static class FileDoctor
         if (size == 0 || volume.IsAllZeros())
         {
             issues.Add(new FileIssue(FileIssueKind.Empty,
-                "הקובץ ריק או מכיל אפסים בלבד. אין בו תוכן לתקן.", false));
+                L.T("הקובץ ריק או מכיל אפסים בלבד. אין בו תוכן לתקן."), false));
 
             return new FileDiagnosis { Path = path, Size = size, Issues = issues };
         }
@@ -181,8 +181,8 @@ public static class FileDoctor
                 {
                     bodyStart = mp3.Start;
                     issues.Add(new FileIssue(FileIssueKind.LeadingData,
-                        $"בתחילת הקובץ יש {mp3.Start:N0} בתים שאינם שייכים לשיר — השמע עצמו מתחיל רק אחריהם, " +
-                        "ולכן נגנים לא מזהים את הקובץ. אפשר להסיר אותם.", true));
+                        L.T("בתחילת הקובץ יש {0} בתים שאינם שייכים לשיר — השמע עצמו מתחיל רק אחריהם, " +
+                        "ולכן נגנים לא מזהים את הקובץ. אפשר להסיר אותם.", mp3.Start.ToString("N0")), true));
                 }
             }
         }
@@ -194,22 +194,22 @@ public static class FileDoctor
             {
                 format = expected;
                 issues.Add(new FileIssue(FileIssueKind.HeaderDamaged,
-                    $"תחילת הקובץ נפגעה: חתימת הפתיחה של {expected.Name} — הבתים שמזהים את סוג הקובץ — " +
-                    "חלקית או מאופסת. זה סימן לנזק, ולא לסוג קובץ אחר, ולכן ניתן לשחזר אותה.", true));
+                    L.T("תחילת הקובץ נפגעה: חתימת הפתיחה של {0} — הבתים שמזהים את סוג הקובץ — " +
+                    "חלקית או מאופסת. זה סימן לנזק, ולא לסוג קובץ אחר, ולכן ניתן לשחזר אותה.", L.T(expected.Name)), true));
             }
             else
             {
                 issues.Add(new FileIssue(FileIssueKind.Unrecognized,
-                    $"הסיומת מציינת {expected.Name}, אך תחילת הקובץ אינה דומה לפורמט הזה ואינה " +
-                    "מזוהה כפורמט אחר. ייתכן שהתוכן נדרס. לא ניתן לתקן בביטחון.", false));
+                    L.T("הסיומת מציינת {0}, אך תחילת הקובץ אינה דומה לפורמט הזה ואינה " +
+                    "מזוהה כפורמט אחר. ייתכן שהתוכן נדרס. לא ניתן לתקן בביטחון.", L.T(expected.Name)), false));
             }
         }
         else if (detected is not null && !detected.MatchesExtension(extension))
         {
             suggestedExtension = detected.Extensions[0];
             issues.Add(new FileIssue(FileIssueKind.ExtensionMismatch,
-                $"התוכן הוא {detected.Name}, אך הסיומת היא .{(extension.Length > 0 ? extension : "(ללא)")}. " +
-                $"הסיומת הנכונה היא .{suggestedExtension}.", true));
+                L.T("התוכן הוא {0}, אך הסיומת היא .{1}. " +
+                "הסיומת הנכונה היא .{2}.", L.T(detected.Name), (extension.Length > 0 ? extension : L.T("(ללא)")), suggestedExtension), true));
         }
 
         // ---------------------------------------------- סמן JPEG
@@ -226,11 +226,11 @@ public static class FileDoctor
 
                 issues.Add(inferred is not null
                     ? new FileIssue(FileIssueKind.HeaderDamaged,
-                        "גם הבית שאחרי חתימת ה-JPEG (סמן המקטע הראשון) נפגע. המידע שאחריו שרד, " +
-                        "ולכן ניתן לשחזר אותו במדויק.", true)
+                        L.T("גם הבית שאחרי חתימת ה-JPEG (סמן המקטע הראשון) נפגע. המידע שאחריו שרד, " +
+                        "ולכן ניתן לשחזר אותו במדויק."), true)
                     : new FileIssue(FileIssueKind.HeaderDamaged,
-                        "גם הבית שאחרי חתימת ה-JPEG (סמן המקטע הראשון) נפגע, וגם המידע שממנו " +
-                        "ניתן היה לשחזר אותו אבד. לא ניתן לשחזר אותו בוודאות, והתמונה עלולה שלא להיפתח.", false));
+                        L.T("גם הבית שאחרי חתימת ה-JPEG (סמן המקטע הראשון) נפגע, וגם המידע שממנו " +
+                        "ניתן היה לשחזר אותו אבד. לא ניתן לשחזר אותו בוודאות, והתמונה עלולה שלא להיפתח."), false));
             }
         }
 
@@ -259,11 +259,11 @@ public static class FileDoctor
                 archiveDamaged = true;
                 issues.Add(new FileIssue(FileIssueKind.PdfStructureDamaged,
                     pdf.XrefProblem + (!pdf.CanRebuild
-                        ? " לא נמצאו במסמך החלק הראשי שלו ולא רשימת העמודים, ולכן אי אפשר לבנות את הטבלה מחדש."
+                        ? L.T(" לא נמצאו במסמך החלק הראשי שלו ולא רשימת העמודים, ולכן אי אפשר לבנות את הטבלה מחדש.")
                         : pdf.CatalogMissing
-                            ? " גם החלק הראשי של המסמך אבד, אבל רשימת העמודים שרדה: ייבנו טבלה וחלק ראשי חדשים " +
-                              $"מתוך {pdf.Objects.Count:N0} החלקים שנמצאו. העמודים יוצגו; תוכן עניינים וסימניות עלולים לחסור."
-                            : $" נמצאו {pdf.Objects.Count:N0} חלקים שלמים במסמך, ואפשר לבנות ממנו טבלה חדשה."),
+                            ? L.T(" גם החלק הראשי של המסמך אבד, אבל רשימת העמודים שרדה: ייבנו טבלה וחלק ראשי חדשים " +
+                              "מתוך {0} החלקים שנמצאו. העמודים יוצגו; תוכן עניינים וסימניות עלולים לחסור.", pdf.Objects.Count.ToString("N0"))
+                            : L.T(" נמצאו {0} חלקים שלמים במסמך, ואפשר לבנות ממנו טבלה חדשה.", pdf.Objects.Count.ToString("N0"))),
                     pdf.CanRebuild));
             }
         }
@@ -284,11 +284,11 @@ public static class FileDoctor
         {
             archiveDamaged = true;
             issues.Add(new FileIssue(FileIssueKind.VideoIndexMissing,
-                "הסרטון לא נסגר כראוי: חסר בו האינדקס — החלק שאומר לנגן היכן כל תמונה וכל קטע קול. " +
-                "זה קורה כשההקלטה נקטעת (סוללה שנגמרה, כרטיס שנשלף, מכשיר שנתקע). " +
+                L.T("הסרטון לא נסגר כראוי: חסר בו האינדקס — החלק שאומר לנגן היכן כל תמונה וכל קטע קול. " +
+                "זה קורה כשההקלטה נקטעת (סוללה שנגמרה, כרטיס שנשלף, מכשיר שנתקע). ") +
                 // הגודל מבודד משמאל לימין — אחרת "11.7 MB" מוצג הפוך בתוך משפט בעברית.
-                $"התמונות והקול עצמם נמצאים בקובץ (⁦{Size(missing.DataEnd - missing.DataStart)}⁩). " +
-                "אפשר לבנות אינדקס חדש בעזרת סרטון תקין אחד שצולם באותו מכשיר ובאותן הגדרות.", false));
+                L.T("התמונות והקול עצמם נמצאים בקובץ (⁦{0}⁩). " +
+                "אפשר לבנות אינדקס חדש בעזרת סרטון תקין אחד שצולם באותו מכשיר ובאותן הגדרות.", Size(missing.DataEnd - missing.DataStart)), false));
         }
 
         // ---------------------------------------------- אורך וחתימת סיום
@@ -314,9 +314,9 @@ public static class FileDoctor
                     patches.Add((wav.DataSizeField, UInt32(wav.DataActual)));
                     patches.Add((4, UInt32(wav.RiffField)));
                     issues.Add(new FileIssue(FileIssueKind.SizeFieldsWrong,
-                        "ההקלטה לא נסגרה כראוי — כך קורה כשהמכשיר נכבה או שהאפליקציה נסגרה באמצע. " +
-                        (wav.DataDeclared == 0 ? "בכותרת רשום שאין בה שמע כלל, " : "בכותרת רשום אורך שגוי, ") +
-                        $"אבל בקובץ יש {Duration(wav.Seconds, wav.DataActual)} של שמע. תיקון הכותרת יאפשר לנגן את כל ההקלטה.", true));
+                        L.T("ההקלטה לא נסגרה כראוי — כך קורה כשהמכשיר נכבה או שהאפליקציה נסגרה באמצע. ") +
+                        (wav.DataDeclared == 0 ? L.T("בכותרת רשום שאין בה שמע כלל, ") : L.T("בכותרת רשום אורך שגוי, ")) +
+                        L.T("אבל בקובץ יש {0} של שמע. תיקון הכותרת יאפשר לנגן את כל ההקלטה.", Duration(wav.Seconds, wav.DataActual)), true));
                 }
                 else
                 {
@@ -324,13 +324,13 @@ public static class FileDoctor
                     {
                         patches.Add((4, UInt32(wav.RiffField)));
                         issues.Add(new FileIssue(FileIssueKind.SizeFieldsWrong,
-                            "הגודל הכללי שרשום בכותרת ההקלטה אינו תואם לתוכן שלה. השמע עצמו שלם, " +
-                            "ואפשר לתקן את הכותרת.", true));
+                            L.T("הגודל הכללי שרשום בכותרת ההקלטה אינו תואם לתוכן שלה. השמע עצמו שלם, " +
+                            "ואפשר לתקן את הכותרת."), true));
                     }
 
                     if (wav.ProperEnd < size && !volume.IsZeroRange(wav.ProperEnd, size))
                         issues.Add(new FileIssue(FileIssueKind.TrailingData,
-                            $"אחרי סוף ההקלטה יש {size - wav.ProperEnd:N0} בתים עודפים שאינם חלק ממנה. ניתן להסיר אותם.", true));
+                            L.T("אחרי סוף ההקלטה יש {0} בתים עודפים שאינם חלק ממנה. ניתן להסיר אותם.", (size - wav.ProperEnd).ToString("N0")), true));
                     else
                         correctLength = null;                            // אפסים בסוף — לא נוגעים
                 }
@@ -357,7 +357,7 @@ public static class FileDoctor
             {
                 correctLength = mp3.End;
                 issues.Add(new FileIssue(FileIssueKind.TrailingData,
-                    $"אחרי סוף השיר יש {size - mp3.End:N0} בתים עודפים שאינם חלק ממנו. ניתן להסיר אותם.", true));
+                    L.T("אחרי סוף השיר יש {0} בתים עודפים שאינם חלק ממנו. ניתן להסיר אותם.", (size - mp3.End).ToString("N0")), true));
             }
         }
 
@@ -393,8 +393,8 @@ public static class FileDoctor
                 {
                     correctLength = declared;
                     issues.Add(new FileIssue(FileIssueKind.TrailingData,
-                        $"מבנה הקובץ מצהיר על {declared:N0} בתים, אך הקובץ מכיל {size:N0}. " +
-                        $"{size - declared:N0} הבתים העודפים אינם חלק מהקובץ וניתן להסיר אותם.", true));
+                        L.T("מבנה הקובץ מצהיר על {0} בתים, אך הקובץ מכיל {1}. " +
+                        "{2} הבתים העודפים אינם חלק מהקובץ וניתן להסיר אותם.", declared.ToString("N0"), size.ToString("N0"), (size - declared).ToString("N0")), true));
                 }
                 // MKV שנקטע אינו דורש תיקון: נבדק ב-Edge, ב-ffmpeg (VLC) ובמנוע של Windows —
                 // שלושתם מנגנים אותו כמו שהוא עד המקום שבו נקטע. סימון האורך כ"לא ידוע"
@@ -402,16 +402,16 @@ public static class FileDoctor
                 else if (declared > size && format.Extensions[0] == "mkv")
                 {
                     issues.Add(new FileIssue(FileIssueKind.Truncated,
-                        $"הסרטון נקטע: הוא מצהיר על {declared:N0} בתים, ויש בו {size:N0} — כ-{size * 100.0 / declared:N0}% ממנו. " +
+                        L.T("הסרטון נקטע: הוא מצהיר על {0} בתים, ויש בו {1} — כ-{2}% ממנו. " +
                         "החלק שנשאר מתנגן כמו שהוא — ב-VLC, ב-Edge ובנגן של Windows — עד המקום שבו נקטע. " +
-                        "החלק החסר אינו נמצא בקובץ, ולכן אין מה לתקן בו.", false));
+                        "החלק החסר אינו נמצא בקובץ, ולכן אין מה לתקן בו.", declared.ToString("N0"), size.ToString("N0"), (size * 100.0 / declared).ToString("N0")), false));
                 }
                 else if (declared > size)
                 {
                     issues.Add(new FileIssue(FileIssueKind.Truncated,
-                        $"מבנה הקובץ מצהיר על {declared:N0} בתים, אך רק {size:N0} קיימים. " +
-                        $"{declared - size:N0} בתים חסרים ואינם ניתנים לשחזור מתוך הקובץ עצמו. " +
-                        "ייתכן שהקובץ ייפתח חלקית.", false));
+                        L.T("מבנה הקובץ מצהיר על {0} בתים, אך רק {1} קיימים. " +
+                        "{2} בתים חסרים ואינם ניתנים לשחזור מתוך הקובץ עצמו. " +
+                        "ייתכן שהקובץ ייפתח חלקית.", declared.ToString("N0"), size.ToString("N0"), (declared - size).ToString("N0")), false));
                 }
             }
             else if (format.Footer is { Length: > 0 })
@@ -421,8 +421,8 @@ public static class FileDoctor
                 if (footerEnd <= 0)
                 {
                     issues.Add(new FileIssue(FileIssueKind.FooterMissing,
-                        $"סוף הקובץ חסר (חתימת הסיום של {format.Name}) — ככל הנראה הקובץ נקטע. " +
-                        "השלמת החתימה מאפשרת לרוב התוכנות לפתוח את החלק הקיים.", true));
+                        L.T("סוף הקובץ חסר (חתימת הסיום של {0}) — ככל הנראה הקובץ נקטע. " +
+                        "השלמת החתימה מאפשרת לרוב התוכנות לפתוח את החלק הקיים.", L.T(format.Name)), true));
                 }
                 // PDF מסתיים לרוב ב-"%%EOF" ושורה חדשה, והתקן מתיר זאת. בלי ההבחנה הזו
                 // כמעט כל PDF תקין דווח כבעל "בתים עודפים".
@@ -431,8 +431,8 @@ public static class FileDoctor
                 {
                     correctLength = footerEnd;
                     issues.Add(new FileIssue(FileIssueKind.TrailingData,
-                        $"אחרי סוף הקובץ יש {size - footerEnd:N0} בתים עודפים " +
-                        "שאינם חלק ממנו. ניתן להסיר אותם.", true));
+                        L.T("אחרי סוף הקובץ יש {0} בתים עודפים " +
+                        "שאינם חלק ממנו. ניתן להסיר אותם.", (size - footerEnd).ToString("N0")), true));
                 }
             }
         }
@@ -449,8 +449,8 @@ public static class FileDoctor
             var check = JpegDecoder.Check(JpegBytes.Of(all));
             if (check.Verdict == JpegVerdict.Corrupt)
                 issues.Add(new FileIssue(FileIssueKind.ImageDamaged,
-                    $"התמונה פגומה: רק כ-{check.Fraction:P0} ממנה מתפענח, ומשם והלאה הנתונים אינם של התמונה — " +
-                    "הקובץ נקטע, נדרס, או שחלקו נלקח מקובץ אחר. את החלק החסר אי אפשר להשלים.", false));
+                    L.T("התמונה פגומה: רק כ-{0} ממנה מתפענח, ומשם והלאה הנתונים אינם של התמונה — " +
+                    "הקובץ נקטע, נדרס, או שחלקו נלקח מקובץ אחר. את החלק החסר אי אפשר להשלים.", check.Fraction.ToString("P0")), false));
 
             // התמונה המוקטנת שבתוכה שורדת לעיתים קרובות — היא בתחילת הקובץ.
             bool damaged = issues.Any(i => i.Kind is FileIssueKind.ImageDamaged or FileIssueKind.Truncated
@@ -460,8 +460,8 @@ public static class FileDoctor
             {
                 preview = best;
                 issues.Add(new FileIssue(FileIssueKind.PreviewAvailable,
-                    $"בתוך הקובץ שמורה תמונה מוקטנת שלמה, בגודל {best.Width}×{best.Height}. " +
-                    "אפשר לשמור אותה כקובץ נפרד — גם אם התמונה עצמה לא תיפתח, היא תישאר.", true));
+                    L.T("בתוך הקובץ שמורה תמונה מוקטנת שלמה, בגודל {0}×{1}. " +
+                    "אפשר לשמור אותה כקובץ נפרד — גם אם התמונה עצמה לא תיפתח, היא תישאר.", best.Width, best.Height), true));
             }
         }
 
@@ -479,8 +479,8 @@ public static class FileDoctor
             text = TextExtractor.Extract(all, textKind == "office" ? "zip" : textKind);
             if (text is not null)
                 issues.Add(new FileIssue(FileIssueKind.TextRecoverable,
-                    $"הטקסט של המסמך שרד — כ-{TextExtractor.Words(text):N0} מילים. אפשר לשמור אותו כקובץ טקסט פשוט: " +
-                    "העיצוב, התמונות והטבלאות לא יישמרו, אבל התוכן כן — גם אם המסמך עצמו לא ייפתח.", true));
+                    L.T("הטקסט של המסמך שרד — כ-{0} מילים. אפשר לשמור אותו כקובץ טקסט פשוט: " +
+                    "העיצוב, התמונות והטבלאות לא יישמרו, אבל התוכן כן — גם אם המסמך עצמו לא ייפתח.", (TextExtractor.Words(text)).ToString("N0")), true));
         }
 
         return new FileDiagnosis
@@ -512,9 +512,9 @@ public static class FileDoctor
     {
         if (seconds <= 0) return Size(bytes);
         var t = TimeSpan.FromSeconds(seconds);
-        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2} שעות"
-             : t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes}:{t.Seconds:D2} דקות"
-             : $"{Math.Max(1, (int)t.TotalSeconds)} שניות";
+        return t.TotalHours >= 1 ? L.T("{0}:{1}:{2} שעות", (int)t.TotalHours, t.Minutes.ToString("D2"), t.Seconds.ToString("D2"))
+             : t.TotalMinutes >= 1 ? L.T("{0}:{1} דקות", (int)t.TotalMinutes, t.Seconds.ToString("D2"))
+             : L.T("{0} שניות", Math.Max(1, (int)t.TotalSeconds));
     }
 
     /// <summary>
@@ -524,7 +524,7 @@ public static class FileDoctor
     private static string? OleDamage(StreamVolume volume, long size)
     {
         byte[] header = volume.ReadAt(0, 512);
-        if (header.Length < 512) return "הקובץ קצר מכותרת המסמך עצמה — כמעט כולו חסר.";
+        if (header.Length < 512) return L.T("הקובץ קצר מכותרת המסמך עצמה — כמעט כולו חסר.");
         int shift = BinaryPrimitives.ReadUInt16LittleEndian(header.AsSpan(0x1E));
         if (shift is not (9 or 12)) return null;
         int sector = 1 << shift;
@@ -537,12 +537,12 @@ public static class FileDoctor
             uint id = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(0x4C + i * 4));
             if (id >= 0xFFFFFFFA) continue;
             if (SectorOffset(id) + sector > size)
-                return "המסמך נקטע: חלק מטבלת ההקצאה שלו — המפה שאומרת היכן כל חלק של המסמך — נמצא מעבר לסוף הקובץ. " +
-                       "Word לא יפתח אותו.";
+                return L.T("המסמך נקטע: חלק מטבלת ההקצאה שלו — המפה שאומרת היכן כל חלק של המסמך — נמצא מעבר לסוף הקובץ. " +
+                       "Word לא יפתח אותו.");
 
             byte[] fat = volume.ReadAt(SectorOffset(id), sector);
             if (fat.All(b => b == 0))
-                return "טבלת ההקצאה של המסמך — המפה שאומרת היכן כל חלק שלו — אופסה או נדרסה. Word לא יפתח אותו.";
+                return L.T("טבלת ההקצאה של המסמך — המפה שאומרת היכן כל חלק שלו — אופסה או נדרסה. Word לא יפתח אותו.");
 
             for (int k = 0; k < sector / 4; k++)
             {
@@ -552,7 +552,7 @@ public static class FileDoctor
         }
 
         return lastUsed >= 0 && SectorOffset((uint)lastUsed) + sector > size + sector - 1
-            ? $"המסמך נקטע: הוא אמור להיות באורך {(lastUsed + 2) * sector:N0} בתים לפחות, ויש בו {size:N0}. Word לא יפתח אותו."
+            ? L.T("המסמך נקטע: הוא אמור להיות באורך {0} בתים לפחות, ויש בו {1}. Word לא יפתח אותו.", ((lastUsed + 2) * sector).ToString("N0"), size.ToString("N0"))
             : null;
     }
 
@@ -586,11 +586,11 @@ public static class FileDoctor
     {
         Directory.CreateDirectory(outputFolder);
         string extension = System.IO.Path.GetExtension(path).TrimStart('.');
-        string output = UniquePath(outputFolder, $"{System.IO.Path.GetFileNameWithoutExtension(path)} (תוקן)",
+        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)),
             extension.Length > 0 ? extension : "mp4");
 
         if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
-            return new FileRepairResult { Message = "נתיב היעד זהה לקובץ המקורי. התיקון בוטל." };
+            return new FileRepairResult { Message = L.T("נתיב היעד זהה לקובץ המקורי. התיקון בוטל.") };
 
         VideoRebuildResult rebuilt;
         try
@@ -617,8 +617,8 @@ public static class FileDoctor
             Applied = new List<string> { rebuilt.Message },
             After = after,
             Message = after.IsHealthy
-                ? "הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."
-                : "האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: " + string.Join(" ", after.Issues.Select(i => i.Description)),
+                ? L.T("הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן.")
+                : L.T("האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: ") + string.Join(" ", after.Issues.Select(i => i.Description)),
         };
     }
 
@@ -649,28 +649,28 @@ public static class FileDoctor
         if (intact == 0)
         {
             issues.Add(new FileIssue(FileIssueKind.ArchiveDirectoryDamaged,
-                "הארכיון פגום, ולא נמצא בו אף קובץ פנימי שלם שאפשר להציל.", false));
+                L.T("הארכיון פגום, ולא נמצא בו אף קובץ פנימי שלם שאפשר להציל."), false));
             return true;
         }
 
         if (!a.DirectoryIntact)
             issues.Add(new FileIssue(FileIssueKind.ArchiveDirectoryDamaged,
-                $"תוכן העניינים שבסוף הקובץ חסר או פגום, ולכן התוכנה שיצרה את הקובץ לא תפתח אותו. " +
-                $"{intact:N0} קבצים פנימיים שלמים נמצאו בגוף הקובץ ונבדקו בסכום ביקורת — " +
-                "אפשר לבנות מהם תוכן עניינים חדש.", true));
+                L.T("תוכן העניינים שבסוף הקובץ חסר או פגום, ולכן התוכנה שיצרה את הקובץ לא תפתח אותו. " +
+                "{0} קבצים פנימיים שלמים נמצאו בגוף הקובץ ונבדקו בסכום ביקורת — " +
+                "אפשר לבנות מהם תוכן עניינים חדש.", intact.ToString("N0")), true));
 
         if (damaged.Count > 0)
             issues.Add(new FileIssue(FileIssueKind.ArchiveEntriesDamaged,
-                $"{damaged.Count:N0} קבצים פנימיים פגומים ויושמטו מהעותק המתוקן: " +
+                L.T("{0} קבצים פנימיים פגומים ויושמטו מהעותק המתוקן: ", damaged.Count.ToString("N0")) +
                 string.Join(", ", damaged.Take(5).Select(e => $"{e.Name} ({e.Problem})")) +
-                (damaged.Count > 5 ? " ועוד." : "."), true));
+                (damaged.Count > 5 ? L.T(" ועוד.") : "."), true));
 
         // מסמך Office שחלק החובה שלו אבד לא ייפתח גם אחרי הבנייה מחדש — עדיף לומר זאת.
         if (OpenXml.Contains(extension) &&
             !a.Intact.Any(e => e.Name.Equals("[Content_Types].xml", StringComparison.OrdinalIgnoreCase)))
             issues.Add(new FileIssue(FileIssueKind.ArchivePartMissing,
-                "החלק [Content_Types].xml של המסמך חסר או פגום. בלעדיו Office לא יפתח את הקובץ גם " +
-                "אחרי התיקון — אבל התוכן (למשל word/document.xml) יישאר נגיש בפתיחה כ-ZIP.", false));
+                L.T("החלק [Content_Types].xml של המסמך חסר או פגום. בלעדיו Office לא יפתח את הקובץ גם " +
+                "אחרי התיקון — אבל התוכן (למשל word/document.xml) יישאר נגיש בפתיחה כ-ZIP."), false));
 
         return true;
     }
@@ -746,12 +746,12 @@ public static class FileDoctor
         var diagnosis = Diagnose(path);
 
         if (diagnosis.IsHealthy)
-            return new FileRepairResult { Succeeded = true, Message = "הקובץ תקין ואינו זקוק לתיקון." };
+            return new FileRepairResult { Succeeded = true, Message = L.T("הקובץ תקין ואינו זקוק לתיקון.") };
 
         if (!diagnosis.CanRepair)
             return new FileRepairResult
             {
-                Message = "הבעיות שנמצאו אינן ניתנות לתיקון מכני: " +
+                Message = L.T("הבעיות שנמצאו אינן ניתנות לתיקון מכני: ") +
                           string.Join(" ", diagnosis.Issues.Select(i => i.Description)),
             };
 
@@ -770,31 +770,31 @@ public static class FileDoctor
             {
                 // חתימה וסמן נפגעים לרוב יחד; השחזור מטפל בשניהם בפעם אחת.
                 case FileIssueKind.HeaderDamaged when format is not null && !restoreHeader:
-                    applied.Add($"שוחזרה תחילת הקובץ (חתימת הפתיחה של {format.Name})");
+                    applied.Add(L.T("שוחזרה תחילת הקובץ (חתימת הפתיחה של {0})", L.T(format.Name)));
                     restoreHeader = true;
                     break;
 
                 case FileIssueKind.TrailingData when diagnosis.CorrectLength is > 0:
                     bodyLength = diagnosis.CorrectLength.Value;
-                    applied.Add($"הוסרו נתונים עודפים — הקובץ קוצר ל-{bodyLength:N0} בתים");
+                    applied.Add(L.T("הוסרו נתונים עודפים — הקובץ קוצר ל-{0} בתים", bodyLength.ToString("N0")));
                     break;
 
                 case FileIssueKind.FooterMissing when format?.Footer is { Length: > 0 }:
                     footer = format.Footer;
-                    applied.Add($"הושלם סוף הקובץ (חתימת הסיום של {format.Name})");
+                    applied.Add(L.T("הושלם סוף הקובץ (חתימת הסיום של {0})", L.T(format.Name)));
                     break;
 
                 case FileIssueKind.ExtensionMismatch:
-                    applied.Add($"הסיומת תוקנה ל-.{diagnosis.SuggestedExtension}");
+                    applied.Add(L.T("הסיומת תוקנה ל-.{0}", diagnosis.SuggestedExtension));
                     break;
 
                 case FileIssueKind.SizeFieldsWrong:
                     if (diagnosis.CorrectLength is > 0) bodyLength = diagnosis.CorrectLength.Value;
-                    applied.Add("תוקנו שדות הגודל בכותרת לפי התוכן שבקובץ");
+                    applied.Add(L.T("תוקנו שדות הגודל בכותרת לפי התוכן שבקובץ"));
                     break;
 
                 case FileIssueKind.LeadingData:
-                    applied.Add($"הוסרו {diagnosis.BodyStart:N0} בתים זרים מתחילת הקובץ");
+                    applied.Add(L.T("הוסרו {0} בתים זרים מתחילת הקובץ", diagnosis.BodyStart.ToString("N0")));
                     break;
             }
         }
@@ -814,9 +814,9 @@ public static class FileDoctor
         string? previewPath = null;
         if (diagnosis.Preview is { } preview && diagnosis.Issues.Any(i => i.Fixable && i.Kind == FileIssueKind.PreviewAvailable))
         {
-            previewPath = UniquePath(outputFolder, $"{stem} (תמונה מוקטנת)", "jpg");
+            previewPath = UniquePath(outputFolder, L.T("{0} (תמונה מוקטנת)", stem), "jpg");
             File.WriteAllBytes(previewPath, preview.Data);
-            applied.Add($"נשמרה התמונה המוקטנת שבתוך הקובץ ({preview.Width}×{preview.Height}) כקובץ נפרד");
+            applied.Add(L.T("נשמרה התמונה המוקטנת שבתוך הקובץ ({0}×{1}) כקובץ נפרד", preview.Width, preview.Height));
 
             if (!diagnosis.Issues.Any(i => i.Fixable && i.Kind is not (FileIssueKind.PreviewAvailable or FileIssueKind.TextRecoverable)))
             {
@@ -828,8 +828,8 @@ public static class FileDoctor
                     PreviewPath = previewPath,
                     Applied = applied,
                     After = previewCheck,
-                    Message = "התמונה עצמה פגומה, ואת החלק החסר בה אי אפשר להשלים. " +
-                              $"התמונה המוקטנת שבתוכה ({preview.Width}×{preview.Height}) נשמרה כקובץ נפרד ונבדקה — היא שלמה.",
+                    Message = L.T("התמונה עצמה פגומה, ואת החלק החסר בה אי אפשר להשלים. " +
+                              "התמונה המוקטנת שבתוכה ({0}×{1}) נשמרה כקובץ נפרד ונבדקה — היא שלמה.", preview.Width, preview.Height),
                 };
             }
         }
@@ -838,9 +838,9 @@ public static class FileDoctor
         string? textPath = null;
         if (diagnosis.Text is { } text && diagnosis.Issues.Any(i => i.Fixable && i.Kind == FileIssueKind.TextRecoverable))
         {
-            textPath = UniquePath(outputFolder, $"{stem} (טקסט)", "txt");
+            textPath = UniquePath(outputFolder, L.T("{0} (טקסט)", stem), "txt");
             File.WriteAllText(textPath, text, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-            applied.Add($"נשמר הטקסט של המסמך (כ-{TextExtractor.Words(text):N0} מילים) בקובץ טקסט: {System.IO.Path.GetFileName(textPath)}");
+            applied.Add(L.T("נשמר הטקסט של המסמך (כ-{0} מילים) בקובץ טקסט: {1}", (TextExtractor.Words(text)).ToString("N0"), System.IO.Path.GetFileName(textPath)));
 
             if (!diagnosis.Issues.Any(i => i.Fixable && i.Kind is not (FileIssueKind.TextRecoverable or FileIssueKind.PreviewAvailable)))
                 return new FileRepairResult
@@ -849,17 +849,17 @@ public static class FileDoctor
                     OutputPath = textPath,
                     TextPath = textPath,
                     Applied = applied,
-                    Message = "המסמך עצמו פגום, ואי אפשר לתקן אותו כך שייפתח. הטקסט שבו נשמר כקובץ טקסט פשוט — " +
-                              "אפשר לפתוח אותו בפנקס הרשימות או להעתיק ממנו לוורד.",
+                    Message = L.T("המסמך עצמו פגום, ואי אפשר לתקן אותו כך שייפתח. הטקסט שבו נשמר כקובץ טקסט פשוט — " +
+                              "אפשר לפתוח אותו בפנקס הרשימות או להעתיק ממנו לוורד."),
                 };
         }
 
-        string output = UniquePath(outputFolder, $"{stem} (תוקן)", extension);
+        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", stem), extension);
 
         // הגנה: לעולם לא לדרוס את הקובץ המקורי.
         if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path),
                 StringComparison.OrdinalIgnoreCase))
-            return new FileRepairResult { Message = "נתיב היעד זהה לקובץ המקורי. התיקון בוטל." };
+            return new FileRepairResult { Message = L.T("נתיב היעד זהה לקובץ המקורי. התיקון בוטל.") };
 
         try
         {
@@ -893,10 +893,10 @@ public static class FileDoctor
             After = after,
             Message = fixedAll
                 ? after.IsHealthy
-                    ? "הקובץ תוקן ונבדק מחדש — לא נמצאו בו בעיות."
-                    : "כל מה שניתן לתקן תוקן. נותרו בעיות שאינן ניתנות לתיקון מכני: " +
+                    ? L.T("הקובץ תוקן ונבדק מחדש — לא נמצאו בו בעיות.")
+                    : L.T("כל מה שניתן לתקן תוקן. נותרו בעיות שאינן ניתנות לתיקון מכני: ") +
                       string.Join(" ", after.Issues.Select(i => i.Description))
-                : "התיקון נכתב, אך הבדיקה החוזרת עדיין מוצאת בעיות הניתנות לתיקון.",
+                : L.T("התיקון נכתב, אך הבדיקה החוזרת עדיין מוצאת בעיות הניתנות לתיקון."),
         };
     }
 
@@ -937,7 +937,7 @@ public static class FileDoctor
         for (long left = bodyLength - head.Length; left > 0;)
         {
             int read = source.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
-            if (read <= 0) throw new EndOfStreamException("הקובץ המקורי התקצר בזמן התיקון.");
+            if (read <= 0) throw new EndOfStreamException(L.T("הקובץ המקורי התקצר בזמן התיקון."));
             target.Write(buffer, 0, read);
             left -= read;
         }
@@ -965,7 +965,7 @@ public static class FileDoctor
         using (var target = new FileStream(output, FileMode.CreateNew, FileAccess.Write))
             target.Write(PdfRebuilder.Rebuild(data, pdf));
 
-        return $"נבנתה טבלת מיקומים חדשה ל-{pdf.Objects.Count:N0} חלקי המסמך";
+        return L.T("נבנתה טבלת מיקומים חדשה ל-{0} חלקי המסמך", pdf.Objects.Count.ToString("N0"));
     }
 
     private static string WriteRebuiltArchive(string path, string output, FileSignature? format,
@@ -979,8 +979,8 @@ public static class FileDoctor
             target.Write(ZipRebuilder.Rebuild(data, archive));
 
         int dropped = archive.Damaged.Count();
-        return $"נבנה תוכן עניינים חדש מ-{archive.Intact.Count():N0} קבצים פנימיים שלמים" +
-               (dropped > 0 ? $"; {dropped:N0} קבצים פגומים הושמטו" : "");
+        return L.T("נבנה תוכן עניינים חדש מ-{0} קבצים פנימיים שלמים", archive.Intact.Count().ToString("N0")) +
+               (dropped > 0 ? L.T("; {0} קבצים פגומים הושמטו", dropped.ToString("N0")) : "");
     }
 
     /// <summary>כתיבת בתי החתימה המוגדרים. בתים חופשיים בחתימה אינם משתנים.</summary>

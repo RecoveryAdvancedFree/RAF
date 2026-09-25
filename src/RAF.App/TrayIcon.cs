@@ -11,7 +11,7 @@ namespace RAF.App;
 /// </summary>
 internal sealed partial class TrayIcon : IDisposable
 {
-    private const string Name = "שחזור מתקדם חינם";
+    private static string Name => L.T("שחזור מתקדם חינם");
 
     private readonly Form _form;
     private readonly NotifyIcon _icon;
@@ -23,8 +23,8 @@ internal sealed partial class TrayIcon : IDisposable
     {
         _form = form;
         var menu = new ContextMenuStrip { RightToLeft = RightToLeft.Yes };
-        menu.Items.Add("פתיחת החלון", null, (_, _) => Restore());
-        menu.Items.Add("יציאה", null, (_, _) => { Restore(); _form.Close(); });
+        menu.Items.Add(L.T("פתיחת החלון"), null, (_, _) => Restore());
+        menu.Items.Add(L.T("יציאה"), null, (_, _) => { Restore(); _form.Close(); });
 
         _icon = new NotifyIcon { Text = Name, Icon = form.Icon, Visible = false, ContextMenuStrip = menu };
         _icon.MouseDoubleClick += (_, e) => { if (e.Button == MouseButtons.Left) Restore(); };
@@ -64,7 +64,7 @@ internal sealed partial class TrayIcon : IDisposable
         Draw(force: true);
         if (!cancelled)
             _icon.ShowBalloonTip(6000, Name,
-                failed ? "הפעולה נעצרה בגלל שגיאה — הפרטים בחלון." : "הפעולה הסתיימה.",
+                failed ? L.T("הפעולה נעצרה בגלל שגיאה — הפרטים בחלון.") : L.T("הפעולה הסתיימה."),
                 failed ? ToolTipIcon.Warning : ToolTipIcon.Info);
         Restore();
     }

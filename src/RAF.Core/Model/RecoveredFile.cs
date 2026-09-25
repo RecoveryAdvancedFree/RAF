@@ -55,7 +55,7 @@ public enum ContentCheck
 public readonly record struct DataExtent(long StartCluster, long ClusterCount, bool IsSparse)
 {
     public override string ToString() =>
-        IsSparse ? $"[דליל × {ClusterCount}]" : $"[{StartCluster}+{ClusterCount}]";
+        IsSparse ? L.T("[דליל × {0}]", ClusterCount) : $"[{StartCluster}+{ClusterCount}]";
 }
 
 /// <summary>קובץ שנמצא בסריקה ומועמד לשחזור.</summary>

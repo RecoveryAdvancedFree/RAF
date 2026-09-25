@@ -15,12 +15,12 @@ public static class ImageDisk
     {
         string full = Path.GetFullPath(imagePath);
         if (!File.Exists(full))
-            throw new FileNotFoundException("קובץ התמונה לא נמצא.", full);
+            throw new FileNotFoundException(L.T("קובץ התמונה לא נמצא."), full);
 
         // קובץ התיאור של VMDK הוא טקסט של כמה מאות בתים — הנתונים בקבצים שהוא מפרט.
         long size = new FileInfo(full).Length;
         if (size < 512 && !full.EndsWith(".vmdk", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("הקובץ קטן מכדי להיות תמונת דיסק.");
+            throw new InvalidOperationException(L.T("הקובץ קטן מכדי להיות תמונת דיסק."));
 
         var map = ImageMap.TryLoad(ImageMap.PathFor(full));
         int number = DevicePaths.RegisterImage(full);
@@ -30,7 +30,7 @@ public static class ImageDisk
             int sectorSize = map?.SectorSize ?? DetectSectorSize(full);
 
             var device = RawDevice.TryOpen(full, sectorSize)
-                ?? throw new IOException("לא ניתן לפתוח את קובץ התמונה לקריאה. ייתכן שהוא בשימוש בתוכנה אחרת.");
+                ?? throw new IOException(L.T("לא ניתן לפתוח את קובץ התמונה לקריאה. ייתכן שהוא בשימוש בתוכנה אחרת."));
 
             // כונן וירטואלי: הגודל וגודל הסקטור הם של הדיסק שבתוכו, לא של הקובץ.
             if (device.Virtual is { } virtualDisk)
@@ -51,7 +51,7 @@ public static class ImageDisk
             {
                 DiskNumber = number,
                 Model = Path.GetFileName(full),
-                BusType = "קובץ תמונה",
+                BusType = "קובץ תמונה",   // לא לתרגום: תווית, הממשק מתרגם
                 SizeBytes = size,
                 LogicalSectorSize = sectorSize,
                 PhysicalSectorSize = sectorSize,
@@ -62,11 +62,11 @@ public static class ImageDisk
                 Partitions = partitions,
                 ImagePath = full,
                 ImageNote = device.Virtual is { Format: "E01" } ewf
-                    ? "תמונה של כלי חקירה (E01) — נקראת ישירות מהקובץ, ושום דבר לא נכתב אליה." +
-                      (ewf.Md5 is not null ? " הכלי שיצר אותה שמר בה טביעת אצבע של הכונן המקורי." : "")
+                    ? L.T("תמונה של כלי חקירה (E01) — נקראת ישירות מהקובץ, ושום דבר לא נכתב אליה.") +
+                      (ewf.Md5 is not null ? L.T(" הכלי שיצר אותה שמר בה טביעת אצבע של הכונן המקורי.") : "")
                     : device.Virtual is { } vd
-                    ? $"כונן וירטואלי ({vd.Format}) — נקרא ישירות מהקובץ, בלי לחבר אותו ל-Windows, ושום דבר לא נכתב אליו." +
-                      (vd.Dirty ? " הכונן לא נסגר כראוי בפעם האחרונה, ולכן ייתכן שהשינויים האחרונים שנעשו בו חסרים." : "")
+                    ? L.T("כונן וירטואלי ({0}) — נקרא ישירות מהקובץ, בלי לחבר אותו ל-Windows, ושום דבר לא נכתב אליו.", vd.Format) +
+                      (vd.Dirty ? L.T(" הכונן לא נסגר כראוי בפעם האחרונה, ולכן ייתכן שהשינויים האחרונים שנעשו בו חסרים.") : "")
                     : Describe(map),
                 ImageDamaged = map is not null && (map.UnreadableBytes > 0 || !map.Complete),
             };
@@ -94,11 +94,11 @@ public static class ImageDisk
         try
         {
             using var device = RawDevice.TryOpen(path, sectorSize)
-                ?? throw new IOException(RawDevice.OpenFailure("הכונן"));
+                ?? throw new IOException(RawDevice.OpenFailure(L.T("הכונן")));
 
             var fs = FileSystemIdentifier.Identify(device.ReadBlock(0, Math.Max(2048, sectorSize)));
             if (fs.Kind == FileSystemKind.BitLocker)
-                throw new InvalidOperationException("הכונן עדיין נעול. פתחו אותו קודם ב-Windows, עם הסיסמה או מפתח השחזור.");
+                throw new InvalidOperationException(L.T("הכונן עדיין נעול. פתחו אותו קודם ב-Windows, עם הסיסמה או מפתח השחזור."));
 
             var kind = fs.Kind == FileSystemKind.Unknown ? FileSystemKind.Raw : fs.Kind;
             string drive = path[4..];
@@ -106,8 +106,8 @@ public static class ImageDisk
             return new PhysicalDiskInfo
             {
                 DiskNumber = number,
-                Model = $"{title} — BitLocker פתוח",
-                BusType = "דרך Windows",
+                Model = L.T("{0} — BitLocker פתוח", title),
+                BusType = "דרך Windows",   // לא לתרגום: תווית, הממשק מתרגם
                 SizeBytes = size,
                 LogicalSectorSize = sectorSize,
                 PhysicalSectorSize = sectorSize,
@@ -130,8 +130,8 @@ public static class ImageDisk
                     },
                 },
                 ImagePath = path,
-                ImageNote = $"הכונן המוצפן {drive} נקרא דרך Windows, שמפענח אותו. " +
-                            "הקריאה בלבד — שום דבר לא נכתב אליו. אל תנעלו אותו מחדש עד סוף השחזור.",
+                ImageNote = L.T("הכונן המוצפן {0} נקרא דרך Windows, שמפענח אותו. " +
+                            "הקריאה בלבד — שום דבר לא נכתב אליו. אל תנעלו אותו מחדש עד סוף השחזור.", drive),
             };
         }
         catch
@@ -222,18 +222,18 @@ public static class ImageDisk
     private static string Describe(ImageMap? map)
     {
         if (map is null)
-            return "תמונה ללא קובץ מפה — לא ידוע אם הכונן כולו נקרא בעת יצירתה.";
+            return L.T("תמונה ללא קובץ מפה — לא ידוע אם הכונן כולו נקרא בעת יצירתה.");
 
-        string origin = string.IsNullOrWhiteSpace(map.Source) ? "" : $"נוצרה מ: {map.Source}. ";
+        string origin = string.IsNullOrWhiteSpace(map.Source) ? "" : L.T("נוצרה מ: {0}. ", map.Source);
 
         if (!map.Complete)
-            return origin + $"התמונה חלקית: {DiskImager.Size(map.NotCopiedBytes)} לא הועתקו. " +
-                   "קבצים שישבו באזורים האלה לא ישוחזרו.";
+            return origin + L.T("התמונה חלקית: {0} לא הועתקו. " +
+                   "קבצים שישבו באזורים האלה לא ישוחזרו.", DiskImager.Size(map.NotCopiedBytes));
 
         if (map.UnreadableBytes > 0)
-            return origin + $"{DiskImager.Size(map.UnreadableBytes)} לא נקראו מהכונן בעת היצירה " +
-                   "ומולאו באפסים. קבצים שישבו בהם יחזרו פגומים חלקית.";
+            return origin + L.T("{0} לא נקראו מהכונן בעת היצירה " +
+                   "ומולאו באפסים. קבצים שישבו בהם יחזרו פגומים חלקית.", DiskImager.Size(map.UnreadableBytes));
 
-        return origin + "הכונן כולו נקרא בהצלחה.";
+        return origin + L.T("הכונן כולו נקרא בהצלחה.");
     }
 }

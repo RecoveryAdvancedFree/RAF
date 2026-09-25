@@ -293,7 +293,7 @@ internal sealed class ScanSession
         {
             if (i < view.Count && SameMonth(view[i].Modified, view[start].Modified)) continue;
             groups.Add(new ViewGroup(
-                view[start].Modified is { } d ? d.ToString("MMMM yyyy", hebrew) : "ללא תאריך", start, i - start));
+                view[start].Modified is { } d ? d.ToString("MMMM yyyy", hebrew) : "ללא תאריך", start, i - start));   // לא לתרגום: הממשק מתרגם
             start = i;
         }
         return groups;

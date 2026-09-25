@@ -48,14 +48,14 @@ public static class PartitionRepair
         int sectorSize = disk.LogicalSectorSize;
 
         if (!diagnosis.CanRepair)
-            return new RepairResult { Message = "האבחון לא מצא עותק גיבוי תקין, ולכן אין מה לתקן." };
+            return new RepairResult { Message = L.T("האבחון לא מצא עותק גיבוי תקין, ולכן אין מה לתקן.") };
 
         // גיבוי על דיסק המקור היה נדרס יחד עם מה שהוא אמור להציל.
         int undoDisk = DiskEnumerator.GetDiskNumberForPath(undoFolder);
         if (undoDisk >= 0 && undoDisk == diskNumber)
             return new RepairResult
             {
-                Message = "תיקיית הגיבוי חייבת להיות על כונן אחר מהדיסק שמתוקן.",
+                Message = L.T("תיקיית הגיבוי חייבת להיות על כונן אחר מהדיסק שמתוקן."),
             };
 
         int length = Math.Max(diagnosis.RepairLength, sectorSize);
@@ -65,11 +65,11 @@ public static class PartitionRepair
             diskNumber, partitionOffset, partitionSize, sectorSize, sequential: false, applyOverlay: false);
 
         if (reader is null)
-            return new RepairResult { Message = "לא ניתן לפתוח את הדיסק לקריאה." };
+            return new RepairResult { Message = L.T("לא ניתן לפתוח את הדיסק לקריאה.") };
 
         byte[] replacement = reader.ReadBlock(diagnosis.BackupOffset, length);
         if (replacement.Length < length)
-            return new RepairResult { Message = "לא ניתן לקרוא את עותק הגיבוי במלואו." };
+            return new RepairResult { Message = L.T("לא ניתן לקרוא את עותק הגיבוי במלואו.") };
 
         byte[] original = reader.ReadBlock(diagnosis.PrimaryOffset, length);
 
@@ -77,7 +77,7 @@ public static class PartitionRepair
         if (original.Length < length)
             return new RepairResult
             {
-                Message = "לא ניתן לקרוא את תחילת המחיצה כדי לגבות אותה לפני הכתיבה, ולכן לא נכתב דבר.",
+                Message = L.T("לא ניתן לקרוא את תחילת המחיצה כדי לגבות אותה לפני הכתיבה, ולכן לא נכתב דבר."),
             };
 
         // --- שלב 1: שמירת המצב הקיים לפני כל כתיבה ---
@@ -99,7 +99,7 @@ public static class PartitionRepair
         {
             return new RepairResult
             {
-                Message = $"לא ניתן ליצור קובץ גיבוי, ולכן התיקון לא בוצע: {ex.Message}",
+                Message = L.T("לא ניתן ליצור קובץ גיבוי, ולכן התיקון לא בוצע: {0}", ex.Message),
             };
         }
 
@@ -115,16 +115,16 @@ public static class PartitionRepair
             if (writer is null)
                 return new RepairResult
                 {
-                    Message = "לא ניתן לפתוח את הדיסק לכתיבה. ודאו שהתוכנה פועלת בהרשאות מנהל " +
-                              "ושהמחיצה אינה בשימוש.",
+                    Message = L.T("לא ניתן לפתוח את הדיסק לכתיבה. ודאו שהתוכנה פועלת בהרשאות מנהל " +
+                              "ושהמחיצה אינה בשימוש."),
                     UndoFile = undoPath,
                 };
 
             if (!writer.Write(absoluteOffset, replacement))
                 return new RepairResult
                 {
-                    Message = $"הכתיבה לדיסק נכשלה (שגיאת Windows {RawWriter.LastError}). " +
-                              $"{volumeLock.Status} המחיצה לא שונתה.",
+                    Message = L.T("הכתיבה לדיסק נכשלה (שגיאת Windows {0}). " +
+                              "{1} המחיצה לא שונתה.", RawWriter.LastError, volumeLock.Status),
                     UndoFile = undoPath,
                 };
         }
@@ -139,10 +139,10 @@ public static class PartitionRepair
                 Succeeded = true,
                 UndoFile = undoPath,
                 Message =
-                    $"המחיצה תוקנה. מערכת הקבצים {check.DetectedFileSystem} נקראת כעת בהצלחה. " +
+                    L.T("המחיצה תוקנה. מערכת הקבצים {0} נקראת כעת בהצלחה. " +
                     "ייתכן שיהיה צורך לנתק ולחבר מחדש את הכונן, או להפעיל מחדש את המחשב, " +
                     "כדי ש-Windows יזהה את השינוי. " +
-                    $"גיבוי המצב הקודם נשמר ב: {undoPath}",
+                    "גיבוי המצב הקודם נשמר ב: {1}", check.DetectedFileSystem, undoPath),
             };
         }
 
@@ -155,10 +155,10 @@ public static class PartitionRepair
             RolledBack = restored,
             UndoFile = undoPath,
             Message = restored
-                ? "התיקון נכתב אך המחיצה עדיין אינה נקראת, ולכן המצב הקודם הוחזר אוטומטית. " +
-                  "הדיסק נותר כפי שהיה. נסו לשחזר קבצים בסריקה מתקדמת."
-                : "התיקון נכתב, המחיצה עדיין אינה נקראת, וגם החזרת המצב הקודם נכשלה. " +
-                  $"קובץ הגיבוי שמור ב: {undoPath}",
+                ? L.T("התיקון נכתב אך המחיצה עדיין אינה נקראת, ולכן המצב הקודם הוחזר אוטומטית. " +
+                  "הדיסק נותר כפי שהיה. נסו לשחזר קבצים בסריקה מתקדמת.")
+                : L.T("התיקון נכתב, המחיצה עדיין אינה נקראת, וגם החזרת המצב הקודם נכשלה. " +
+                  "קובץ הגיבוי שמור ב: {0}", undoPath),
         };
     }
 }

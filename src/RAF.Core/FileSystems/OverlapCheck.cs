@@ -88,21 +88,21 @@ internal static class OverlapCheck
 
                 var (quality, tail) = ratio switch
                 {
-                    < 0.15 => (RecoveryQuality.Good, "חלק קטן מהקובץ ישוחזר עם תוכן זר."),
-                    < 0.85 => (RecoveryQuality.Poor, "הקובץ ישוחזר פגום."),
-                    _ => (RecoveryQuality.Unrecoverable, "כמעט כל התוכן שלו נדרס."),
+                    < 0.15 => (RecoveryQuality.Good, L.T("חלק קטן מהקובץ ישוחזר עם תוכן זר.")),
+                    < 0.85 => (RecoveryQuality.Poor, L.T("הקובץ ישוחזר פגום.")),
+                    _ => (RecoveryQuality.Unrecoverable, L.T("כמעט כל התוכן שלו נדרס.")),
                 };
 
                 if (quality > f.Quality) f.Quality = quality;
-                f.QualityReason = $"קובץ מחוק אחר שנכתב אחריו — {by} — נכתב על כ-{ratio:P0} מהמקום של הקובץ " +
-                                  $"הזה, ולכן התוכן שם כבר אינו שלו. {tail}";
+                f.QualityReason = L.T("קובץ מחוק אחר שנכתב אחריו — {0} — נכתב על כ-{1} מהמקום של הקובץ " +
+                                  "הזה, ולכן התוכן שם כבר אינו שלו. {2}", by, ratio.ToString("P0"), tail);
                 changed++;
             }
             else if (unclear.TryGetValue(i, out var others) && f.Quality < RecoveryQuality.Good)
             {
                 f.Quality = RecoveryQuality.Good;
-                f.QualityReason += $" קובץ מחוק אחר ({Names(others)}) נכתב על חלק מאותו מקום, " +
-                                   "ולא ידוע מי מהשניים נכתב אחרון — ייתכן שחלק מהתוכן שלו.";
+                f.QualityReason += L.T(" קובץ מחוק אחר ({0}) נכתב על חלק מאותו מקום, " +
+                                   "ולא ידוע מי מהשניים נכתב אחרון — ייתכן שחלק מהתוכן שלו.", Names(others));
                 changed++;
             }
         }
@@ -148,6 +148,6 @@ internal static class OverlapCheck
     {
         static string Isolate(string name) => "⁨" + name + "⁩";
         var shown = names.Take(2).Select(Isolate);
-        return names.Count <= 2 ? string.Join(", ", shown) : $"{string.Join(", ", shown)} ועוד {names.Count - 2}";
+        return names.Count <= 2 ? string.Join(", ", shown) : L.T("{0} ועוד {1}", string.Join(", ", shown), names.Count - 2);
     }
 }

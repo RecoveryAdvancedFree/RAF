@@ -34,7 +34,7 @@ internal sealed class VolumeLock : IDisposable
         string letter = driveLetter.TrimEnd(':', '\\');
 
         if (string.IsNullOrEmpty(letter))
-            return new VolumeLock(IntPtr.Zero, "המחיצה אינה מחוברת; אין צורך בנעילה.");
+            return new VolumeLock(IntPtr.Zero, L.T("המחיצה אינה מחוברת; אין צורך בנעילה."));
 
         IntPtr handle = Win32.CreateFile(
             $@"\\.\{letter}:",
@@ -47,7 +47,7 @@ internal sealed class VolumeLock : IDisposable
 
         if (handle == Win32.INVALID_HANDLE_VALUE || handle == IntPtr.Zero)
             return new VolumeLock(IntPtr.Zero,
-                $"לא ניתן לפתוח את אמצעי האחסון {letter}: לנעילה.");
+                L.T("לא ניתן לפתוח את אמצעי האחסון {0}: לנעילה.", letter));
 
         // נעילה נכשלת אם קובץ כלשהו על אמצעי האחסון פתוח.
         if (!Win32.DeviceIoControl(handle, Win32.FSCTL_LOCK_VOLUME,
@@ -55,15 +55,15 @@ internal sealed class VolumeLock : IDisposable
         {
             Win32.CloseHandle(handle);
             return new VolumeLock(IntPtr.Zero,
-                $"לא ניתן לנעול את כונן {letter}: — ככל הנראה קובץ כלשהו עליו פתוח. " +
-                "סגרו את כל החלונות והתוכנות שמשתמשות בכונן ונסו שוב.");
+                L.T("לא ניתן לנעול את כונן {0}: — ככל הנראה קובץ כלשהו עליו פתוח. " +
+                "סגרו את כל החלונות והתוכנות שמשתמשות בכונן ונסו שוב.", letter));
         }
 
         // ניתוק מסיר את מערכת הקבצים מהזיכרון, כך שהכתיבה לא תידרס על ידה.
         Win32.DeviceIoControl(handle, Win32.FSCTL_DISMOUNT_VOLUME,
             IntPtr.Zero, 0, IntPtr.Zero, 0, out _, IntPtr.Zero);
 
-        return new VolumeLock(handle, $"כונן {letter}: ננעל ונותק לצורך הכתיבה.");
+        return new VolumeLock(handle, L.T("כונן {0}: ננעל ונותק לצורך הכתיבה.", letter));
     }
 
     public void Dispose()

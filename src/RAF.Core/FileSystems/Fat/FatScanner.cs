@@ -48,7 +48,7 @@ public sealed class FatScanner
 
         using var volume = FatVolume.Open(reader)
             ?? throw new InvalidDataException(
-                "המחיצה אינה FAT תקין, או שתחילת המחיצה (מגזר האתחול) פגומה.");
+                L.T("המחיצה אינה FAT תקין, או שתחילת המחיצה (מגזר האתחול) פגומה."));
 
         _volume = volume;
 
@@ -56,7 +56,7 @@ public sealed class FatScanner
 
         progress?.Report(new ScanProgress
         {
-            Stage = "קורא את ספריית השורש",
+            Stage = L.T("קורא את ספריית השורש"),
             FilesFound = 0,
             Elapsed = clock.Elapsed,
         });
@@ -68,13 +68,13 @@ public sealed class FatScanner
 
         if (_verifiedEmpty > 0)
             _warnings.Add(
-                $"{_verifiedEmpty:N0} קבצים נמצאו ברשומות הספרייה אך אזור הנתונים שלהם מכיל אפסים. " +
-                "הם סומנו כלא ניתנים לשחזור.");
+                L.T("{0} קבצים נמצאו ברשומות הספרייה אך אזור הנתונים שלהם מכיל אפסים. " +
+                "הם סומנו כלא ניתנים לשחזור.", _verifiedEmpty.ToString("N0")));
 
         _warnings.Add(
-            "ב-FAT מחיקת קובץ מוחקת את המפה של חלקיו. השחזור מניח שהקובץ " +
+            L.T("ב-FAT מחיקת קובץ מוחקת את המפה של חלקיו. השחזור מניח שהקובץ " +
             "נשמר ברצף מתחילתו — הנחה נכונה ברוב הקבצים, אך קובץ שהיה " +
-            "מפוצל על פני הכונן ישוחזר פגום.");
+            "מפוצל על פני הכונן ישוחזר פגום."));
 
         return new ScanResult
         {
@@ -154,7 +154,7 @@ public sealed class FatScanner
             {
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "עובר על ספריות מערכת הקבצים",
+                    Stage = L.T("עובר על ספריות מערכת הקבצים"),
                     FilesFound = files.Count,
                     BytesProcessed = _bytesRead,
                     Elapsed = clock.Elapsed,
@@ -201,7 +201,7 @@ public sealed class FatScanner
                 progress?.Report(new ScanProgress
                 {
                     Map = map,
-                    Stage = "סורק ספריות יתומות על פני המחיצה",
+                    Stage = L.T("סורק ספריות יתומות על פני המחיצה"),
                     Percent = c * 100.0 / total,
                     FilesFound = files.Count,
                     BytesProcessed = _bytesRead,
@@ -234,7 +234,7 @@ public sealed class FatScanner
         }
 
         if (found > 0)
-            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} שרידי תיקיות שאינם מקושרים עוד לעץ התיקיות.");
+            _warnings.Add(L.T("הסריקה העמוקה איתרה {0} שרידי תיקיות שאינם מקושרים עוד לעץ התיקיות.", found.ToString("N0")));
     }
 
     /// <summary>
@@ -294,8 +294,8 @@ public sealed class FatScanner
 
         if (entry.NameIsPartial)
             file.QualityReason +=
-                " שימו לב: שם הקובץ נשמר בתבנית הקצרה בלבד, ומחיקה ב-FAT דורסת את " +
-                "האות הראשונה שלו. התוכן שלם, אך האות הראשונה בשם הוחלפה בקו תחתון.";
+                L.T(" שימו לב: שם הקובץ נשמר בתבנית הקצרה בלבד, ומחיקה ב-FAT דורסת את " +
+                "האות הראשונה שלו. התוכן שלם, אך האות הראשונה בשם הוחלפה בקו תחתון.");
         return file;
     }
 
@@ -326,8 +326,8 @@ public sealed class FatScanner
         {
             file.Quality = file.Size == 0 ? RecoveryQuality.Excellent : RecoveryQuality.Unrecoverable;
             file.QualityReason = file.Size == 0
-                ? "הקובץ ריק ואין לו תוכן לשחזר."
-                : "רשומת הקובץ אינה מציינת היכן בכונן מתחיל התוכן שלו, ולכן לא ניתן לאתר אותו.";
+                ? L.T("הקובץ ריק ואין לו תוכן לשחזר.")
+                : L.T("רשומת הקובץ אינה מציינת היכן בכונן מתחיל התוכן שלו, ולכן לא ניתן לאתר אותו.");
             return;
         }
 
@@ -335,7 +335,7 @@ public sealed class FatScanner
         {
             file.Quality = RecoveryQuality.Excellent;
             file.Content = ContentCheck.HasData;
-            file.QualityReason = "הקובץ קיים במערכת הקבצים, והמפה של חלקיו שלמה.";
+            file.QualityReason = L.T("הקובץ קיים במערכת הקבצים, והמפה של חלקיו שלמה.");
             return;
         }
 
@@ -346,14 +346,14 @@ public sealed class FatScanner
         {
             _verifiedEmpty++;
             file.Quality = RecoveryQuality.Unrecoverable;
-            file.QualityReason = "אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק. לא ניתן לשחזר.";
+            file.QualityReason = L.T("אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק. לא ניתן לשחזר.");
             return;
         }
 
         if (file.Content == ContentCheck.Unreadable)
         {
             file.Quality = RecoveryQuality.Poor;
-            file.QualityReason = "לא ניתן היה לקרוא את אזור הנתונים של הקובץ.";
+            file.QualityReason = L.T("לא ניתן היה לקרוא את אזור הנתונים של הקובץ.");
             return;
         }
 
@@ -379,14 +379,14 @@ public sealed class FatScanner
         (file.Quality, file.QualityReason) = ratio switch
         {
             0 => (RecoveryQuality.Excellent,
-                  "נמצאו נתונים, וכל המקום שהקובץ תפס בכונן עדיין פנוי. " +
-                  "השחזור מניח שהקובץ היה רציף על הכונן."),
+                  L.T("נמצאו נתונים, וכל המקום שהקובץ תפס בכונן עדיין פנוי. " +
+                  "השחזור מניח שהקובץ היה רציף על הכונן.")),
             < 0.15 => (RecoveryQuality.Good,
-                  $"נמצאו נתונים. כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים."),
+                  L.T("נמצאו נתונים. כ-{0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים.", ratio.ToString("P0"))),
             < 0.85 => (RecoveryQuality.Poor,
-                  $"כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום."),
+                  L.T("כ-{0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום.", ratio.ToString("P0"))),
             _ => (RecoveryQuality.Unrecoverable,
-                  "כמעט כל המקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים."),
+                  L.T("כמעט כל המקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים.")),
         };
     }
 

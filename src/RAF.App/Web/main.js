@@ -24,7 +24,8 @@ async function init() {
     const info = await Bridge.call('system.info');
     State.sysInfo = info;
     renderStatusInfo();
-    Bridge.call('system.language', { lang: I18n.lang }).catch(() => { /* המנוע עוד לא מתרגם */ });
+    // לפני כל קריאה אחרת — כדי שההודעות הראשונות מהמנוע (רשימת הכוננים) כבר יגיעו בשפה הנכונה.
+    await Bridge.call('system.language', { lang: I18n.lang }).catch(() => {});
 
     // אבחון פריסה: אם אזור הציור אינו תואם לגודל החלון, זה ייראה כאן מיד.
     const drawn = `${window.innerWidth}×${window.innerHeight}`;

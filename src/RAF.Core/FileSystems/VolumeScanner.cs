@@ -65,17 +65,17 @@ public static class VolumeScanner
 
         int named = RecycleBinNames.Apply(result.Files, read);
         if (named > 0)
-            result.Warnings.Add($"{named:N0} קבצים ותיקיות שנמחקו דרך סל המחזור קיבלו בחזרה את השם והתיקייה המקוריים.");
+            result.Warnings.Add(L.T("{0} קבצים ותיקיות שנמחקו דרך סל המחזור קיבלו בחזרה את השם והתיקייה המקוריים.", named.ToString("N0")));
 
         int typed = identifyChk(result.Files);
         if (typed > 0)
-            result.Warnings.Add($"{typed:N0} קבצים שבדיקת הדיסק של Windows השאירה בתיקיית FOUND בלי שם " +
-                                "זוהו לפי התוכן שלהם וקיבלו בחזרה את הסוג הנכון.");
+            result.Warnings.Add(L.T("{0} קבצים שבדיקת הדיסק של Windows השאירה בתיקיית FOUND בלי שם " +
+                                "זוהו לפי התוכן שלהם וקיבלו בחזרה את הסוג הנכון.", typed.ToString("N0")));
 
         int changed = OverlapCheck.Apply(result.Files);
         if (changed > 0)
-            result.Warnings.Add($"{changed:N0} קבצים מחוקים דורגו מחדש: קובץ מחוק אחר, שנכתב אחריהם, " +
-                                "נכתב במקום שלהם בכונן — גם אם עכשיו המקום נראה פנוי.");
+            result.Warnings.Add(L.T("{0} קבצים מחוקים דורגו מחדש: קובץ מחוק אחר, שנכתב אחריהם, " +
+                                "נכתב במקום שלהם בכונן — גם אם עכשיו המקום נראה פנוי.", changed.ToString("N0")));
         return result;
     }
 
@@ -116,7 +116,7 @@ public static class VolumeScanner
                     mode, includeExisting, trim, progress, token),
 
             _ => throw new InvalidOperationException(
-                $"מערכת הקבצים {kind} אינה נתמכת לסריקה בגרסה זו."),
+                L.T("מערכת הקבצים {0} אינה נתמכת לסריקה בגרסה זו.", kind)),
         };
     }
 

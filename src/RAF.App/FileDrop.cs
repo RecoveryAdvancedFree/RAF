@@ -182,8 +182,8 @@ internal sealed class DropZone : Control
         var titleBox = new Rectangle(box.Left, mid - (int)(52 * scale), box.Width, (int)(56 * scale));
         var subBox = new Rectangle(box.Left, mid + (int)(8 * scale), box.Width, (int)(44 * scale));
 
-        TextRenderer.DrawText(g, "שחררו כאן כדי לבדוק את הקבצים", title, titleBox, accent, flags);
-        TextRenderer.DrawText(g, "קבצים ותיקיות · הקבצים המקוריים לא ישתנו", sub, subBox, dim, flags);
+        TextRenderer.DrawText(g, L.T("שחררו כאן כדי לבדוק את הקבצים"), title, titleBox, accent, flags);
+        TextRenderer.DrawText(g, L.T("קבצים ותיקיות · הקבצים המקוריים לא ישתנו"), sub, subBox, dim, flags);
     }
 
     private static GraphicsPath RoundedRect(Rectangle r, float radius)

@@ -46,14 +46,14 @@ public sealed class ExFatScanner
 
         using var volume = ExFatVolume.Open(reader)
             ?? throw new InvalidDataException(
-                "המחיצה אינה exFAT תקין, או שתחילת המחיצה (מגזר האתחול) פגומה.");
+                L.T("המחיצה אינה exFAT תקין, או שתחילת המחיצה (מגזר האתחול) פגומה."));
 
         _volume = volume;
         var files = new List<RecoveredFile>();
 
         progress?.Report(new ScanProgress
         {
-            Stage = "קורא את ספריית השורש",
+            Stage = L.T("קורא את ספריית השורש"),
             Elapsed = clock.Elapsed,
         });
 
@@ -68,8 +68,8 @@ public sealed class ExFatScanner
 
         if (_verifiedEmpty > 0)
             _warnings.Add(
-                $"{_verifiedEmpty:N0} קבצים נמצאו ברשומות הספרייה אך אזור הנתונים שלהם מכיל אפסים. " +
-                "הם סומנו כלא ניתנים לשחזור.");
+                L.T("{0} קבצים נמצאו ברשומות הספרייה אך אזור הנתונים שלהם מכיל אפסים. " +
+                "הם סומנו כלא ניתנים לשחזור.", _verifiedEmpty.ToString("N0")));
 
         return new ScanResult
         {
@@ -123,7 +123,7 @@ public sealed class ExFatScanner
             {
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "עובר על ספריות מערכת הקבצים",
+                    Stage = L.T("עובר על ספריות מערכת הקבצים"),
                     FilesFound = files.Count,
                     BytesProcessed = _bytesRead,
                     Elapsed = clock.Elapsed,
@@ -166,7 +166,7 @@ public sealed class ExFatScanner
                 progress?.Report(new ScanProgress
                 {
                     Map = map,
-                    Stage = "סורק ספריות יתומות על פני המחיצה",
+                    Stage = L.T("סורק ספריות יתומות על פני המחיצה"),
                     Percent = c * 100.0 / total,
                     FilesFound = files.Count,
                     BytesProcessed = _bytesRead,
@@ -205,7 +205,7 @@ public sealed class ExFatScanner
         }
 
         if (found > 0)
-            _warnings.Add($"הסריקה העמוקה איתרה {found:N0} שרידי תיקיות שאינם מקושרים עוד לעץ התיקיות.");
+            _warnings.Add(L.T("הסריקה העמוקה איתרה {0} שרידי תיקיות שאינם מקושרים עוד לעץ התיקיות.", found.ToString("N0")));
     }
 
     // ------------------------------------------------------------ המרה
@@ -273,14 +273,14 @@ public sealed class ExFatScanner
         if (file.Size == 0)
         {
             file.Quality = RecoveryQuality.Excellent;
-            file.QualityReason = "הקובץ ריק ואין לו תוכן לשחזר.";
+            file.QualityReason = L.T("הקובץ ריק ואין לו תוכן לשחזר.");
             return;
         }
 
         if (entry.FirstCluster == 0 || file.Extents.Count == 0)
         {
             file.Quality = RecoveryQuality.Unrecoverable;
-            file.QualityReason = "רשומת הקובץ אינה מציינת היכן בכונן מתחיל התוכן שלו.";
+            file.QualityReason = L.T("רשומת הקובץ אינה מציינת היכן בכונן מתחיל התוכן שלו.");
             return;
         }
 
@@ -288,7 +288,7 @@ public sealed class ExFatScanner
         {
             file.Quality = RecoveryQuality.Excellent;
             file.Content = ContentCheck.HasData;
-            file.QualityReason = "הקובץ קיים במערכת הקבצים ומיקומו ידוע במלואו.";
+            file.QualityReason = L.T("הקובץ קיים במערכת הקבצים ומיקומו ידוע במלואו.");
             return;
         }
 
@@ -298,14 +298,14 @@ public sealed class ExFatScanner
         {
             _verifiedEmpty++;
             file.Quality = RecoveryQuality.Unrecoverable;
-            file.QualityReason = "אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק. לא ניתן לשחזר.";
+            file.QualityReason = L.T("אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק. לא ניתן לשחזר.");
             return;
         }
 
         if (file.Content == ContentCheck.Unreadable)
         {
             file.Quality = RecoveryQuality.Poor;
-            file.QualityReason = "לא ניתן היה לקרוא את אזור הנתונים של הקובץ.";
+            file.QualityReason = L.T("לא ניתן היה לקרוא את אזור הנתונים של הקובץ.");
             return;
         }
 
@@ -329,29 +329,29 @@ public sealed class ExFatScanner
         // FAT שלמה, הן נתון; הנחת רצף לקובץ שלא היה רציף היא ניחוש.
         string basis = placement switch
         {
-            Placement.Contiguous => "הרשומה מציינת שהקובץ היה רציף על הכונן, ולכן מיקומו ידוע בוודאות.",
+            Placement.Contiguous => L.T("הרשומה מציינת שהקובץ היה רציף על הכונן, ולכן מיקומו ידוע בוודאות."),
             Placement.SurvivingChain when file.Extents.Count > 1 =>
-                $"הקובץ היה מפוצל ל-{file.Extents.Count} חלקים, והמפה של חלקיו שרדה במלואה — מיקום כל חלק ידוע.",
-            Placement.SurvivingChain => "המפה של חלקי הקובץ שרדה במלואה, ולכן מיקומו ידוע.",
-            _ => "הקובץ לא נשמר ברצף, והמפה של חלקיו אינה שלמה עוד. השחזור מניח רצף — " +
-                 "ייתכן שחלק מהתוכן יהיה של קובץ אחר.",
+                L.T("הקובץ היה מפוצל ל-{0} חלקים, והמפה של חלקיו שרדה במלואה — מיקום כל חלק ידוע.", file.Extents.Count),
+            Placement.SurvivingChain => L.T("המפה של חלקי הקובץ שרדה במלואה, ולכן מיקומו ידוע."),
+            _ => L.T("הקובץ לא נשמר ברצף, והמפה של חלקיו אינה שלמה עוד. השחזור מניח רצף — " +
+                 "ייתכן שחלק מהתוכן יהיה של קובץ אחר."),
         };
 
         double ratio = total == 0 ? 0 : (double)taken / total;
 
         (file.Quality, file.QualityReason) = ratio switch
         {
-            0 => (RecoveryQuality.Excellent, $"נמצאו נתונים, וכל המקום שהקובץ תפס בכונן עדיין פנוי. {basis}"),
-            < 0.15 => (RecoveryQuality.Good, $"נמצאו נתונים. כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. {basis}"),
-            < 0.85 => (RecoveryQuality.Poor, $"כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום."),
-            _ => (RecoveryQuality.Unrecoverable, "כמעט כל המקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים."),
+            0 => (RecoveryQuality.Excellent, L.T("נמצאו נתונים, וכל המקום שהקובץ תפס בכונן עדיין פנוי. {0}", basis)),
+            < 0.15 => (RecoveryQuality.Good, L.T("נמצאו נתונים. כ-{0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. {1}", ratio.ToString("P0"), basis)),
+            < 0.85 => (RecoveryQuality.Poor, L.T("כ-{0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום.", ratio.ToString("P0"))),
+            _ => (RecoveryQuality.Unrecoverable, L.T("כמעט כל המקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים.")),
         };
 
         // הנחת רצף לא תקבל יותר מ"חלש": אשכולות פנויים אינם מוכיחים שהם של הקובץ הזה.
         if (placement == Placement.AssumedContiguous && file.Quality < RecoveryQuality.Poor)
         {
             file.Quality = RecoveryQuality.Poor;
-            file.QualityReason = $"נמצאו נתונים, אבל {basis}";
+            file.QualityReason = L.T("נמצאו נתונים, אבל {0}", basis);
         }
     }
 

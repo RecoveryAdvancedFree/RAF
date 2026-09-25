@@ -35,13 +35,13 @@ internal sealed partial class Bridge
         // תמונה היא קובץ — העותק, לא הכונן. כונן BitLocker פתוח הוא הכונן עצמו.
         int physical = DiskEnumerator.PhysicalDiskOf(sourceDisk);
         bool image = DevicePaths.IsImage(sourceDisk) && physical == sourceDisk;
-        if (physical < 0) return "לא ניתן לוודא שהתיקייה אינה על הדיסק שממנו משחזרים.";
+        if (physical < 0) return L.T("לא ניתן לוודא שהתיקייה אינה על הדיסק שממנו משחזרים.");
         sourceDisk = physical;
         int target = DiskEnumerator.GetDiskNumberForPath(folder);
         if (target == sourceDisk)
-            return "התיקייה נמצאת על הדיסק שממנו משחזרים — כתיבה אליו עלולה לדרוס קבצים שעוד לא שוחזרו.";
+            return L.T("התיקייה נמצאת על הדיסק שממנו משחזרים — כתיבה אליו עלולה לדרוס קבצים שעוד לא שוחזרו.");
         if (target < 0 && !image)
-            return "לא ניתן לוודא שהתיקייה אינה על הדיסק שממנו משחזרים.";
+            return L.T("לא ניתן לוודא שהתיקייה אינה על הדיסק שממנו משחזרים.");
         return null;
     }
 
@@ -74,7 +74,7 @@ internal sealed partial class Bridge
         }
         catch (Exception ex)
         {
-            PushEvent("scan.saved", new { skipped = "השמירה האוטומטית נכשלה. " + FriendlyError.From(ex).Text, partial });
+            PushEvent("scan.saved", new { skipped = L.T("השמירה האוטומטית נכשלה. ") + FriendlyError.From(ex).Text, partial });
         }
     }
 
@@ -102,9 +102,9 @@ internal sealed partial class Bridge
         {
             using var dialog = new SaveFileDialog
             {
-                Title = "שמירת הסריקה — בחרו כונן אחר מהכונן שנסרק",
+                Title = L.T("שמירת הסריקה — בחרו כונן אחר מהכונן שנסרק"),
                 FileName = $"RAF-{title}-{DateTime.Now:yyyyMMdd-HHmm}{ScanArchive.Extension}",
-                Filter = $"סריקת RAF (*{ScanArchive.Extension})|*{ScanArchive.Extension}",
+                Filter = L.T("סריקת RAF (*{0})|*{1}", ScanArchive.Extension, ScanArchive.Extension),
                 DefaultExt = ScanArchive.Extension.TrimStart('.'),
                 OverwritePrompt = true,
             };
@@ -114,7 +114,7 @@ internal sealed partial class Bridge
         if (path is null) return new { path = (string?)null };
 
         string? unsafeReason = UnsafeFolder(Path.GetDirectoryName(path)!, session.DiskNumber);
-        if (unsafeReason is not null) throw new InvalidOperationException(unsafeReason + " בחרו כונן אחר.");
+        if (unsafeReason is not null) throw new InvalidOperationException(unsafeReason + L.T(" בחרו כונן אחר."));
 
         await Task.Run(() => ScanArchive.Save(session.ToArchive(AppVersion, partial: false), path));
         return new { path };
@@ -171,7 +171,7 @@ internal sealed partial class Bridge
             bool inFolder = string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(AutosaveFolder).TrimEnd(Path.DirectorySeparatorChar),
                                           StringComparison.OrdinalIgnoreCase);
             if (!inFolder || !full.EndsWith(ScanArchive.Extension, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("אפשר להסיר רק סריקות מהרשימה של הסריקות האחרונות.");
+                throw new InvalidOperationException(L.T("אפשר להסיר רק סריקות מהרשימה של הסריקות האחרונות."));
             targets = new[] { full };
         }
 
@@ -201,8 +201,8 @@ internal sealed partial class Bridge
             {
                 using var dialog = new OpenFileDialog
                 {
-                    Title = "פתיחת סריקה שמורה",
-                    Filter = $"סריקת RAF (*{ScanArchive.Extension})|*{ScanArchive.Extension}",
+                    Title = L.T("פתיחת סריקה שמורה"),
+                    Filter = L.T("סריקת RAF (*{0})|*{1}", ScanArchive.Extension, ScanArchive.Extension),
                     CheckFileExists = true,
                 };
                 if (dialog.ShowDialog(_form) == DialogResult.OK) path = dialog.FileName;
@@ -244,7 +244,7 @@ internal sealed partial class Bridge
         var session = RequireSession();
         if (session.Offline)
             throw new InvalidOperationException(
-                "הכונן שנסרק אינו מחובר. חברו אותו, חזרו לרשימת הכוננים ופתחו את הסריקה שוב.");
+                L.T("הכונן שנסרק אינו מחובר. חברו אותו, חזרו לרשימת הכוננים ופתחו את הסריקה שוב."));
         return session;
     }
 }

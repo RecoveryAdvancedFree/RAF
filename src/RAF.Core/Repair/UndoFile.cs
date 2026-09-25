@@ -229,11 +229,11 @@ public static class UndoService
     {
         var file = UndoFile.Load(path);
         if (file is null)
-            return Unusable("זה לא קובץ ביטול של התוכנה, או שהקובץ נפגם. לא נכתב דבר.");
+            return Unusable(L.T("זה לא קובץ ביטול של התוכנה, או שהקובץ נפגם. לא נכתב דבר."));
 
         if (file.Legacy)
-            return Unusable("זה קובץ ביטול מגרסה קודמת של התוכנה. אין בו את הזהות של הכונן ואת מה שנכתב אליו, " +
-                            "ולכן אי אפשר לוודא שהביטול ייכתב לכונן הנכון. לא נכתב דבר.", file);
+            return Unusable(L.T("זה קובץ ביטול מגרסה קודמת של התוכנה. אין בו את הזהות של הכונן ואת מה שנכתב אליו, " +
+                            "ולכן אי אפשר לוודא שהביטול ייכתב לכונן הנכון. לא נכתב דבר."), file);
 
         var candidates = disks
             .Where(d => d.SizeBytes == file.DiskSize && !d.Unresponsive)
@@ -246,15 +246,15 @@ public static class UndoService
             return new UndoCheck
             {
                 State = UndoState.DiskMissing, File = file,
-                Message = "הכונן שהתיקון נעשה בו לא מחובר עכשיו. חברו אותו, לחצו על רענון ונסו שוב.",
+                Message = L.T("הכונן שהתיקון נעשה בו לא מחובר עכשיו. חברו אותו, לחצו על רענון ונסו שוב."),
             };
 
         if (candidates.Count > 1)
             return new UndoCheck
             {
                 State = UndoState.DiskAmbiguous, File = file,
-                Message = "יותר מכונן אחד מתאים לקובץ הזה, ואין דרך לדעת בוודאות לאיזה מהם הוא שייך. " +
-                          "נתקו את הכוננים האחרים ונסו שוב.",
+                Message = L.T("יותר מכונן אחד מתאים לקובץ הזה, ואין דרך לדעת בוודאות לאיזה מהם הוא שייך. " +
+                          "נתקו את הכוננים האחרים ונסו שוב."),
             };
 
         var disk = candidates[0];
@@ -263,28 +263,28 @@ public static class UndoService
             return new UndoCheck
             {
                 State = UndoState.Changed, File = file, Disk = disk,
-                Message = "לא ניתן לקרוא מהכונן את האזור שהתיקון שינה, ולכן לא נכתב דבר.",
+                Message = L.T("לא ניתן לקרוא מהכונן את האזור שהתיקון שינה, ולכן לא נכתב דבר."),
             };
 
         if (Same(current, file.Regions.Select(r => r.After)))
             return new UndoCheck
             {
                 State = UndoState.Ready, File = file, Disk = disk,
-                Message = "הכונן נמצא בדיוק במצב שהתיקון השאיר, ואפשר להחזיר אותו למצב שלפניו.",
+                Message = L.T("הכונן נמצא בדיוק במצב שהתיקון השאיר, ואפשר להחזיר אותו למצב שלפניו."),
             };
 
         if (Same(current, file.Regions.Select(r => r.Before)))
             return new UndoCheck
             {
                 State = UndoState.AlreadyUndone, File = file, Disk = disk,
-                Message = "הכונן כבר במצב שלפני התיקון — אין מה לבטל.",
+                Message = L.T("הכונן כבר במצב שלפני התיקון — אין מה לבטל."),
             };
 
         return new UndoCheck
         {
             State = UndoState.Changed, File = file, Disk = disk,
-            Message = "הכונן השתנה מאז התיקון (למשל פורמט, או תיקון נוסף). ביטול עכשיו היה דורס את מה שנכתב אחר כך, " +
-                      "ולכן לא נכתב דבר.",
+            Message = L.T("הכונן השתנה מאז התיקון (למשל פורמט, או תיקון נוסף). ביטול עכשיו היה דורס את מה שנכתב אחר כך, " +
+                      "ולכן לא נכתב דבר."),
         };
     }
 
@@ -316,9 +316,9 @@ public static class UndoService
                 {
                     Succeeded = true,
                     Message = (file.Kind == UndoKind.PartitionTable
-                                  ? "טבלת המחיצות הוחזרה למצב שלפני ההחזרה. "
-                                  : "תחילת המחיצה הוחזרה למצב שלפני התיקון. ") +
-                              "ייתכן שיהיה צורך לנתק ולחבר מחדש את הכונן כדי ש-Windows יזהה את השינוי.",
+                                  ? L.T("טבלת המחיצות הוחזרה למצב שלפני ההחזרה. ")
+                                  : L.T("תחילת המחיצה הוחזרה למצב שלפני התיקון. ")) +
+                              L.T("ייתכן שיהיה צורך לנתק ולחבר מחדש את הכונן כדי ש-Windows יזהה את השינוי."),
                 };
             }
 
@@ -329,9 +329,9 @@ public static class UndoService
             {
                 RolledBack = back,
                 Message = back
-                    ? $"הכתיבה לכונן נכשלה (שגיאת Windows {RawWriter.LastError}). {status} הכונן נשאר כמו שהתיקון השאיר אותו."
-                    : "הכתיבה לכונן נכשלה באמצע, וגם החזרת המצב נכשלה. אל תכתבו לכונן — " +
-                      "קובץ הביטול עדיין שמור, ואפשר לנסות שוב אחרי ניתוק וחיבור של הכונן.",
+                    ? L.T("הכתיבה לכונן נכשלה (שגיאת Windows {0}). {1} הכונן נשאר כמו שהתיקון השאיר אותו.", RawWriter.LastError, status)
+                    : L.T("הכתיבה לכונן נכשלה באמצע, וגם החזרת המצב נכשלה. אל תכתבו לכונן — " +
+                      "קובץ הביטול עדיין שמור, ואפשר לנסות שוב אחרי ניתוק וחיבור של הכונן."),
             };
         }
         finally

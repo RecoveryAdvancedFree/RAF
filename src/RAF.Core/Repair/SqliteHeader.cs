@@ -37,13 +37,13 @@ internal static class SqliteHeader
         if (pageSize > 0 && versions && fractions) return null;
 
         // הדף הראשון הוא תמיד שורש רשימת הטבלאות — אם גם הוא לא עץ, זה לא מסד שאפשר להציל כך.
-        if (!IsTreePage(head[100])) return ("כותרת מסד הנתונים פגומה, וגם הדף הראשון שלו אינו במבנה הצפוי. " +
-                                            "לא ניתן לשחזר את הכותרת בוודאות.", null);
+        if (!IsTreePage(head[100])) return (L.T("כותרת מסד הנתונים פגומה, וגם הדף הראשון שלו אינו במבנה הצפוי. " +
+                                            "לא ניתן לשחזר את הכותרת בוודאות."), null);
 
         int inferred = pageSize > 0 ? pageSize : InferPageSize(read, size);
         if (inferred == 0)
-            return ("כותרת מסד הנתונים פגומה: גודל הדף — הנתון שקובע איך המסד נקרא — אבד, " +
-                    "ואי אפשר לגלות אותו מתוך המסד. לא ניתן לתקן בוודאות.", null);
+            return (L.T("כותרת מסד הנתונים פגומה: גודל הדף — הנתון שקובע איך המסד נקרא — אבד, " +
+                    "ואי אפשר לגלות אותו מתוך המסד. לא ניתן לתקן בוודאות."), null);
 
         byte[] patch = new byte[8];
         BinaryPrimitives.WriteUInt16BigEndian(patch, (ushort)(inferred == 65536 ? 1 : inferred));
@@ -53,9 +53,9 @@ internal static class SqliteHeader
         patch[5] = 64; patch[6] = 32; patch[7] = 32;
 
         string what = pageSize == 0
-            ? $"גודל הדף — הנתון שקובע איך המסד נקרא — אבד. לפי מבנה המסד עצמו הוא {inferred:N0} בתים"
-            : "כמה שדות קבועים בכותרת נפגעו";
-        return ($"כותרת מסד הנתונים פגומה: {what}. אפשר לשחזר את הכותרת, והנתונים עצמם לא ישתנו.", patch);
+            ? L.T("גודל הדף — הנתון שקובע איך המסד נקרא — אבד. לפי מבנה המסד עצמו הוא {0} בתים", inferred.ToString("N0"))
+            : L.T("כמה שדות קבועים בכותרת נפגעו");
+        return (L.T("כותרת מסד הנתונים פגומה: {0}. אפשר לשחזר את הכותרת, והנתונים עצמם לא ישתנו.", what), patch);
     }
 
     /// <summary>

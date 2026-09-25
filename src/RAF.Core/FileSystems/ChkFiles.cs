@@ -102,7 +102,7 @@ internal static partial class ChkFiles
 
     private static string Explain(FileSignature signature, string previous)
     {
-        string note = $"בדיקת הדיסק של Windows שמרה את הקובץ הזה בלי השם המקורי. לפי התוכן זה {signature.Name}.";
+        string note = L.T("בדיקת הדיסק של Windows שמרה את הקובץ הזה בלי השם המקורי. לפי התוכן זה {0}.", L.T(signature.Name));
         return string.IsNullOrEmpty(previous) ? note : note + " " + previous;
     }
 

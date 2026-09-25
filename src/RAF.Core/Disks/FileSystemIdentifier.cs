@@ -121,8 +121,8 @@ internal static class FileSystemIdentifier
         FileSystemKind.Apfs => "APFS",
         FileSystemKind.Hfs => "HFS+",
         FileSystemKind.BitLocker => "BitLocker",
-        FileSystemKind.Raw => "לא מזוהה",
-        _ => "לא ידוע",
+        FileSystemKind.Raw => "לא מזוהה",   // לא לתרגום: תווית
+        _ => "לא ידוע",   // לא לתרגום: תווית
     };
 
     /// <summary>האם מערכת הקבצים נתמכת לשחזור מבוסס מטא-דאטה בגרסה זו.</summary>

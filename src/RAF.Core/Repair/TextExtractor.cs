@@ -55,7 +55,7 @@ internal static class TextExtractor
         int words = 0, plausible = 0;
         foreach (string raw in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
-            string w = raw.Trim(".,;:!?\"'()[]-–—״׳“”‘’".ToCharArray());
+            string w = raw.Trim(".,;:!?\"'()[]-–—״׳“”‘’".ToCharArray());   // לא לתרגום
             if (w.Length == 0) continue;
             if (++words > 5000) break;
 
@@ -107,7 +107,7 @@ internal static class TextExtractor
             .Where(m => m.Success).OrderBy(m => int.Parse(m.Groups[1].Value)).ToList();
         if (slides.Count > 0)
             return string.Join("\n\n", slides.Select((m, i) =>
-                $"— שקופית {i + 1} —\n" + Paragraphs(Xml(m.Value) ?? "", "a:p", @"<a:t>([^<]*)</a:t>|<a:(br)\b[^>]*/>")));
+                L.T("— שקופית {0} —\n", i + 1) + Paragraphs(Xml(m.Value) ?? "", "a:p", @"<a:t>([^<]*)</a:t>|<a:(br)\b[^>]*/>")));
 
         if (Xml("xl/sharedStrings.xml") is { } cells)
             return Paragraphs(cells, "si", @"<t(?:\s[^>]*)?>([^<]*)</t>");
@@ -562,9 +562,9 @@ internal static class TextExtractor
     /// </summary>
     internal static string FixVisualOrder(string text)
     {
-        const string finals = "ךםןףץ";
+        const string finals = "ךםןףץ";   // לא לתרגום
         int atStart = 0, atEnd = 0;
-        foreach (Match w in Regex.Matches(text, "[א-ת]{2,}"))
+        foreach (Match w in Regex.Matches(text, "[א-ת]{2,}"))   // לא לתרגום)
         {
             if (finals.Contains(w.Value[0])) atStart++;
             if (finals.Contains(w.Value[^1])) atEnd++;
@@ -573,7 +573,7 @@ internal static class TextExtractor
 
         var lines = text.Split('\n').Select(line =>
         {
-            if (!Regex.IsMatch(line, "[א-ת]")) return line;
+            if (!Regex.IsMatch(line, "[א-ת]")) return line;   // לא לתרגום
             char[] chars = line.ToCharArray();
             Array.Reverse(chars);
             for (int k = 0; k < chars.Length; k++)

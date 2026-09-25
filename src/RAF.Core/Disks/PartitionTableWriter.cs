@@ -41,7 +41,7 @@ public static class PartitionTableWriter
 
         using var reader = VolumeReader.TryOpen(
             disk.DiskNumber, 0, disk.SizeBytes, sector, sequential: false, applyOverlay: false);
-        if (reader is null) return Refuse("לא ניתן לפתוח את הכונן לקריאה.");
+        if (reader is null) return Refuse(L.T("לא ניתן לפתוח את הכונן לקריאה."));
 
         return Plan(reader, disk.SizeBytes, sector, disk.Partitions, found);
     }
@@ -50,22 +50,22 @@ public static class PartitionTableWriter
         VolumeReader reader, long diskSize, int sector, IReadOnlyList<PartitionInfo> existing, FoundPartition found)
     {
         if (found.Offset % sector != 0 || found.Size % sector != 0)
-            return Refuse("גבולות המחיצה שנמצאה אינם תקינים, ולכן אי אפשר לרשום אותה בטבלה.");
+            return Refuse(L.T("גבולות המחיצה שנמצאה אינם תקינים, ולכן אי אפשר לרשום אותה בטבלה."));
 
         if (found.Offset + found.Size > diskSize)
-            return Refuse("המחיצה חורגת מסוף הכונן.");
+            return Refuse(L.T("המחיצה חורגת מסוף הכונן."));
 
         var clash = existing.FirstOrDefault(p =>
             p.SizeBytes > 0 && !p.Assumed && found.Offset < p.OffsetBytes + p.SizeBytes && p.OffsetBytes < found.End);
         if (clash is not null)
             return Refuse(
-                "המחיצה שנמצאה חופפת למחיצה שכבר קיימת בטבלה" +
+                L.T("המחיצה שנמצאה חופפת למחיצה שכבר קיימת בטבלה") +
                 (string.IsNullOrEmpty(clash.DriveLetter) ? "" : $" ({clash.DriveLetter})") +
-                ". רישום שתיהן היה גורם לכך שכתיבה לאחת תהרוס את השנייה. " +
-                "אפשר עדיין לסרוק אותה ולהעתיק ממנה קבצים — בלי לכתוב לכונן.");
+                L.T(". רישום שתיהן היה גורם לכך שכתיבה לאחת תהרוס את השנייה. " +
+                "אפשר עדיין לסרוק אותה ולהעתיק ממנה קבצים — בלי לכתוב לכונן."));
 
         byte[] sector0 = reader.ReadBlock(0, sector);
-        if (sector0.Length < 512) return Refuse("לא ניתן לקרוא את תחילת הכונן.");
+        if (sector0.Length < 512) return Refuse(L.T("לא ניתן לקרוא את תחילת הכונן."));
 
         bool hasSignature = sector0[510] == 0x55 && sector0[511] == 0xAA;
         bool protective = hasSignature && Enumerable.Range(0, 4).Any(i => sector0[446 + i * 16 + 4] == 0xEE);
@@ -78,11 +78,11 @@ public static class PartitionTableWriter
 
         // אין טבלת מחיצות כלל.
         if (found.Offset == 0)
-            return Refuse("המחיצה מתחילה בתחילת הכונן, ולכן היא אינה זקוקה לטבלת מחיצות. " +
-                          "אם Windows אינו מזהה אותה, השתמשו בתיקון המחיצה.");
+            return Refuse(L.T("המחיצה מתחילה בתחילת הכונן, ולכן היא אינה זקוקה לטבלת מחיצות. " +
+                          "אם Windows אינו מזהה אותה, השתמשו בתיקון המחיצה."));
 
         if (LooksLikeBootSector(sector0))
-            return Refuse("בתחילת הכונן יש מערכת קבצים פעילה. יצירת טבלת מחיצות הייתה דורסת אותה.");
+            return Refuse(L.T("בתחילת הכונן יש מערכת קבצים פעילה. יצירת טבלת מחיצות הייתה דורסת אותה."));
 
         return PlanMbr(sector0, sector, found, fresh: true);
     }
@@ -95,7 +95,7 @@ public static class PartitionTableWriter
         long count = found.Size / sector;
 
         if (startLba > uint.MaxValue || count > uint.MaxValue)
-            return Refuse("המחיצה נמצאת מעבר ל-2TB הראשונים של הכונן, ולכן טבלת MBR אינה יכולה לתאר אותה.");
+            return Refuse(L.T("המחיצה נמצאת מעבר ל-2TB הראשונים של הכונן, ולכן טבלת MBR אינה יכולה לתאר אותה."));
 
         byte[] updated = fresh ? new byte[sector] : (byte[])sector0.Clone();
 
@@ -114,7 +114,7 @@ public static class PartitionTableWriter
         }
 
         if (slot < 0)
-            return Refuse("כל ארבע הרשומות בטבלת המחיצות של הכונן תפוסות, ואין מקום לרשום מחיצה נוספת.");
+            return Refuse(L.T("כל ארבע הרשומות בטבלת המחיצות של הכונן תפוסות, ואין מקום לרשום מחיצה נוספת."));
 
         int at = 446 + slot * 16;
         updated.AsSpan(at, 16).Clear();
@@ -128,11 +128,11 @@ public static class PartitionTableWriter
         {
             CanRestore = true,
             Explanation = fresh
-                ? "לכונן אין טבלת מחיצות. תיווצר טבלה חדשה, ובה המחיצה שנמצאה."
-                : "בטבלת המחיצות של הכונן יש רשומה פנויה, והמחיצה תירשם בה.",
+                ? L.T("לכונן אין טבלת מחיצות. תיווצר טבלה חדשה, ובה המחיצה שנמצאה.")
+                : L.T("בטבלת המחיצות של הכונן יש רשומה פנויה, והמחיצה תירשם בה."),
             WhatWillChange = fresh
-                ? "תיכתב טבלת מחיצות חדשה בתחילת הכונן. המחיצה עצמה והקבצים לא ישתנו."
-                : "תשתנה רשומה אחת בטבלת המחיצות, בתחילת הכונן. המחיצה עצמה והקבצים לא ישתנו.",
+                ? L.T("תיכתב טבלת מחיצות חדשה בתחילת הכונן. המחיצה עצמה והקבצים לא ישתנו.")
+                : L.T("תשתנה רשומה אחת בטבלת המחיצות, בתחילת הכונן. המחיצה עצמה והקבצים לא ישתנו."),
             Writes = { (0, updated) },
         };
     }
@@ -151,7 +151,7 @@ public static class PartitionTableWriter
     {
         byte[] header = reader.ReadBlock(sector, sector);
         if (header.Length < 92 || Encoding.ASCII.GetString(header, 0, 8) != "EFI PART")
-            return Refuse("כותרת טבלת ה-GPT של הכונן פגומה, ולכן לא ניתן לרשום בה מחיצה בבטחה.");
+            return Refuse(L.T("כותרת טבלת ה-GPT של הכונן פגומה, ולכן לא ניתן לרשום בה מחיצה בבטחה."));
 
         int headerSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(12));
         long alternateLba = BinaryPrimitives.ReadInt64LittleEndian(header.AsSpan(32));
@@ -162,25 +162,25 @@ public static class PartitionTableWriter
         int entrySize = (int)BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(84));
 
         if (headerSize is < 92 or > 512 || entryCount is <= 0 or > 1024 || entrySize is < 128 or > 1024)
-            return Refuse("כותרת טבלת ה-GPT מכילה ערכים לא תקינים.");
+            return Refuse(L.T("כותרת טבלת ה-GPT מכילה ערכים לא תקינים."));
 
         long firstLba = found.Offset / sector;
         long lastLba = (found.Offset + found.Size) / sector - 1;
 
         if (firstLba < firstUsable || lastLba > lastUsable)
-            return Refuse("המחיצה חורגת מהאזור שטבלת ה-GPT מאפשרת למחיצות.");
+            return Refuse(L.T("המחיצה חורגת מהאזור שטבלת ה-GPT מאפשרת למחיצות."));
 
         int arrayBytes = entryCount * entrySize;
         int arraySectors = (arrayBytes + sector - 1) / sector;
         byte[] entries = reader.ReadBlock(entriesLba * sector, arraySectors * sector);
-        if (entries.Length < arrayBytes) return Refuse("לא ניתן לקרוא את רשומות טבלת ה-GPT.");
+        if (entries.Length < arrayBytes) return Refuse(L.T("לא ניתן לקרוא את רשומות טבלת ה-GPT."));
 
         int slot = -1;
         for (int i = 0; i < entryCount; i++)
         {
             if (entries.AsSpan(i * entrySize, 16).IndexOfAnyExcept((byte)0) < 0) { slot = i; break; }
         }
-        if (slot < 0) return Refuse("כל הרשומות בטבלת ה-GPT תפוסות.");
+        if (slot < 0) return Refuse(L.T("כל הרשומות בטבלת ה-GPT תפוסות."));
 
         int at = slot * entrySize;
         entries.AsSpan(at, entrySize).Clear();
@@ -226,9 +226,9 @@ public static class PartitionTableWriter
         return new RestorePlan
         {
             CanRestore = true,
-            Explanation = "בטבלת ה-GPT של הכונן יש רשומה פנויה, והמחיצה תירשם בה.",
-            WhatWillChange = "תתווסף רשומה אחת לטבלת ה-GPT — בעותק הראשי שבתחילת הכונן ובעותק המשני שבסופו. " +
-                             "המחיצה עצמה והקבצים לא ישתנו.",
+            Explanation = L.T("בטבלת ה-GPT של הכונן יש רשומה פנויה, והמחיצה תירשם בה."),
+            WhatWillChange = L.T("תתווסף רשומה אחת לטבלת ה-GPT — בעותק הראשי שבתחילת הכונן ובעותק המשני שבסופו. " +
+                             "המחיצה עצמה והקבצים לא ישתנו."),
             Writes = writes,
         };
     }
@@ -249,7 +249,7 @@ public static class PartitionTableWriter
 
         int undoDisk = DiskEnumerator.GetDiskNumberForPath(undoFolder);
         if (undoDisk >= 0 && undoDisk == disk.DiskNumber)
-            return new RepairResult { Message = "תיקיית הגיבוי חייבת להיות על כונן אחר מהכונן שמשתנה." };
+            return new RepairResult { Message = L.T("תיקיית הגיבוי חייבת להיות על כונן אחר מהכונן שמשתנה.") };
 
         RestorePlan plan;
         var before = new List<(long Offset, byte[] Data)>();
@@ -257,7 +257,7 @@ public static class PartitionTableWriter
         using (var reader = VolumeReader.TryOpen(
                    disk.DiskNumber, 0, disk.SizeBytes, sector, sequential: false, applyOverlay: false))
         {
-            if (reader is null) return new RepairResult { Message = "לא ניתן לפתוח את הכונן לקריאה." };
+            if (reader is null) return new RepairResult { Message = L.T("לא ניתן לפתוח את הכונן לקריאה.") };
 
             plan = Plan(reader, disk.SizeBytes, sector, disk.Partitions, found);
             if (!plan.CanRestore) return new RepairResult { Message = plan.Explanation };
@@ -266,7 +266,7 @@ public static class PartitionTableWriter
             {
                 byte[] current = reader.ReadBlock(offset, data.Length);
                 if (current.Length != data.Length)
-                    return new RepairResult { Message = "לא ניתן לקרוא את מה שעומד להשתנות בכונן כדי לגבות אותו, ולכן לא נכתב דבר." };
+                    return new RepairResult { Message = L.T("לא ניתן לקרוא את מה שעומד להשתנות בכונן כדי לגבות אותו, ולכן לא נכתב דבר.") };
                 before.Add((offset, current));
             }
         }
@@ -285,7 +285,7 @@ public static class PartitionTableWriter
         }
         catch (Exception ex)
         {
-            return new RepairResult { Message = $"לא ניתן ליצור קובץ גיבוי, ולכן דבר לא נכתב: {ex.Message}" };
+            return new RepairResult { Message = L.T("לא ניתן ליצור קובץ גיבוי, ולכן דבר לא נכתב: {0}", ex.Message) };
         }
 
         // --- שלב 2: כתיבה ---
@@ -296,8 +296,8 @@ public static class PartitionTableWriter
             {
                 RolledBack = undone,
                 UndoFile = undoPath,
-                Message = $"הכתיבה לכונן נכשלה (שגיאת Windows {RawWriter.LastError}). " +
-                          (undone ? "המצב הקודם הוחזר." : $"קובץ הגיבוי שמור ב: {undoPath}"),
+                Message = L.T("הכתיבה לכונן נכשלה (שגיאת Windows {0}). ", RawWriter.LastError) +
+                          (undone ? L.T("המצב הקודם הוחזר.") : L.T("קובץ הגיבוי שמור ב: {0}", undoPath)),
             };
         }
 
@@ -317,12 +317,12 @@ public static class PartitionTableWriter
             {
                 Succeeded = true,
                 UndoFile = undoPath,
-                Message = "המחיצה הוחזרה לטבלת המחיצות. " +
+                Message = L.T("המחיצה הוחזרה לטבלת המחיצות. ") +
                           (found.BootSectorDamaged
-                              ? "תחילת המחיצה (מגזר האתחול) עדיין פגומה, ולכן Windows יציג אותה כמחיצה שדורשת פירמוט — " +
-                                "אל תפרמט. השלב הבא הוא תיקון המחיצה, או העתקת הקבצים דרך עותק הגיבוי. "
-                              : "אם היא עדיין לא מופיעה ב-Windows, נתקו וחברו את הכונן או הפעילו מחדש את המחשב. ") +
-                          $"גיבוי המצב הקודם נשמר ב: {undoPath}",
+                              ? L.T("תחילת המחיצה (מגזר האתחול) עדיין פגומה, ולכן Windows יציג אותה כמחיצה שדורשת פירמוט — " +
+                                "אל תפרמט. השלב הבא הוא תיקון המחיצה, או העתקת הקבצים דרך עותק הגיבוי. ")
+                              : L.T("אם היא עדיין לא מופיעה ב-Windows, נתקו וחברו את הכונן או הפעילו מחדש את המחשב. ")) +
+                          L.T("גיבוי המצב הקודם נשמר ב: {0}", undoPath),
             };
         }
 
@@ -335,8 +335,8 @@ public static class PartitionTableWriter
             RolledBack = restored,
             UndoFile = undoPath,
             Message = restored
-                ? "הטבלה נכתבה, אך המחיצה לא הופיעה בה כמצופה — ולכן המצב הקודם הוחזר אוטומטית. הכונן נותר כפי שהיה."
-                : $"הטבלה נכתבה, המחיצה לא הופיעה בה, וגם החזרת המצב הקודם נכשלה. קובץ הגיבוי שמור ב: {undoPath}",
+                ? L.T("הטבלה נכתבה, אך המחיצה לא הופיעה בה כמצופה — ולכן המצב הקודם הוחזר אוטומטית. הכונן נותר כפי שהיה.")
+                : L.T("הטבלה נכתבה, המחיצה לא הופיעה בה, וגם החזרת המצב הקודם נכשלה. קובץ הגיבוי שמור ב: {0}", undoPath),
         };
     }
 

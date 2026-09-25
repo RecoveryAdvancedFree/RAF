@@ -31,7 +31,7 @@ public static class VirtualRepair
             return new PartitionDiagnosisResult
             {
                 Outlook = RepairOutlook.Unreadable,
-                Summary = "לא ניתן לקרוא את עותק הגיבוי של תחילת המחיצה (מגזר האתחול).",
+                Summary = L.T("לא ניתן לקרוא את עותק הגיבוי של תחילת המחיצה (מגזר האתחול)."),
             };
 
         ReadOverlays.Set(diskNumber, partitionOffset, diagnosis.PrimaryOffset, backup);

@@ -66,10 +66,10 @@ public static class Mp4Rebuilder
     {
         var tracks = Mp4Index.ReadTracks(path);
         if (tracks is null)
-            return "גם בסרטון הזה אין אינדקס, ולכן אי אפשר ללמוד ממנו. בחרו סרטון שנפתח ומתנגן כרגיל.";
+            return L.T("גם בסרטון הזה אין אינדקס, ולכן אי אפשר ללמוד ממנו. בחרו סרטון שנפתח ומתנגן כרגיל.");
         if (!tracks.Any(t => t.IsVideo))
-            return "בסרטון הזה אין תמונה בקידוד H.264 או H.265 — הקידודים שטלפונים ומצלמות משתמשים בהם, " +
-                   "ושאפשר לבנות להם אינדקס.";
+            return L.T("בסרטון הזה אין תמונה בקידוד H.264 או H.265 — הקידודים שטלפונים ומצלמות משתמשים בהם, " +
+                   "ושאפשר לבנות להם אינדקס.");
         return null;
     }
 
@@ -81,13 +81,13 @@ public static class Mp4Rebuilder
         IProgress<double>? progress = null, CancellationToken token = default)
     {
         var missing = Inspect(brokenPath)
-            ?? throw new InvalidOperationException("לסרטון הזה לא חסר אינדקס — אין מה לבנות מחדש.");
+            ?? throw new InvalidOperationException(L.T("לסרטון הזה לא חסר אינדקס — אין מה לבנות מחדש."));
 
         var tracks = Mp4Index.ReadTracks(referencePath)
-            ?? throw new InvalidOperationException("בסרטון הייחוס לא נמצא אינדקס. בחרו סרטון שנפתח ומתנגן כרגיל.");
+            ?? throw new InvalidOperationException(L.T("בסרטון הייחוס לא נמצא אינדקס. בחרו סרטון שנפתח ומתנגן כרגיל."));
         var video = tracks.FirstOrDefault(t => t.IsVideo)
             ?? throw new InvalidOperationException(
-                "בסרטון הייחוס אין תמונה בקידוד H.264 או H.265 — אלה הקידודים שאפשר לבנות להם אינדקס.");
+                L.T("בסרטון הייחוס אין תמונה בקידוד H.264 או H.265 — אלה הקידודים שאפשר לבנות להם אינדקס."));
         var audio = tracks.FirstOrDefault(t => t.IsAac || t.IsPcm);
 
         int maxFrame = (int)Math.Clamp((long)(video.Sizes.Count > 0 ? video.Sizes.Max() : 0) * 4, 1 << 20, 64 << 20);
@@ -163,8 +163,8 @@ public static class Mp4Rebuilder
         if (frames.Count == 0)
             return new VideoRebuildResult
             {
-                Message = "לא נמצאו בסרטון תמונות שמתאימות להגדרות של סרטון הייחוס. " +
-                          "ודאו שסרטון הייחוס צולם באותו מכשיר ובאותן הגדרות (רזולוציה, קצב תמונות).",
+                Message = L.T("לא נמצאו בסרטון תמונות שמתאימות להגדרות של סרטון הייחוס. " +
+                          "ודאו שסרטון הייחוס צולם באותו מכשיר ובאותן הגדרות (רזולוציה, קצב תמונות)."),
                 UnrecognizedBytes = unrecognized,
             };
 
@@ -181,19 +181,19 @@ public static class Mp4Rebuilder
             AudioFrames = audio is null ? 0 : audioFrames,
             Seconds = seconds,
             UnrecognizedBytes = unrecognized,
-            Message = $"נבנה אינדקס חדש: {frames.Count:N0} תמונות" +
-                      (audio is null ? "" : audioFrames > 0 ? " וקול" : " (הקול לא נמצא)") +
+            Message = L.T("נבנה אינדקס חדש: {0} תמונות", frames.Count.ToString("N0")) +
+                      (audio is null ? "" : audioFrames > 0 ? L.T(" וקול") : L.T(" (הקול לא נמצא)")) +
                       $" — {Duration(seconds)}." +
                       (unrecognized == 0 ? ""
                           : unrecognized < 4L << 20
-                              ? $" חלק קטן ({Size(unrecognized)}) לא זוהה — בדרך כלל התמונה האחרונה, שנקטעה באמצע ההקלטה — והוא נשאר מחוץ לסרטון."
-                              : $" {Size(unrecognized)} לא זוהו כתמונה או כקול — אזורים פגומים, או נתונים שהמכשיר שומר בנוסף — ונשארו מחוץ לסרטון."),
+                              ? L.T(" חלק קטן ({0}) לא זוהה — בדרך כלל התמונה האחרונה, שנקטעה באמצע ההקלטה — והוא נשאר מחוץ לסרטון.", Size(unrecognized))
+                              : L.T(" {0} לא זוהו כתמונה או כקול — אזורים פגומים, או נתונים שהמכשיר שומר בנוסף — ונשארו מחוץ לסרטון.", Size(unrecognized))),
         };
     }
 
     private static string Duration(double seconds) => seconds < 60
-        ? $"{Math.Round(seconds):0} שניות"
-        : $"{TimeSpan.FromSeconds(seconds):h\\:mm\\:ss}".TrimStart('0', ':') + " דקות";
+        ? L.T("{0} שניות", (Math.Round(seconds)).ToString("0"))
+        : $"{TimeSpan.FromSeconds(seconds):h\\:mm\\:ss}".TrimStart('0', ':') + L.T(" דקות");
 
     /// <summary>גודל מבודד משמאל לימין, כדי שלא יתהפך בתוך משפט בעברית.</summary>
     private static string Size(long bytes) => "⁦" + (bytes switch
@@ -292,7 +292,7 @@ public static class Mp4Rebuilder
             for (long left = length; left > 0;)
             {
                 int read = source.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
-                if (read <= 0) throw new EndOfStreamException("הסרטון המקורי התקצר בזמן הבנייה.");
+                if (read <= 0) throw new EndOfStreamException(L.T("הסרטון המקורי התקצר בזמן הבנייה."));
                 target.Write(buffer, 0, read);
                 left -= read;
             }

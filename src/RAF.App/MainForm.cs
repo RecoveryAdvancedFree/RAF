@@ -34,7 +34,7 @@ internal sealed class MainForm : Form
         _bridge = new Bridge(this);
         Taskbar = new TaskbarProgress(this);
 
-        Text = "שחזור מתקדם חינם — RAF";
+        Text = L.T("שחזור מתקדם חינם — RAF");
         // הסמל שנצרב ב-EXE מוצג גם בשורת המשימות ובמעבר בין חלונות.
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         Tray = new TrayIcon(this);
@@ -131,10 +131,10 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             ShowFatalError(
-                "לא ניתן לאתחל את מנוע התצוגה WebView2.\n\n" +
+                L.T("לא ניתן לאתחל את מנוע התצוגה WebView2.\n\n" +
                 "ב-Windows 11 המנוע מותקן מראש. אם המחשב מריץ Windows 10 ישן, " +
                 "יש להתקין את WebView2 Runtime מאתר Microsoft.\n\n" +
-                "פירוט: " + ex.Message);
+                "פירוט: ") + ex.Message);
             return;
         }
 
@@ -373,18 +373,18 @@ internal sealed class MainForm : Form
             string message = running switch
             {
                 LongOperation.Scan =>
-                    "סריקה פועלת כעת. אם תסגרו את התוכנה, הסריקה תיעצר באמצע והתוצאות שלה יאבדו.\n\n" +
-                    "בסריקה מתקדמת נשמרת נקודת ביניים כל 5 דקות, ואפשר לפתוח אותה אחר כך מ\"סריקות אחרונות\".",
+                    L.T("סריקה פועלת כעת. אם תסגרו את התוכנה, הסריקה תיעצר באמצע והתוצאות שלה יאבדו.\n\n" +
+                    "בסריקה מתקדמת נשמרת נקודת ביניים כל 5 דקות, ואפשר לפתוח אותה אחר כך מ\"סריקות אחרונות\"."),
                 LongOperation.Recovery =>
-                    "שחזור פועל כעת. אם תסגרו את התוכנה, השחזור ייעצר וחלק מהקבצים לא ישוחזרו.",
+                    L.T("שחזור פועל כעת. אם תסגרו את התוכנה, השחזור ייעצר וחלק מהקבצים לא ישוחזרו."),
                 LongOperation.Hunt =>
-                    "סריקת כונן פועלת כעת. אם תסגרו את התוכנה, היא תיעצר ולא יוצגו המחיצות שנמצאו.",
+                    L.T("סריקת כונן פועלת כעת. אם תסגרו את התוכנה, היא תיעצר ולא יוצגו המחיצות שנמצאו."),
                 _ =>
-                    "יצירת תמונת דיסק פועלת כעת. אם תסגרו את התוכנה, היא תיעצר. " +
-                    "מה שכבר הועתק נשמר, ואפשר להמשיך מאותה נקודה בפעם הבאה.",
+                    L.T("יצירת תמונת דיסק פועלת כעת. אם תסגרו את התוכנה, היא תיעצר. " +
+                    "מה שכבר הועתק נשמר, ואפשר להמשיך מאותה נקודה בפעם הבאה."),
             };
 
-            var answer = MessageBox.Show(this, message + "\n\nלסגור בכל זאת?", "שחזור מתקדם חינם",
+            var answer = MessageBox.Show(this, message + L.T("\n\nלסגור בכל זאת?"), L.T("שחזור מתקדם חינם"),
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2,
                 MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
 
@@ -400,7 +400,7 @@ internal sealed class MainForm : Form
     }
 
     private static void ShowFatalError(string message) =>
-        MessageBox.Show(message, "שחזור מתקדם חינם — שגיאה",
+        MessageBox.Show(message, L.T("שחזור מתקדם חינם — שגיאה"),
             MessageBoxButtons.OK, MessageBoxIcon.Error,
             MessageBoxDefaultButton.Button1, MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign);
 }

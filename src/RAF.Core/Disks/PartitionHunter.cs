@@ -83,7 +83,7 @@ public static class PartitionHunter
         {
             using var reader = VolumeReader.TryOpen(
                 disk.DiskNumber, 0, disk.SizeBytes, disk.LogicalSectorSize, sequential: true, applyOverlay: false)
-                ?? throw new IOException(Native.RawDevice.OpenFailure("הכונן"));
+                ?? throw new IOException(Native.RawDevice.OpenFailure(L.T("הכונן")));
 
             // מחיצה שהתוכנה רק הניחה (ראו PartitionInfo.Assumed) אינה מסתירה מה שנמצא בתוכה.
             var existing = disk.Partitions

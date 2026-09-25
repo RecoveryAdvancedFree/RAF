@@ -60,7 +60,7 @@ internal static class ZipRebuilder
             if (dataOffset > data.Length) break;
 
             if (compressed == 0xFFFFFFFF || size == 0xFFFFFFFF)
-                return new Analysis(entries, false, true, "ארכיון Zip64 (קבצים מעל 4GB) — מחוץ לתחום התיקון.");
+                return new Analysis(entries, false, true, L.T("ארכיון Zip64 (קבצים מעל 4GB) — מחוץ לתחום התיקון."));
 
             byte[] nameBytes = data.AsSpan((int)(pos + 30), nameLength).ToArray();
             byte[] extra = data.AsSpan((int)(pos + 30 + nameLength), extraLength).ToArray();
@@ -81,7 +81,7 @@ internal static class ZipRebuilder
                     var found = FindDescriptor(data, dataOffset);
                     if (found is null)
                     {
-                        entries.Add(Broken(name, pos, "סוף הקובץ הפנימי לא נמצא — ככל הנראה נקטע."));
+                        entries.Add(Broken(name, pos, L.T("סוף הקובץ הפנימי לא נמצא — ככל הנראה נקטע.")));
                         break;
                     }
                     (crc, compressed, size, descriptorLength) = found.Value;
@@ -91,7 +91,7 @@ internal static class ZipRebuilder
             long end = dataOffset + compressed;
             if (end > data.Length)
             {
-                entries.Add(Broken(name, pos, "הקובץ הפנימי נקטע באמצע."));
+                entries.Add(Broken(name, pos, L.T("הקובץ הפנימי נקטע באמצע.")));
                 break;
             }
 
@@ -138,18 +138,18 @@ internal static class ZipRebuilder
                 while (total < content.Length && (n = inflate.Read(content, total, content.Length - total)) > 0)
                     total += n;
                 if (total != size || inflate.ReadByte() >= 0)
-                    return (false, false, "הנתונים הדחוסים אינם באורך הצפוי.");
+                    return (false, false, L.T("הנתונים הדחוסים אינם באורך הצפוי."));
             }
             catch (InvalidDataException)
             {
-                return (false, false, "הנתונים הדחוסים פגומים.");
+                return (false, false, L.T("הנתונים הדחוסים פגומים."));
             }
         }
 
-        if (content.Length != size) return (false, false, "הקובץ הפנימי אינו באורך הצפוי.");
+        if (content.Length != size) return (false, false, L.T("הקובץ הפנימי אינו באורך הצפוי."));
         return Crc32.Compute(content) == crc
             ? (true, true, null)
-            : (false, false, "סכום הביקורת (CRC) אינו תואם — התוכן השתנה.");
+            : (false, false, L.T("סכום הביקורת (CRC) אינו תואם — התוכן השתנה."));
     }
 
     /// <summary>

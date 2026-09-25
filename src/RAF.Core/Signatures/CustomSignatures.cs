@@ -43,7 +43,7 @@ public static class CustomSignatures
     public static LearnResult Learn(IReadOnlyList<string> paths)
     {
         if (paths.Count < 2)
-            return Fail("צריך לפחות שני קבצים מאותו סוג — ועדיף שלושה ומעלה — כדי לדעת מה משותף לכולם.");
+            return Fail(L.T("צריך לפחות שני קבצים מאותו סוג — ועדיף שלושה ומעלה — כדי לדעת מה משותף לכולם."));
 
         var heads = new List<byte[]>();
         var tails = new List<byte[]>();
@@ -53,7 +53,7 @@ public static class CustomSignatures
             try
             {
                 using var stream = File.OpenRead(path);
-                if (stream.Length < 16) return Fail($"הקובץ \"{Path.GetFileName(path)}\" קטן מדי כדי ללמוד ממנו.");
+                if (stream.Length < 16) return Fail(L.T("הקובץ \"{0}\" קטן מדי כדי ללמוד ממנו.", Path.GetFileName(path)));
                 largest = Math.Max(largest, stream.Length);
 
                 byte[] head = new byte[Math.Min(HeaderWindow, stream.Length)];
@@ -67,19 +67,19 @@ public static class CustomSignatures
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                return Fail($"לא ניתן לקרוא את \"{Path.GetFileName(path)}\": {e.Message}");
+                return Fail(L.T("לא ניתן לקרוא את \"{0}\": {1}", Path.GetFileName(path), e.Message));
             }
         }
 
         // סוג שהתוכנה כבר מכירה — אין מה ללמוד, והחתימה החדשה הייתה רק מתחרה בה.
         var known = heads.Select(h => FileSignatures.Identify(h)?.Name).Distinct().ToList();
         if (known.Count == 1 && known[0] is { } name)
-            return Fail($"התוכנה כבר מכירה את הקבצים האלה — הם בנויים כמו {name}, והסריקה המתקדמת כבר מוצאת אותם. " +
-                        "אין צורך להוסיף סוג חדש.");
+            return Fail(L.T("התוכנה כבר מכירה את הקבצים האלה — הם בנויים כמו {0}, והסריקה המתקדמת כבר מוצאת אותם. " +
+                        "אין צורך להוסיף סוג חדש.", L.T(name)));
 
         string extension = MostCommonExtension(paths);
         if (extension.Length == 0)
-            return Fail("לקבצים לדוגמה אין סיומת. בחרו קבצים עם הסיומת שהם אמורים לקבל בשחזור.");
+            return Fail(L.T("לקבצים לדוגמה אין סיומת. בחרו קבצים עם הסיומת שהם אמורים לקבל בשחזור."));
 
         // בתים שזהים בכל הדוגמאות — קבועים; השאר פתוחים.
         int window = heads.Min(h => h.Length);
@@ -95,15 +95,15 @@ public static class CustomSignatures
         int fixedCount = header.Count(b => b is not null);
         int meaningful = header.Count(b => b is not null and not 0);
         if (fixedCount < MinFixed || meaningful < 3)
-            return Fail("לא נמצא מספיק משותף בתחילת הקבצים: " +
-                        (fixedCount == 0 ? "כל קובץ מתחיל אחרת. " : $"רק {fixedCount} בתים זהים בכולם. ") +
-                        "ייתכן שהם לא באמת מאותו סוג, או שלסוג הזה אין תחילה קבועה — ואז אי אפשר לחפש אותו כך.");
+            return Fail(L.T("לא נמצא מספיק משותף בתחילת הקבצים: ") +
+                        (fixedCount == 0 ? L.T("כל קובץ מתחיל אחרת. ") : L.T("רק {0} בתים זהים בכולם. ", fixedCount)) +
+                        L.T("ייתכן שהם לא באמת מאותו סוג, או שלסוג הזה אין תחילה קבועה — ואז אי אפשר לחפש אותו כך."));
 
         string? footer = CommonFooter(tails);
         long maxSize = Math.Clamp(largest * 4, 1024 * 1024, 4L * 1024 * 1024 * 1024);
 
         var type = new CustomType(
-            Name: $"קובץ {extension.ToUpperInvariant()}",
+            Name: L.T("קובץ {0}", extension.ToUpperInvariant()),
             Extension: extension,
             Header: ToHex(header),
             Footer: footer,
@@ -115,11 +115,11 @@ public static class CustomSignatures
             Ok = true,
             Type = type,
             FixedBytes = fixedCount,
-            Message = $"בתחילת כל {paths.Count} הקבצים יש {fixedCount} בתים זהים — לפיהם הסריקה המתקדמת תמצא קבצים מהסוג הזה." +
-                      (footer is not null ? " גם סוף הקבצים זהה, ולכן גם האורך של כל קובץ שיימצא ייקבע במדויק." :
-                          $" לסוג הזה אין סוף קבוע, ולכן כל קובץ שיימצא ישוחזר באורך של עד {Size(maxSize)} — " +
-                          "ייתכן שבסופו יהיו נתונים מיותרים. בדרך כלל התוכנה שפותחת אותו מתעלמת מהם.") +
-                      (paths.Count == 2 ? " עם שלושה קבצים ומעלה הזיהוי מדויק יותר." : ""),
+            Message = L.T("בתחילת כל {0} הקבצים יש {1} בתים זהים — לפיהם הסריקה המתקדמת תמצא קבצים מהסוג הזה.", paths.Count, fixedCount) +
+                      (footer is not null ? L.T(" גם סוף הקבצים זהה, ולכן גם האורך של כל קובץ שיימצא ייקבע במדויק.") :
+                          L.T(" לסוג הזה אין סוף קבוע, ולכן כל קובץ שיימצא ישוחזר באורך של עד {0} — " +
+                          "ייתכן שבסופו יהיו נתונים מיותרים. בדרך כלל התוכנה שפותחת אותו מתעלמת מהם.", Size(maxSize))) +
+                      (paths.Count == 2 ? L.T(" עם שלושה קבצים ומעלה הזיהוי מדויק יותר.") : ""),
         };
     }
 

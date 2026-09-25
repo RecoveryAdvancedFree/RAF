@@ -91,46 +91,46 @@ public static class DiskImager
     public static void ValidateDestination(string imagePath, int sourceDisk, long size, string kind = "disk")
     {
         if (string.IsNullOrWhiteSpace(imagePath))
-            throw new InvalidOperationException("לא נבחר קובץ יעד לתמונה.");
+            throw new InvalidOperationException(L.T("לא נבחר קובץ יעד לתמונה."));
 
         // VHD: Windows מחבר אותו ככונן — אבל רק כונן שלם, עם טבלת מחיצות, ועד 2040GB.
         bool vhd = VhdFooter.IsVhdPath(imagePath);
         if (vhd && kind != "disk")
             throw new InvalidOperationException(
-                "כונן וירטואלי (VHD) אפשר ליצור רק מכונן שלם — Windows לא יודע לחבר מחיצה בודדת בלי טבלת מחיצות. " +
-                "בחרו תמונה רגילה, או צרו תמונה של הכונן כולו.");
+                L.T("כונן וירטואלי (VHD) אפשר ליצור רק מכונן שלם — Windows לא יודע לחבר מחיצה בודדת בלי טבלת מחיצות. " +
+                "בחרו תמונה רגילה, או צרו תמונה של הכונן כולו."));
         if (vhd && size > VhdFooter.MaxSize)
             throw new InvalidOperationException(
-                $"כונן וירטואלי (VHD) מוגבל ל-2040GB, והכונן הזה בגודל {Size(size)}. בחרו תמונה רגילה.");
+                L.T("כונן וירטואלי (VHD) מוגבל ל-2040GB, והכונן הזה בגודל {0}. בחרו תמונה רגילה.", Size(size)));
         if (vhd) size += VhdFooter.Length;
 
         if (DevicePaths.IsImage(sourceDisk))
-            throw new InvalidOperationException("זו כבר תמונת דיסק. ניתן לסרוק ולשחזר ממנה ישירות.");
+            throw new InvalidOperationException(L.T("זו כבר תמונת דיסק. ניתן לסרוק ולשחזר ממנה ישירות."));
 
         string full = Path.GetFullPath(imagePath);
         string? folder = Path.GetDirectoryName(full);
         if (folder is null || !Directory.Exists(folder))
-            throw new InvalidOperationException("תיקיית היעד אינה קיימת.");
+            throw new InvalidOperationException(L.T("תיקיית היעד אינה קיימת."));
 
         int targetDisk = DiskEnumerator.GetDiskNumberForPath(full);
         if (targetDisk >= 0 && targetDisk == sourceDisk)
             throw new InvalidOperationException(
-                "התמונה חייבת להישמר על כונן אחר מזה שממנו היא נוצרת: כתיבה לאותו כונן " +
-                "הייתה דורסת בדיוק את הנתונים שמנסים להציל.");
+                L.T("התמונה חייבת להישמר על כונן אחר מזה שממנו היא נוצרת: כתיבה לאותו כונן " +
+                "הייתה דורסת בדיוק את הנתונים שמנסים להציל."));
 
         var drive = new DriveInfo(Path.GetPathRoot(full)!);
 
         if (string.Equals(drive.DriveFormat, "FAT32", StringComparison.OrdinalIgnoreCase) && size > Fat32MaxFile)
             throw new InvalidOperationException(
-                $"כונן היעד מפורמט ב-FAT32, שאינו מאפשר קובץ גדול מ-4GB, והתמונה תהיה בגודל " +
-                $"{Size(size)}. בחרו כונן NTFS או exFAT.");
+                L.T("כונן היעד מפורמט ב-FAT32, שאינו מאפשר קובץ גדול מ-4GB, והתמונה תהיה בגודל " +
+                "{0}. בחרו כונן NTFS או exFAT.", Size(size)));
 
         // קובץ קיים שיידרס משחרר את מקומו.
         long reclaimed = File.Exists(full) ? new FileInfo(full).Length : 0;
         if (drive.AvailableFreeSpace + reclaimed < size)
             throw new InvalidOperationException(
-                $"אין מספיק מקום בכונן היעד: התמונה דורשת {Size(size)}, " +
-                $"ופנויים {Size(drive.AvailableFreeSpace)}.");
+                L.T("אין מספיק מקום בכונן היעד: התמונה דורשת {0}, " +
+                "ופנויים {1}.", Size(size), Size(drive.AvailableFreeSpace)));
     }
 
     /// <summary>יצירת תמונה של דיסק שלם או של מחיצה אחת — או המשך של תמונה קיימת.</summary>
@@ -169,7 +169,7 @@ public static class DiskImager
     {
         var existing = Inspect(imagePath, source.Length, kind);
         if (existing is not { CanResume: true })
-            throw new InvalidOperationException(existing?.Reason ?? "לא נמצאה תמונה קודמת להמשיך ממנה.");
+            throw new InvalidOperationException(existing?.Reason ?? L.T("לא נמצאה תמונה קודמת להמשיך ממנה."));
 
         var map = ImageMap.TryLoad(ImageMap.PathFor(imagePath))!;
         var plan = new CopyPlan(
@@ -199,11 +199,11 @@ public static class DiskImager
 
         string? reason =
             map.Size != size || map.Kind != kind
-                ? "בנתיב הזה יש תמונה של מקור אחר (בגודל שונה). התחלה מחדש תדרוס אותה."
+                ? L.T("בנתיב הזה יש תמונה של מקור אחר (בגודל שונה). התחלה מחדש תדרוס אותה.")
             : new FileInfo(imagePath).Length != fileLength
-                ? "קובץ התמונה קצר מהצפוי — ייתכן שנקטע. אי אפשר להמשיך ממנו."
+                ? L.T("קובץ התמונה קצר מהצפוי — ייתכן שנקטע. אי אפשר להמשיך ממנו.")
             : map.NotCopied.Count == 0 && map.Unreadable.Count == 0
-                ? "התמונה הזו כבר שלמה, והכונן כולו נקרא."
+                ? L.T("התמונה הזו כבר שלמה, והכונן כולו נקרא.")
             : null;
 
         return new ExistingImage(reason is null, map.NotCopiedBytes, map.UnreadableBytes, map.Complete, map.Source, reason);
@@ -279,7 +279,7 @@ public static class DiskImager
         }
 
         byte[] buffer = new byte[ChunkSize];
-        string stage1 = plan.Existing ? "מעבר 1 — השלמת מה שלא הועתק" : "מעבר 1 — העתקה מהירה";
+        string stage1 = plan.Existing ? L.T("מעבר 1 — השלמת מה שלא הועתק") : L.T("מעבר 1 — העתקה מהירה");
 
         // תמונה קיימת נפתחת כפי שהיא: FileMode.Create היה מוחק את כל מה שכבר הועתק.
         using (var output = new FileStream(imagePath, plan.Existing ? FileMode.Open : FileMode.Create,
@@ -444,7 +444,7 @@ public static class DiskImager
                     }
 
                     retryDone += n;
-                    Report(2, "מעבר 2 — ניסיון חוזר באזורים פגומים", retryDone, retryTotal,
+                    Report(2, L.T("מעבר 2 — ניסיון חוזר באזורים פגומים"), retryDone, retryTotal,
                         retryTotal - retryDone + unreadable.Sum(r => r.Length));
                 }
             }
@@ -458,7 +458,7 @@ public static class DiskImager
                 var recovered = new List<ByteRange>();
                 long reverseTotal = unreadable.Sum(r => r.Length);
                 long reverseDone = 0, recoveredBytes = 0;
-                const string stage3 = "מעבר 3 — קריאה מהכיוון ההפוך באזורים פגומים";
+                string stage3 = L.T("מעבר 3 — קריאה מהכיוון ההפוך באזורים פגומים");
 
                 for (int i = unreadable.Count - 1; i >= 0; i--)
                 {
@@ -528,7 +528,7 @@ public static class DiskImager
             Duration = clock.Elapsed,
             Disconnected = disconnected,
             Message = (disconnected
-                ? "הכונן נותק באמצע ההעתקה. מה שהועתק נשמר — חברו אותו שוב ובחרו באותה תמונה כדי להמשיך מאותה נקודה. "
+                ? L.T("הכונן נותק באמצע ההעתקה. מה שהועתק נשמר — חברו אותו שוב ובחרו באותה תמונה כדי להמשיך מאותה נקודה. ")
                 : "") + Describe(map, cancelled, sector),
         };
     }
@@ -605,16 +605,16 @@ public static class DiskImager
     private static string Describe(ImageMap map, bool cancelled, int sector)
     {
         if (cancelled)
-            return $"ההעתקה נעצרה. הועתקו: {Size(map.Size - map.NotCopiedBytes)}; לא הועתקו: " +
-                   $"{Size(map.NotCopiedBytes)}. אפשר לסרוק את התמונה החלקית, או להמשיך אותה — " +
-                   "בחרו שוב את אותו קובץ ביצירת תמונה, ורק מה שחסר ייקרא מהכונן.";
+            return L.T("ההעתקה נעצרה. הועתקו: {0}; לא הועתקו: " +
+                   "{1}. אפשר לסרוק את התמונה החלקית, או להמשיך אותה — " +
+                   "בחרו שוב את אותו קובץ ביצירת תמונה, ורק מה שחסר ייקרא מהכונן.", Size(map.Size - map.NotCopiedBytes), Size(map.NotCopiedBytes));
 
         if (map.UnreadableBytes == 0)
-            return "התמונה הושלמה. הכונן כולו נקרא בהצלחה — התמונה זהה לכונן.";
+            return L.T("התמונה הושלמה. הכונן כולו נקרא בהצלחה — התמונה זהה לכונן.");
 
-        return $"התמונה הושלמה. {Size(map.UnreadableBytes)} לא נקראו מהכונן גם " +
+        return L.T("התמונה הושלמה. {0} לא נקראו מהכונן גם " +
                "בניסיון החוזר ומולאו באפסים. כל השאר הועתק. קבצים שישבו באזורים האלה " +
-               "יחזרו פגומים חלקית; כל השאר ישוחזרו כרגיל.";
+               "יחזרו פגומים חלקית; כל השאר ישוחזרו כרגיל.", Size(map.UnreadableBytes));
     }
 
     /// <summary>

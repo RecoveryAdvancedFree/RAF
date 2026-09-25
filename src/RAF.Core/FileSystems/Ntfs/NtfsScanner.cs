@@ -78,7 +78,7 @@ public sealed class NtfsScanner
 
         using var volume = NtfsVolume.Open(reader)
             ?? throw new InvalidDataException(
-                "המחיצה אינה NTFS תקין, או שתחילת המחיצה (מגזר האתחול) פגומה.");
+                L.T("המחיצה אינה NTFS תקין, או שתחילת המחיצה (מגזר האתחול) פגומה."));
 
         _volume = volume;
         volume.LoadClusterBitmap();
@@ -100,8 +100,8 @@ public sealed class NtfsScanner
             int gained = files.Count - beforeOrphans;
             double gb = (_bytesRead - bytesBefore) / 1024.0 / 1024 / 1024;
             _warnings.Add(
-                $"הסריקה העמוקה קראה {gb:F1} GB מהמחיצה ואיתרה {gained:N0} קבצים נוספים " +
-                "שרשומתם כבר אינה בטבלת הקבצים (MFT).");
+                L.T("הסריקה העמוקה קראה {0} GB מהמחיצה ואיתרה {1} קבצים נוספים " +
+                "שרשומתם כבר אינה בטבלת הקבצים (MFT).", gb.ToString("F1"), gained.ToString("N0")));
         }
 
         // היומנים נסרקים אחרונים: הם מאתרים קבצים שרשומת ה-MFT שלהם כבר
@@ -119,11 +119,11 @@ public sealed class NtfsScanner
         if (_verifiedEmpty > 0)
         {
             _warnings.Add(
-                $"{_verifiedEmpty:N0} קבצים נמצאו ברשומות המטא-דאטה אך תוכנם כבר אינו קיים על הכונן. " +
+                L.T("{0} קבצים נמצאו ברשומות המטא-דאטה אך תוכנם כבר אינו קיים על הכונן. ", _verifiedEmpty.ToString("N0")) +
                 (_trim == TrimState.Enabled
-                    ? "הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM). "
-                    : "המקום שלהם בכונן נדרס או אופס. ") +
-                "קבצים אלה סומנו כלא ניתנים לשחזור ולא יוצעו לשחזור.");
+                    ? L.T("הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM). ")
+                    : L.T("המקום שלהם בכונן נדרס או אופס. ")) +
+                L.T("קבצים אלה סומנו כלא ניתנים לשחזור ולא יוצעו לשחזור."));
         }
 
         return new ScanResult
@@ -193,7 +193,7 @@ public sealed class NtfsScanner
             {
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "קורא את טבלת הקבצים",
+                    Stage = L.T("קורא את טבלת הקבצים"),
                     Percent = total > 0 ? index * 100.0 / total : null,
                     FilesFound = files.Count,
                     BytesProcessed = _bytesRead,
@@ -280,7 +280,7 @@ public sealed class NtfsScanner
                 progress?.Report(new ScanProgress
                 {
                     Map = map,
-                    Stage = "סורק רשומות יתומות על פני המחיצה",
+                    Stage = L.T("סורק רשומות יתומות על פני המחיצה"),
                     Percent = offset * 100.0 / volumeSize,
                     FilesFound = files.Count,
                     BytesProcessed = offset,
@@ -377,14 +377,14 @@ public sealed class NtfsScanner
         {
             file.Quality = RecoveryQuality.Excellent;
             file.Content = ContentCheck.HasData;
-            file.QualityReason = "תוכן הקובץ שמור בתוך רשומת המטא-דאטה ונקרא במלואו.";
+            file.QualityReason = L.T("תוכן הקובץ שמור בתוך רשומת המטא-דאטה ונקרא במלואו.");
             return;
         }
 
         if (file.Extents.Count == 0)
         {
             file.Quality = RecoveryQuality.Unrecoverable;
-            file.QualityReason = "לא נמצא מידע על מיקום תוכן הקובץ על הדיסק.";
+            file.QualityReason = L.T("לא נמצא מידע על מיקום תוכן הקובץ על הדיסק.");
             return;
         }
 
@@ -393,7 +393,7 @@ public sealed class NtfsScanner
         {
             file.Quality = RecoveryQuality.Excellent;
             file.Content = ContentCheck.HasData;
-            file.QualityReason = "הקובץ קיים במערכת הקבצים ותוכנו שלם.";
+            file.QualityReason = L.T("הקובץ קיים במערכת הקבצים ותוכנו שלם.");
             return;
         }
 
@@ -406,19 +406,19 @@ public sealed class NtfsScanner
                 _verifiedEmpty++;
                 file.Quality = RecoveryQuality.Unrecoverable;
                 file.QualityReason = _trim == TrimState.Enabled
-                    ? "רשומת הקובץ שרדה, אך אזור הנתונים שלו מכיל אפסים בלבד. " +
-                      "הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM), והתוכן כבר אינו קיים. לא ניתן לשחזר."
-                    : "אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק או אופס. לא ניתן לשחזר.";
+                    ? L.T("רשומת הקובץ שרדה, אך אזור הנתונים שלו מכיל אפסים בלבד. " +
+                      "הכונן הזה מוחק מעצמו את התוכן של קבצים שנמחקו (TRIM), והתוכן כבר אינו קיים. לא ניתן לשחזר.")
+                    : L.T("אזור הנתונים של הקובץ מכיל אפסים בלבד — התוכן נמחק או אופס. לא ניתן לשחזר.");
                 return;
 
             case ContentCheck.Unreadable:
                 file.Quality = RecoveryQuality.Poor;
-                file.QualityReason = "לא ניתן היה לקרוא את אזור הנתונים של הקובץ לצורך בדיקה.";
+                file.QualityReason = L.T("לא ניתן היה לקרוא את אזור הנתונים של הקובץ לצורך בדיקה.");
                 return;
 
             case ContentCheck.NotChecked:
                 file.Quality = RecoveryQuality.Good;
-                file.QualityReason = "תוכן הקובץ לא אומת מול הדיסק. ייתכן שהשחזור יניב קובץ ריק.";
+                file.QualityReason = L.T("תוכן הקובץ לא אומת מול הדיסק. ייתכן שהשחזור יניב קובץ ריק.");
                 return;
         }
 
@@ -439,7 +439,7 @@ public sealed class NtfsScanner
                 if (allocated is null)
                 {
                     file.Quality = RecoveryQuality.Good;
-                    file.QualityReason = "נמצאו נתונים בקובץ. לא ניתן היה לבדוק אם קבצים אחרים נכתבו במקומו.";
+                    file.QualityReason = L.T("נמצאו נתונים בקובץ. לא ניתן היה לבדוק אם קבצים אחרים נכתבו במקומו.");
                     return;
                 }
 
@@ -451,7 +451,7 @@ public sealed class NtfsScanner
         if (total == 0)
         {
             file.Quality = RecoveryQuality.Good;
-            file.QualityReason = "נמצאו נתונים בקובץ.";
+            file.QualityReason = L.T("נמצאו נתונים בקובץ.");
             return;
         }
 
@@ -460,13 +460,13 @@ public sealed class NtfsScanner
         (file.Quality, file.QualityReason) = ratio switch
         {
             0 => (RecoveryQuality.Excellent,
-                  "נמצאו נתונים בקובץ, וכל המקום שהוא תפס בכונן עדיין פנוי."),
+                  L.T("נמצאו נתונים בקובץ, וכל המקום שהוא תפס בכונן עדיין פנוי.")),
             < 0.15 => (RecoveryQuality.Good,
-                  $"נמצאו נתונים בקובץ. כ-{ratio:P0} מהמקום שהוא תפס בכונן כבר תפוס על ידי קבצים אחרים."),
+                  L.T("נמצאו נתונים בקובץ. כ-{0} מהמקום שהוא תפס בכונן כבר תפוס על ידי קבצים אחרים.", ratio.ToString("P0"))),
             < 0.85 => (RecoveryQuality.Poor,
-                  $"כ-{ratio:P0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום."),
+                  L.T("כ-{0} מהמקום שהקובץ תפס בכונן כבר תפוס על ידי קבצים אחרים. הקובץ ישוחזר פגום.", ratio.ToString("P0"))),
             _ => (RecoveryQuality.Unrecoverable,
-                  "כמעט כל המקום שהקובץ תפס בכונן נדרס על ידי קבצים אחרים."),
+                  L.T("כמעט כל המקום שהקובץ תפס בכונן נדרס על ידי קבצים אחרים.")),
         };
     }
 
@@ -515,7 +515,7 @@ public sealed class NtfsScanner
     {
         if (_usnRecord < 0)
         {
-            _warnings.Add("יומן השינויים ($UsnJrnl) אינו קיים במחיצה זו, ולכן לא נסרק.");
+            _warnings.Add(L.T("יומן השינויים ($UsnJrnl) אינו קיים במחיצה זו, ולכן לא נסרק."));
             return;
         }
 
@@ -525,13 +525,13 @@ public sealed class NtfsScanner
 
         if (journal is null)
         {
-            _warnings.Add("יומן השינויים אותר אך זרם הנתונים שלו אינו קריא.");
+            _warnings.Add(L.T("יומן השינויים אותר אך זרם הנתונים שלו אינו קריא."));
             return;
         }
 
         progress?.Report(new ScanProgress
         {
-            Stage = "קורא את יומן השינויים של מערכת הקבצים",
+            Stage = L.T("קורא את יומן השינויים של מערכת הקבצים"),
             Percent = null,
             FilesFound = files.Count,
             Elapsed = clock.Elapsed,
@@ -566,9 +566,9 @@ public sealed class NtfsScanner
                     Source = DiscoverySource.UsnJournal,
                     Quality = RecoveryQuality.Unrecoverable,
                     QualityReason =
-                        "הקובץ אותר ביומן השינויים של מערכת הקבצים: הוא היה קיים ונמחק. " +
+                        L.T("הקובץ אותר ביומן השינויים של מערכת הקבצים: הוא היה קיים ונמחק. " +
                         "היומן שומר את שמו ואת תיקיית האב שלו, אך אינו שומר היכן תוכנו ישב על הדיסק, " +
-                        "ולכן לא ניתן לשחזר אותו. זוהי עדות לקיומו בלבד.",
+                        "ולכן לא ניתן לשחזר אותו. זוהי עדות לקיומו בלבד."),
                 });
             },
             bytes =>
@@ -578,7 +578,7 @@ public sealed class NtfsScanner
 
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "קורא את יומן השינויים של מערכת הקבצים",
+                    Stage = L.T("קורא את יומן השינויים של מערכת הקבצים"),
                     Percent = null,
                     FilesFound = files.Count,
                     BytesProcessed = bytes,
@@ -589,8 +589,8 @@ public sealed class NtfsScanner
 
         if (total > 0)
             _warnings.Add(
-                $"יומן השינויים נסרק: {total:N0} רשומות נבדקו, ומתוכן {added:N0} קבצים שנמחקו " +
-                "ואינם קיימים עוד ברשומות המטא-דאטה. שמותיהם ידועים, אך תוכנם אינו ניתן לאיתור.");
+                L.T("יומן השינויים נסרק: {0} רשומות נבדקו, ומתוכן {1} קבצים שנמחקו " +
+                "ואינם קיימים עוד ברשומות המטא-דאטה. שמותיהם ידועים, אך תוכנם אינו ניתן לאיתור.", total.ToString("N0"), added.ToString("N0")));
     }
 
     /// <summary>
@@ -606,13 +606,13 @@ public sealed class NtfsScanner
 
         if (data is null || !data.IsNonResident)
         {
-            _warnings.Add("יומן הטרנזקציות ($LogFile) אינו קריא במחיצה זו.");
+            _warnings.Add(L.T("יומן הטרנזקציות ($LogFile) אינו קריא במחיצה זו."));
             return;
         }
 
         progress?.Report(new ScanProgress
         {
-            Stage = "סורק את יומן הטרנזקציות",
+            Stage = L.T("סורק את יומן הטרנזקציות"),
             Percent = null,
             FilesFound = files.Count,
             Elapsed = clock.Elapsed,
@@ -643,9 +643,9 @@ public sealed class NtfsScanner
                     Source = DiscoverySource.LogFile,
                     Quality = RecoveryQuality.Unrecoverable,
                     QualityReason =
-                        "הקובץ אותר בשריד רשומה ביומן הטרנזקציות. ידועים שמו, גודלו ותאריכיו, " +
+                        L.T("הקובץ אותר בשריד רשומה ביומן הטרנזקציות. ידועים שמו, גודלו ותאריכיו, " +
                         "אך לא נשמר בו מיקום תוכנו על הדיסק, ולכן לא ניתן לשחזר אותו. " +
-                        "זוהי עדות לקיומו בלבד.",
+                        "זוהי עדות לקיומו בלבד."),
                 });
             },
             bytes =>
@@ -655,7 +655,7 @@ public sealed class NtfsScanner
 
                 progress?.Report(new ScanProgress
                 {
-                    Stage = "סורק את יומן הטרנזקציות",
+                    Stage = L.T("סורק את יומן הטרנזקציות"),
                     Percent = null,
                     FilesFound = files.Count,
                     BytesProcessed = bytes,
@@ -666,10 +666,10 @@ public sealed class NtfsScanner
 
         if (added > 0)
             _warnings.Add(
-                $"יומן הטרנזקציות נסרק: {added:N0} שמות קבצים נוספים חולצו משרידי רשומות. " +
-                "גם עבורם ידוע השם בלבד, ללא מיקום התוכן.");
+                L.T("יומן הטרנזקציות נסרק: {0} שמות קבצים נוספים חולצו משרידי רשומות. " +
+                "גם עבורם ידוע השם בלבד, ללא מיקום התוכן.", added.ToString("N0")));
         else if (total == 0)
-            _warnings.Add("לא אותרו שרידי רשומות ביומן הטרנזקציות.");
+            _warnings.Add(L.T("לא אותרו שרידי רשומות ביומן הטרנזקציות."));
     }
 
     /// <summary>
@@ -696,7 +696,7 @@ public sealed class NtfsScanner
     {
         progress?.Report(new ScanProgress
         {
-            Stage = "משחזר את עץ התיקיות",
+            Stage = L.T("משחזר את עץ התיקיות"),
             Percent = null,
             FilesFound = files.Count,
             Elapsed = clock.Elapsed,

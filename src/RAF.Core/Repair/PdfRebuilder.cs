@@ -187,14 +187,14 @@ internal static class PdfRebuilder
         int sx = text.LastIndexOf("startxref", StringComparison.Ordinal);
         if (sx < tail || sx < 0)
         {
-            a.XrefProblem = "סוף הקובץ חסר — ככל הנראה הקובץ נקטע, ואיתו טבלת המיקומים של המסמך.";
+            a.XrefProblem = L.T("סוף הקובץ חסר — ככל הנראה הקובץ נקטע, ואיתו טבלת המיקומים של המסמך.");
             return;
         }
 
         var num = Regex.Match(text[(sx + 9)..], @"^\s*(\d+)");
         if (!num.Success || !long.TryParse(num.Groups[1].Value, out long offset) || offset >= text.Length)
         {
-            a.XrefProblem = "ההפניה לטבלת המיקומים של המסמך שבורה.";
+            a.XrefProblem = L.T("ההפניה לטבלת המיקומים של המסמך שבורה.");
             return;
         }
 
@@ -202,14 +202,14 @@ internal static class PdfRebuilder
         {
             if (!ClassicTableMatches(a, text, (int)offset))
             {
-                a.XrefProblem = "טבלת המיקומים של המסמך אינה תואמת את תוכנו — היא מצביעה למקומות שבהם אין את החלקים.";
+                a.XrefProblem = L.T("טבלת המיקומים של המסמך אינה תואמת את תוכנו — היא מצביעה למקומות שבהם אין את החלקים.");
                 return;
             }
         }
         else if (!ObjectHeader.Match(text, (int)offset).Success || ObjectHeader.Match(text, (int)offset).Index != offset ||
                  !Regex.IsMatch(text.Substring((int)offset, Math.Min(4096, text.Length - (int)offset)), @"/Type\s*/XRef\b"))
         {
-            a.XrefProblem = "ההפניה לטבלת המיקומים של המסמך מצביעה למקום שאין בו טבלה.";
+            a.XrefProblem = L.T("ההפניה לטבלת המיקומים של המסמך מצביעה למקום שאין בו טבלה.");
             return;
         }
 
@@ -251,7 +251,7 @@ internal static class PdfRebuilder
     /// </summary>
     internal static byte[] Rebuild(byte[] data, Analysis a)
     {
-        if (!a.CanRebuild) throw new InvalidOperationException("אין במסמך מספיק מבנה כדי לבנות אותו מחדש.");
+        if (!a.CanRebuild) throw new InvalidOperationException(L.T("אין במסמך מספיק מבנה כדי לבנות אותו מחדש."));
 
         using var output = new MemoryStream();
         output.Write(data, 0, (int)a.ContentEnd);

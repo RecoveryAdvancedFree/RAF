@@ -81,7 +81,7 @@ internal sealed class EwfImage
                 string file = n == 1 ? path : SegmentPath(path, n);
                 if (!File.Exists(file))
                     throw new InvalidOperationException(
-                        $"חסר קובץ של התמונה: \"{Path.GetFileName(file)}\". כל קובצי התמונה (E01, E02 וכן הלאה) צריכים להיות באותה תיקייה.");
+                        L.T("חסר קובץ של התמונה: \"{0}\". כל קובצי התמונה (E01, E02 וכן הלאה) צריכים להיות באותה תיקייה.", Path.GetFileName(file)));
 
                 var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.RandomAccess);
                 segments.Add(stream);
@@ -89,7 +89,7 @@ internal sealed class EwfImage
 
                 byte[] head = ReadAt(stream, 0, 13);
                 if (head.Length < 13 || !IsEwf(head))
-                    throw new InvalidDataException($"הקובץ \"{Path.GetFileName(file)}\" אינו חלק של תמונת E01, או שתחילתו פגומה.");
+                    throw new InvalidDataException(L.T("הקובץ \"{0}\" אינו חלק של תמונת E01, או שתחילתו פגומה.", Path.GetFileName(file)));
 
                 bool last = false;
                 long at = 13;
@@ -137,12 +137,12 @@ internal sealed class EwfImage
 
             int chunkSize = sectorsPerChunk * bytesPerSector;
             if (chunkSize is <= 0 or > 64 * 1024 * 1024 || bytesPerSector is not (512 or 1024 or 2048 or 4096) || sectors <= 0)
-                throw new InvalidDataException("המידע על הכונן שבתוך תמונת ה-E01 פגום.");
+                throw new InvalidDataException(L.T("המידע על הכונן שבתוך תמונת ה-E01 פגום."));
 
             long needed = (sectors * bytesPerSector + chunkSize - 1) / chunkSize;
             if (chunks.Count < needed)
                 throw new InvalidDataException(
-                    $"בתמונה חסרים חלקים: נמצאו {chunks.Count:N0} מתוך {needed:N0}. ייתכן שחסר אחד מקובצי התמונה, או שהתמונה לא הושלמה.");
+                    L.T("בתמונה חסרים חלקים: נמצאו {0} מתוך {1}. ייתכן שחסר אחד מקובצי התמונה, או שהתמונה לא הושלמה.", chunks.Count.ToString("N0"), needed.ToString("N0")));
 
             FixEnds(chunks, segments, chunkSize);
             return new EwfImage(segments, chunks, chunkSize, sectors * bytesPerSector, bytesPerSector,

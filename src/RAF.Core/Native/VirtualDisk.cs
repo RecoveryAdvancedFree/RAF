@@ -86,8 +86,8 @@ internal sealed partial class VirtualDisk
         }
         if (EwfImage.IsEwf2(start))
             throw new InvalidOperationException(
-                "זו תמונה בפורמט Ex01 — הגרסה החדשה של E01, שהתוכנה עוד לא קוראת. " +
-                "אם אפשר, צרו את התמונה מחדש בפורמט E01 הרגיל, או המירו אותה לתמונה גולמית (dd).");
+                L.T("זו תמונה בפורמט Ex01 — הגרסה החדשה של E01, שהתוכנה עוד לא קוראת. " +
+                "אם אפשר, צרו את התמונה מחדש בפורמט E01 הרגיל, או המירו אותה לתמונה גולמית (dd)."));
         if (start.AsSpan().StartsWith("KDMV"u8)) return VmdkSparse(read, start, fileLength);
         if (path is not null && fileLength <= 64 * 1024 && IsVmdkDescriptor(start))
             return VmdkDescriptor(path, read(0, (int)fileLength));
@@ -113,18 +113,18 @@ internal sealed partial class VirtualDisk
             return new VirtualDisk("VHD", Math.Min(size, fileLength - 512), 512, 0, null, false);
 
         if (type == 4) throw Differencing("VHD");
-        if (type != 3) throw new InvalidDataException($"סוג כונן VHD לא מוכר ({type}).");
+        if (type != 3) throw new InvalidDataException(L.T("סוג כונן VHD לא מוכר ({0}).", type));
 
         long headerAt = BinaryPrimitives.ReadInt64BigEndian(footer.AsSpan(16));
         byte[] header = read(headerAt, 1024);
         if (header.Length < 1024 || !header.AsSpan(0, 8).SequenceEqual("cxsparse"u8))
-            throw new InvalidDataException("הכותרת של הכונן הווירטואלי פגומה.");
+            throw new InvalidDataException(L.T("הכותרת של הכונן הווירטואלי פגומה."));
 
         long tableAt = BinaryPrimitives.ReadInt64BigEndian(header.AsSpan(16));
         int entries = (int)BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(28));
         long blockSize = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(32));
         if (blockSize is < 512 or > 256 * 1024 * 1024 || entries is < 1 or > 16 * 1024 * 1024)
-            throw new InvalidDataException("טבלת הבלוקים של הכונן הווירטואלי פגומה.");
+            throw new InvalidDataException(L.T("טבלת הבלוקים של הכונן הווירטואלי פגומה."));
 
         // לפני כל בלוק: מפת סקטורים, מעוגלת לסקטור שלם.
         long bitmap = ((blockSize / 512 + 7) / 8 + 511) / 512 * 512;
@@ -161,7 +161,7 @@ internal sealed partial class VirtualDisk
             long sequence = BinaryPrimitives.ReadInt64LittleEndian(h.AsSpan(8));
             if (sequence > best) { best = sequence; header = h; }
         }
-        if (header is null) throw new InvalidDataException("הכותרות של הכונן הווירטואלי פגומות.");
+        if (header is null) throw new InvalidDataException(L.T("הכותרות של הכונן הווירטואלי פגומות."));
         bool dirty = !header.AsSpan(48, 16).SequenceEqual(new byte[16]);    // יומן פתוח
 
         long batAt = 0, batLength = 0, metaAt = 0, metaLength = 0;
@@ -179,11 +179,11 @@ internal sealed partial class VirtualDisk
             }
             if (batAt > 0 && metaAt > 0) break;
         }
-        if (batAt == 0 || metaAt == 0) throw new InvalidDataException("טבלת האזורים של הכונן הווירטואלי פגומה.");
+        if (batAt == 0 || metaAt == 0) throw new InvalidDataException(L.T("טבלת האזורים של הכונן הווירטואלי פגומה."));
 
         // הנתונים עצמם יושבים אחרי 64KB מתחילת האזור — קוראים את כולו (בדרך כלל 1MB).
         byte[] meta = read(metaAt, (int)Math.Clamp(metaLength, 64 * 1024, 16 * 1024 * 1024));
-        if (!meta.AsSpan(0, 8).SequenceEqual("metadata"u8)) throw new InvalidDataException("המידע על הכונן הווירטואלי פגום.");
+        if (!meta.AsSpan(0, 8).SequenceEqual("metadata"u8)) throw new InvalidDataException(L.T("המידע על הכונן הווירטואלי פגום."));
         int items = BinaryPrimitives.ReadUInt16LittleEndian(meta.AsSpan(10));
         long blockSize = 0, size = 0;
         int sectorSize = 512;
@@ -203,7 +203,7 @@ internal sealed partial class VirtualDisk
         }
         if (hasParent) throw Differencing("VHDX");
         if (blockSize is < 1024 * 1024 or > 256 * 1024 * 1024 || size <= 0 || sectorSize is not (512 or 4096))
-            throw new InvalidDataException("המידע על הכונן הווירטואלי פגום.");
+            throw new InvalidDataException(L.T("המידע על הכונן הווירטואלי פגום."));
 
         // אחרי כל "נתח" של בלוקי נתונים בא ברשומת הטבלה בלוק של מפת סקטורים — מדלגים עליו.
         long chunkRatio = (1L << 23) * sectorSize / blockSize;
@@ -251,12 +251,12 @@ internal sealed partial class VirtualDisk
         // ולכן הכותרת שבתחילה לא יודעת היכן הן. הכותרת האמיתית היא עותק שנכתב לפני סוף הקובץ.
         bool compressed = compression != 0 || (flags & (1 << 16)) != 0;
         if (compressed && compression is not (0 or 1))
-            throw new InvalidOperationException($"כונן VMDK בשיטת דחיסה שהתוכנה לא מכירה ({compression}).");
+            throw new InvalidOperationException(L.T("כונן VMDK בשיטת דחיסה שהתוכנה לא מכירה ({0}).", compression));
         if (directoryAt == -1)
         {
             byte[] footer = read(fileLength - 1024, 512);
             if (footer.Length < 512 || !footer.AsSpan().StartsWith("KDMV"u8))
-                throw new InvalidDataException("סוף הכונן הווירטואלי הדחוס חסר או פגום — ייתכן שהייצוא לא הושלם.");
+                throw new InvalidDataException(L.T("סוף הכונן הווירטואלי הדחוס חסר או פגום — ייתכן שהייצוא לא הושלם."));
             capacity = BinaryPrimitives.ReadInt64LittleEndian(footer.AsSpan(12)) * 512;
             grain = BinaryPrimitives.ReadInt64LittleEndian(footer.AsSpan(20)) * 512;
             perTable = (int)BinaryPrimitives.ReadUInt32LittleEndian(footer.AsSpan(44));
@@ -264,11 +264,11 @@ internal sealed partial class VirtualDisk
         }
 
         if (grain is < 4096 or > 64 * 1024 * 1024 || capacity <= 0 || perTable is < 1 or > 65536 || directoryAt <= 0)
-            throw new InvalidDataException("הכותרת של הכונן הווירטואלי פגומה.");
+            throw new InvalidDataException(L.T("הכותרת של הכונן הווירטואלי פגומה."));
 
         long grains = (capacity + grain - 1) / grain;
         long tables = (grains + perTable - 1) / perTable;
-        if (tables > 16 * 1024 * 1024) throw new InvalidDataException("הכותרת של הכונן הווירטואלי פגומה.");
+        if (tables > 16 * 1024 * 1024) throw new InvalidDataException(L.T("הכותרת של הכונן הווירטואלי פגומה."));
 
         byte[] directory = read(directoryAt * 512, (int)(tables * 4));
         var tableAt = new uint[tables];
@@ -448,17 +448,17 @@ internal sealed partial class VirtualDisk
                 if (type != "ZERO")
                 {
                     if (type is not ("FLAT" or "VMFS" or "SPARSE"))
-                        throw new InvalidOperationException($"כונן VMDK מסוג שהתוכנה לא מכירה ({type}).");
+                        throw new InvalidOperationException(L.T("כונן VMDK מסוג שהתוכנה לא מכירה ({0}).", type));
 
                     string full = Path.Combine(folder, file);
                     if (!File.Exists(full))
                         throw new InvalidOperationException(
-                            $"חסר קובץ של הכונן הווירטואלי: \"{file}\". כל קובצי ה-VMDK של הכונן צריכים להיות באותה תיקייה.");
+                            L.T("חסר קובץ של הכונן הווירטואלי: \"{0}\". כל קובצי ה-VMDK של הכונן צריכים להיות באותה תיקייה.", file));
 
                     device = RawDevice.TryOpen(full, 512, sequential: false)
-                             ?? throw new IOException($"לא ניתן לפתוח את \"{file}\". ייתכן שהוא בשימוש בתוכנה אחרת.");
+                             ?? throw new IOException(L.T("לא ניתן לפתוח את \"{0}\". ייתכן שהוא בשימוש בתוכנה אחרת.", file));
                     if (type == "SPARSE" && device.Virtual is null)
-                        throw new InvalidDataException($"החלק \"{file}\" של הכונן הווירטואלי פגום.");
+                        throw new InvalidDataException(L.T("החלק \"{0}\" של הכונן הווירטואלי פגום.", file));
                 }
 
                 extents.Add(new Extent(at, length, device, fileOffset));
@@ -471,7 +471,7 @@ internal sealed partial class VirtualDisk
             throw;
         }
 
-        if (extents.Count == 0) throw new InvalidDataException("קובץ התיאור של הכונן הווירטואלי לא מפרט אף קובץ נתונים.");
+        if (extents.Count == 0) throw new InvalidDataException(L.T("קובץ התיאור של הכונן הווירטואלי לא מפרט אף קובץ נתונים."));
         return new VirtualDisk("VMDK", at, 512, 0, null, false, extents: extents);
     }
 
@@ -512,6 +512,6 @@ internal sealed partial class VirtualDisk
     }
 
     private static Exception Differencing(string format) => new InvalidOperationException(
-        $"זה כונן {format} מסוג \"הפרשים\": הוא שומר רק את מה שהשתנה, והשאר נמצא בקובץ אחר (קובץ ההורה). " +
-        "פתחו את קובץ ההורה במקום — או חברו את שניהם ב-Windows (ניהול דיסקים ← צירוף VHD) וסרקו את הכונן שנוסף.");
+        L.T("זה כונן {0} מסוג \"הפרשים\": הוא שומר רק את מה שהשתנה, והשאר נמצא בקובץ אחר (קובץ ההורה). " +
+        "פתחו את קובץ ההורה במקום — או חברו את שניהם ב-Windows (ניהול דיסקים ← צירוף VHD) וסרקו את הכונן שנוסף.", format));
 }
