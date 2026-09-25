@@ -554,6 +554,25 @@ Object.assign(EN, {
   'מרכיב את המערך…': 'Assembling the array…',
   'המערך לא הורכב': 'The array wasn\'t assembled',
   'אזור במאגר לוגי · {0}': 'Logical volume · {0}',
+  'כוננים שהוצאו ממחשב או משרת עם כרטיס RAID — התוכנה מזהה את המבנה ומרכיבה':
+    'Drives taken out of a computer or server with a RAID card — the program detects the layout and assembles it',
+  'הרכבת מערך': 'Assemble array',
+  'כוננים ממחשב או משרת עם כרטיס RAID': 'Drives from a computer or server with a RAID card',
+  'בחרו את כל הכוננים של המערך': 'Select all the array\'s drives',
+  'כרטיס RAID לא כותב על הכוננים משהו שאפשר לקרוא בלעדיו. התוכנה תנסה את כל האפשרויות — סוג, גודל רצועה וסדר הכוננים — ותבדוק כל אחת מול מערכת הקבצים שבתוכו. הסדר שבו תבחרו לא משנה. שום דבר לא נכתב לכוננים.':
+    'A RAID card doesn\'t write anything on the drives that can be read without it. The program will try every option — type, stripe size and drive order — and check each against the file system inside. The order you select them in doesn\'t matter. Nothing is written to the drives.',
+  'אין כוננים מתאימים ברשימה.': 'There are no suitable drives in the list.',
+  'זיהוי המבנה': 'Detect the layout',
+  'בחרו לפחות שני כוננים.': 'Select at least two drives.',
+  'מנסה את כל האפשרויות… בכוננים גדולים זה יכול לקחת כמה דקות.': 'Trying every option… on large drives this can take a few minutes.',
+  'הזיהוי נכשל': 'Detection failed',
+  'המבנה לא זוהה': 'The layout wasn\'t detected',
+  'אף אפשרות לא התיישבה עם מערכת הקבצים. ודאו שבחרתם את כל הכוננים של המערך, ורק אותם. הזיהוי עובד היום כשבתוך המערך יש NTFS או ext4. <b>סריקה מתקדמת</b> של כל כונן בנפרד עדיין תמצא קבצים קטנים.':
+    'No option matched the file system. Make sure you selected all the array\'s drives, and only them. Detection currently works when the array contains NTFS or ext4. An <b>Advanced scan</b> of each drive separately can still find small files.',
+  'יש כמה אפשרויות קרובות': 'There are several close options',
+  'זו המתאימה ביותר, אבל גם האחרות שלמטה התיישבו חלקית. אם הקבצים יחזרו פגומים — נסו את הבאה.':
+    'This is the best match, but the others below also partly matched. If files come back damaged, try the next one.',
+  'הרכבה': 'Assemble',
   'לחצו לפתיחת האזורים': 'Click to open the volumes',
   'המחיצה מחולקת לאזורים בשכבה של לינוקס — כל אזור נפתח ככונן נוסף':
     'The partition is divided into volumes by a Linux layer — each volume opens as another drive',

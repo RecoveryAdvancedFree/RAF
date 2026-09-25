@@ -122,6 +122,8 @@ internal sealed partial class Bridge
         "bitlocker.unlock" => await Task.Run(() => UnlockBitLocker(p)),
         "raid.find" => await Task.Run(FindRaids),
         "raid.assemble" => await Task.Run(() => AssembleRaid(p)),
+        "raid.detect" => await Task.Run(() => DetectRaid(p)),
+        "raid.assembleDetected" => await Task.Run(() => AssembleDetected(p)),
         "lvm.find" => await Task.Run(FindLvm),
         "lvm.open" => await Task.Run(() => OpenLvm(p)),
 
@@ -1397,6 +1399,30 @@ internal sealed partial class Bridge
         var found = _raids.FirstOrDefault(r => r.Id == id)
             ?? throw new InvalidOperationException(L.T("המערך לא נמצא. חפשו שוב."));
         var array = RaidDisk.Assemble(found);
+        _images.RemoveAll(d => d.DiskNumber == array.DiskNumber);
+        _images.Add(array);
+        return new { number = array.DiskNumber };
+    }
+
+    /// <summary>הזיהוי האחרון של מערך בלי כותרת: הכוננים שנבחרו והמבנים שהתיישבו.</summary>
+    private (List<PhysicalDiskInfo> Disks, List<RaidDisk.Detected> Found) _detected = (new(), new());
+
+    /// <summary>זיהוי המבנה של מערך בלי כותרת (כרטיס RAID) מהכוננים שהמשתמש בחר. קריאה בלבד.</summary>
+    private object DetectRaid(JsonObject? p)
+    {
+        var numbers = p?["disks"]?.AsArray().Select(n => n!.GetValue<int>()).ToList() ?? new();
+        var disks = numbers.Select(n => _disks.FirstOrDefault(d => d.DiskNumber == n)
+            ?? throw new InvalidOperationException(L.T("אחד הכוננים שנבחרו כבר לא ברשימה. רעננו ובחרו שוב."))).ToList();
+        var found = RaidDisk.Detect(disks);
+        _detected = (disks, found);
+        return found.Select(g => new { level = g.Level, chunk = g.Chunk, order = g.Order, fileSystem = g.FileSystem, confident = g.Confident }).ToList();
+    }
+
+    private object AssembleDetected(JsonObject? p)
+    {
+        int index = p?["index"]?.GetValue<int>() ?? -1;
+        if (index < 0 || index >= _detected.Found.Count) throw new InvalidOperationException(L.T("המבנה לא נמצא. זהו שוב."));
+        var array = RaidDisk.Assemble(_detected.Found[index], _detected.Disks);
         _images.RemoveAll(d => d.DiskNumber == array.DiskNumber);
         _images.Add(array);
         return new { number = array.DiskNumber };

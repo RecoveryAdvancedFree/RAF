@@ -17,10 +17,12 @@ internal static class Crc32C
         return table;
     }
 
-    internal static uint Compute(ReadOnlySpan<byte> data)
+    internal static uint Compute(ReadOnlySpan<byte> data) => ~Update(0xFFFFFFFF, data);
+
+    /// <summary>המשך חישוב בלי היפוך בסוף — כך ext4 מחשב את טביעות האצבע שלו.</summary>
+    internal static uint Update(uint crc, ReadOnlySpan<byte> data)
     {
-        uint crc = 0xFFFFFFFF;
         foreach (byte b in data) crc = Table[(crc ^ b) & 0xFF] ^ (crc >> 8);
-        return ~crc;
+        return crc;
     }
 }

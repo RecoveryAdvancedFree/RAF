@@ -408,6 +408,88 @@ async function findLvm() {
   });
 }
 
+/// מערך בלי כותרת — של כרטיס RAID. המשתמש בוחר את הכוננים (או התמונות שלהם); התוכנה מזהה
+/// סוג, רצועה וסדר לפי מערכת הקבצים שבתוכו, ומרכיבה. מערך של שרת לינוקס מזוהה לבד — ולכן
+/// הכוננים שלו לא מוצעים כאן.
+function openHardwareRaidPanel() {
+  const candidates = State.disks.filter((d) => d.rawAccessible && d.size > 0 && !d.raid && !d.lvm && !d.isVolume
+    && !d.partitions.some((p) => p.fs === 'LinuxRaid'));
+  const rows = candidates.map((d) => `
+    <label class="hw-disk"><input type="checkbox" value="${d.number}">
+      <span><b>${esc(d.name)}</b> · ${formatSize(d.size)}</span></label>`).join('');
+
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">${t('הרכבת מערך')}</div>
+        <div class="panel-sub">${t('כוננים ממחשב או משרת עם כרטיס RAID')}</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
+    </div>
+    <div class="panel-body">
+      ${notice('info', Icon.layers, t('בחרו את כל הכוננים של המערך'),
+        t('כרטיס RAID לא כותב על הכוננים משהו שאפשר לקרוא בלעדיו. התוכנה תנסה את כל האפשרויות — סוג, גודל רצועה וסדר הכוננים — ' +
+          'ותבדוק כל אחת מול מערכת הקבצים שבתוכו. הסדר שבו תבחרו לא משנה. שום דבר לא נכתב לכוננים.'))}
+      <div class="hw-disks">${rows || `<p class="confirm-hint">${t('אין כוננים מתאימים ברשימה.')}</p>`}</div>
+      <div id="hw-result" aria-live="polite"></div>
+    </div>
+    <div class="panel-foot">
+      <button class="btn btn-primary" id="btn-hw-detect">${Icon.search}<span>${t('זיהוי המבנה')}</span></button>
+      <button class="btn" id="btn-cancel-hw">${t('ביטול')}</button>
+    </div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-cancel-hw').onclick = closePanel;
+  const detect = el('btn-hw-detect');
+  detect.onclick = async () => {
+    const disks = [...el('panel').querySelectorAll('.hw-disk input:checked')].map((c) => Number(c.value));
+    const box = el('hw-result');
+    if (disks.length < 2) {
+      box.innerHTML = notice('warn', Icon.alert, '', t('בחרו לפחות שני כוננים.'), null, 'spaced');
+      return;
+    }
+    detect.disabled = true;
+    box.innerHTML = `<p class="confirm-hint">${t('מנסה את כל האפשרויות… בכוננים גדולים זה יכול לקחת כמה דקות.')}</p>`;
+    let found;
+    try {
+      found = await Bridge.call('raid.detect', { disks }, 0);
+    } catch (err) {
+      detect.disabled = false;
+      box.innerHTML = errorNotice(t('הזיהוי נכשל'), err, 'spaced');
+      return;
+    }
+    detect.disabled = false;
+    if (!found.length) {
+      box.innerHTML = notice('warn', Icon.alert, t('המבנה לא זוהה'),
+        t('אף אפשרות לא התיישבה עם מערכת הקבצים. ודאו שבחרתם את כל הכוננים של המערך, ורק אותם. ' +
+          'הזיהוי עובד היום כשבתוך המערך יש NTFS או ext4. <b>סריקה מתקדמת</b> של כל כונן בנפרד עדיין תמצא קבצים קטנים.'), null, 'spaced');
+      return;
+    }
+    const name = (n) => esc((State.disks.find((d) => d.number === n) || {}).name || n);
+    box.innerHTML = found.map((g, i) => `
+      <div class="raid-card">
+        <div class="raid-title">${esc(g.level)}${g.chunk ? ` · ${t('רצועה של {0}', formatSize(g.chunk))}` : ''} · ${esc(g.fileSystem)}</div>
+        <ol class="raid-members">${g.order.map((n) => `<li><b>${name(n)}</b></li>`).join('')}</ol>
+        ${i === 0 && !g.confident ? notice('warn', Icon.info, t('יש כמה אפשרויות קרובות'),
+          t('זו המתאימה ביותר, אבל גם האחרות שלמטה התיישבו חלקית. אם הקבצים יחזרו פגומים — נסו את הבאה.'), null, 'spaced') : ''}
+        <button class="btn ${i === 0 ? 'btn-primary' : 'btn-sm'}" data-hw-assemble="${i}">${Icon.layers}<span>${t('הרכבה')}</span></button>
+      </div>`).join('');
+    box.querySelectorAll('[data-hw-assemble]').forEach((b) => {
+      b.onclick = async () => {
+        b.disabled = true;
+        try {
+          const r = await Bridge.call('raid.assembleDetected', { index: Number(b.dataset.hwAssemble) }, 0);
+          await showOpenedVolume(r.number);
+        } catch (err) {
+          b.disabled = false;
+          box.insertAdjacentHTML('beforeend', errorNotice(t('המערך לא הורכב'), err, 'spaced'));
+        }
+      };
+    });
+  };
+}
+
 function findPart(diskNumber, partIndex) {
   const disk = State.disks.find((d) => d.number === diskNumber);
   if (!disk) return null;

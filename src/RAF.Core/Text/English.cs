@@ -1259,6 +1259,11 @@ internal static class EnglishTexts
             "The volume type ({0}) isn't supported yet. An Advanced scan will find the files by type.",
         ["תיאור האזור פגום."] = "The volume description is damaged.",
 
+        ["אחד הכוננים שנבחרו כבר לא ברשימה. רעננו ובחרו שוב."] = "One of the selected drives is no longer in the list. Refresh and select again.",
+        ["המבנה לא נמצא. זהו שוב."] = "The layout wasn't found. Detect again.",
+        ["מערך {0} בלי כותרת (של כרטיס RAID), שהתוכנה זיהתה והרכיבה מ-{1} כוננים: רצועה של {2}KB. הקריאה בלבד — שום דבר לא נכתב לכוננים."] =
+            "{0} array without a header (from a RAID card), detected and assembled by the program from {1} drives: {2}KB stripe. Read-only — nothing is written to the drives.",
+
         // btrfs
         ["מיקום התוכן פגום."] = "The content location is damaged.",
         ["לא ניתן היה לקרוא את התוכן מהכונן."] = "The content couldn't be read from the drive.",

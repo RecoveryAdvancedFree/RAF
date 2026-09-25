@@ -580,6 +580,9 @@
 .raid-members .raid-missing { color: var(--warn, var(--text)); }
 .lvm-volume { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
 .lvm-volume .confirm-hint { margin: 2px 0 0; }
+.hw-disks { margin-top: 12px; display: grid; gap: 6px; }
+.hw-disk { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; cursor: pointer; }
+.hw-disk b { font-weight: 600; }
 
 .notice.ok-notice {
   background: var(--ok-soft);

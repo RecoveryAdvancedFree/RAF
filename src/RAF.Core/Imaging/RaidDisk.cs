@@ -136,6 +136,51 @@ public static class RaidDisk
         return new RaidArray(sb.Level, sb.Layout, sb.ChunkBytes, n, sb.ComponentSize, offsets, sizes, present);
     }
 
+    /// <summary>
+    /// מבנה שזוהה למערך בלי כותרת (כרטיס RAID). Order — מספרי הכוננים לפי מקומם במערך.
+    /// Confident — הניחוש הזה בלבד מתיישב עם מערכת הקבצים; אחרת יש כמה אפשרויות.
+    /// </summary>
+    public sealed record Detected(string Level, int LevelNumber, int Layout, long Chunk, List<int> Order, string FileSystem, bool Confident);
+
+    /// <summary>
+    /// זיהוי המבנה של מערך בלי כותרת מהכוננים שהמשתמש בחר (כוננים שלמים; הנתונים מתחילים
+    /// בתחילתם). קריאה בלבד. ריק — לא זוהה.
+    /// </summary>
+    public static List<Detected> Detect(IReadOnlyList<PhysicalDiskInfo> disks, CancellationToken token = default)
+    {
+        var readers = disks.Select(d => VolumeReader.TryOpen(d.DiskNumber, 0, d.SizeBytes, d.LogicalSectorSize, sequential: false, applyOverlay: false)
+            ?? throw new IOException(RawDevice.OpenFailure(d.Model))).ToList();
+        try
+        {
+            var guesses = RaidDetector.Detect((disk, at, length) => readers[disk].ReadBlock(at, length),
+                disks.Select(d => d.SizeBytes).ToArray(), token);
+            if (guesses.Count == 0) return new();
+            // בטוח: הניחוש הטוב ביותר עדיף בבירור על הבא אחריו.
+            int best = guesses[0].Matches - 10 * guesses[0].Mismatches;
+            bool confident = guesses.Count == 1 || guesses[1].Matches - 10 * guesses[1].Mismatches < best * 0.9;
+            return guesses.Take(5).Select((g, i) => new Detected(
+                RaidArray.LevelName(g.Level), g.Level, g.Layout, g.Chunk,
+                g.Order.Select(o => disks[o].DiskNumber).ToList(), g.FileSystem, i == 0 && confident)).ToList();
+        }
+        finally
+        {
+            foreach (var r in readers) r.Dispose();
+        }
+    }
+
+    /// <summary>הרכבת מערך בלי כותרת לפי מבנה שזוהה (או שהמשתמש קבע). לקריאה בלבד.</summary>
+    public static PhysicalDiskInfo Assemble(Detected detected, IReadOnlyList<PhysicalDiskInfo> disks)
+    {
+        var ordered = detected.Order.Select(n => disks.First(d => d.DiskNumber == n)).ToList();
+        int count = ordered.Count;
+        var array = new RaidArray(detected.LevelNumber, detected.Layout, detected.Chunk, count, 0,
+            new long[count], ordered.Select(d => d.SizeBytes).ToArray(), Enumerable.Repeat(true, count).ToArray());
+        string id = "hw-" + string.Join("-", detected.Order) + $"-{detected.LevelNumber}-{detected.Layout}-{detected.Chunk}";
+        var members = ordered.Select(d => ((int, long)?)(d.DiskNumber, 0L)).ToArray();
+        return Register(id, array, members, detected.Level, L.T("מערך {0} בלי כותרת (של כרטיס RAID), שהתוכנה זיהתה והרכיבה מ-{1} כוננים: רצועה של {2}KB. הקריאה בלבד — שום דבר לא נכתב לכוננים.",
+            detected.Level, count, detected.Chunk / 1024), null);
+    }
+
     /// <summary>הרכבת המערך. הוא מופיע ברשימה ככונן נוסף, לקריאה בלבד.</summary>
     public static PhysicalDiskInfo Assemble(Found found)
     {
@@ -144,8 +189,12 @@ public static class RaidDisk
         var array = Geometry(found.Super, found.ByRole);
         var members = new (int Disk, long Offset)?[found.Disks];
         foreach (var (role, (member, _)) in found.ByRole) members[role] = (member.Disk, member.Offset);
+        return Register(found.Id, array, members, found.Name.Length > 0 ? found.Name : found.Level, null, found);
+    }
 
-        int number = DevicePaths.RegisterRaid(found.Id, new DevicePaths.RaidSource(array, members));
+    private static PhysicalDiskInfo Register(string id, RaidArray array, (int Disk, long Offset)?[] members, string name, string? fixedNote, Found? found)
+    {
+        int number = DevicePaths.RegisterRaid(id, new DevicePaths.RaidSource(array, members));
         try
         {
             using var device = RawDevice.TryOpen(DevicePaths.ImagePathOf(number)!, 512, sequential: false)
@@ -175,14 +224,13 @@ public static class RaidDisk
                 };
             }
 
-            string name = found.Name.Length > 0 ? found.Name : found.Level;
-            string note = L.T("מערך {0} של לינוקס, שהתוכנה הרכיבה מ-{1} כוננים. הקריאה בלבד — שום דבר לא נכתב לכוננים.",
-                found.Level, found.Members.Count);
-            if (found.MissingRoles.Count > 0)
+            string note = fixedNote ?? L.T("מערך {0} של לינוקס, שהתוכנה הרכיבה מ-{1} כוננים. הקריאה בלבד — שום דבר לא נכתב לכוננים.",
+                found!.Level, found.Members.Count);
+            if (found is { MissingRoles.Count: > 0 })
                 note += " " + (array.Level is 1 or 10
                     ? L.T("חסרים {0} כוננים — הנתונים נקראים מהעותקים שבכוננים האחרים.", found.MissingRoles.Count)
                     : L.T("חסר כונן אחד — התוכן שלו מחושב מהזוגיות שבכוננים האחרים. הקריאה איטית יותר, וכל פגם נוסף באחד הכוננים יפגע בקבצים."));
-            if (found.Members.Any(m => m.Stale))
+            if (found is not null && found.Members.Any(m => m.Stale))
                 note += " " + L.T("אחד הכוננים נפל מהמערך לפני האחרים, והנתונים בו אינם עדכניים — קבצים שנכתבו אחרי שנפל עלולים לחזור פגומים.");
             if (partitions.Any(p => p.FileSystem == FileSystemKind.Lvm))
                 note += " " + L.T("בתוך המערך יש מאגר לוגי — כמו ברוב שרתי האחסון הביתיים. לחצו עליו כדי לפתוח את האזורים שבו.");

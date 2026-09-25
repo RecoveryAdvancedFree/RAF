@@ -129,6 +129,7 @@ function renderDisks() {
       <div class="head-actions">
         <button class="btn" id="btn-open-scan">${Icon.history}<span>${t('פתיחת סריקה שמורה')}</span></button>
         <button class="btn" id="btn-open-image">${Icon.open}<span>${t('פתיחת תמונת דיסק')}</span></button>
+        <button class="btn" id="btn-hw-raid" title="${t('כוננים שהוצאו ממחשב או משרת עם כרטיס RAID — התוכנה מזהה את המבנה ומרכיבה')}">${Icon.layers}<span>${t('הרכבת מערך')}</span></button>
         <button class="btn" id="btn-doctor">${Icon.wrench}<span>${t('תיקון קבצים שלא נפתחים')}</span></button>
         <button class="btn" id="btn-undo-repair">${Icon.back}<span>${t('ביטול תיקון קודם')}</span></button>
         <button class="btn" id="btn-refresh">${Icon.refresh}<span>${t('רענון')}</span></button>
@@ -169,6 +170,7 @@ function renderDisks() {
     btn.onclick = () => openSituation(btn.dataset.situation);
   });
   el('btn-open-image').onclick = () => openImageFile();
+  el('btn-hw-raid').onclick = () => openHardwareRaidPanel();
   el('btn-open-scan').onclick = () => openSavedScan();
   renderRecentScans();
 
