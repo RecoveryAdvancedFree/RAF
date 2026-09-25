@@ -287,7 +287,8 @@ internal sealed partial class Bridge
         rawAccessible = d.RawAccessible,
         unresponsive = d.Unresponsive,
         problem = d.Problem,
-        isImage = d.ImagePath is not null,
+        // כונן במק (‎/dev/rdiskN) נפתח דרך מנגנון התמונות, אבל הוא כונן אמיתי — בלי "סגירת התמונה".
+        isImage = d.ImagePath is not null && !d.ImagePath.StartsWith("/dev/", StringComparison.Ordinal),
         imagePath = d.ImagePath,
         isVolume = d.ImagePath is { } path && DevicePaths.IsDecryptedVolume(path),
         decrypted = d.ImagePath is { } own && DevicePaths.IsDecryptedPath(own),

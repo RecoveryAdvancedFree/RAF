@@ -21,16 +21,23 @@ public static class MacDisks
         var list = Plist(Run("diskutil", "list", "-plist"));
         if (list?.GetValueOrDefault("WholeDisks") is not List<object> whole) return new();
 
-        var disks = new List<PhysicalDiskInfo>();
+        var found = new List<(string Id, Dictionary<string, object> Info, string Bus)>();
         foreach (string id in whole.OfType<string>())
         {
             var info = Plist(Run("diskutil", "info", "-plist", id));
             if (info is null || info.ContainsKey("APFSPhysicalStores")) continue;
             string bus = info.GetValueOrDefault("BusProtocol") as string ?? "";
             if (info.GetValueOrDefault("VirtualOrPhysical") as string == "Virtual" && bus != "Disk Image") continue;
-            disks.Add(Describe(id, info, bus));
+            found.Add((id, info, bus));
         }
-        return disks;
+
+        // חלון סיסמה אחד לכל הכוננים שדורשים הרשאה — ולא אחד לכל כונן.
+        var locked = found.Select(f => "/dev/r" + f.Id).Where(RawDevice.MacDevice).ToList();
+        if (locked.Count > 0)
+            MacAuthOpen.Authorize(locked, L.T("שחזור מתקדם חינם מבקש לקרוא את הכוננים כדי למצוא בהם קבצים. " +
+                                              "הקריאה בלבד — התוכנה אינה כותבת לכוננים."));
+
+        return found.Select(f => Describe(f.Id, f.Info, f.Bus)).ToList();
     }
 
     /// <summary>

@@ -66,6 +66,8 @@ jobs:
           sleep 30
           screencapture -x "$RUNNER_TEMP/screenshot.png" || true
           pkill -f RAF.Mac || true
+          pkill -f authopen || true
+          sudo pkill -f SecurityAgent || true
           cat "$RUNNER_TEMP/app.log" | tail -40
       # שוב, כמנהל: הכוננים נפתחים ישירות, בלי חלון הסיסמה — כדי לראות את רשימת הכוננים.
       - name: צילום רשימת הכוננים (כמנהל)

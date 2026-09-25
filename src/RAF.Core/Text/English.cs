@@ -1063,6 +1063,12 @@ internal static class EnglishTexts
             "The marker of the audio start was overwritten, so the audio is read from where it starts in the sample. A short noise at the start is what remains of the header.",
         ["הכותרת נבנתה מחדש. אם ההקלטה מתנגנת מהר או לאט מדי, הדוגמה הוקלטה בקצב דגימה אחר — נסו הקלטה אחרת."] =
             "The header was rebuilt. If the recording plays too fast or too slow, the sample was recorded at a different sample rate — try another recording.",
+        ["הכונן הפנימי של המק. במחשבי מק חדשים הוא מוצפן בחומרה, ומה שנמחק ממנו מתנקה מיד — ולכן כמעט אי אפשר לשחזר ממנו קבצים שנמחקו."] =
+            "The Mac's internal drive. On newer Macs it is encrypted in hardware, and what is deleted from it is cleared immediately — so deleted files can almost never be recovered from it.",
+        ["אין הרשאה לקרוא את הכונן. בפתיחה הבאה של הרשימה תתבקש סיסמת המנהל של המק."] =
+            "No permission to read the drive. The next time the list is opened, the Mac administrator password will be requested.",
+        ["שחזור מתקדם חינם מבקש לקרוא את הכוננים כדי למצוא בהם קבצים. הקריאה בלבד — התוכנה אינה כותבת לכוננים."] =
+            "Recovery Advanced Free wants to read the drives to find files on them. Reading only — the program does not write to the drives.",
         ["הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."] =
             "The video got a new index and was checked again — it should open and play.",
         ["האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: "] =

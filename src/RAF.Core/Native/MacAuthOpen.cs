@@ -20,6 +20,50 @@ internal static class MacAuthOpen
 
     private static readonly ConcurrentDictionary<(string Path, bool Write), int> Opened = new();
 
+    /// <summary>ההרשאה שהמשתמש נתן (בחלון סיסמה אחד לכל הכוננים), בצורה שאפשר להעביר ל-authopen.</summary>
+    private static byte[]? _external;
+
+    /// <summary>
+    /// בקשת הרשאה לקריאת כמה כוננים — בחלון סיסמה אחד, עם הסבר בשפת התוכנה. אחר כך
+    /// authopen מקבל את ההרשאה הזו (‎-extauth) ולא שואל שוב על כל כונן. false — המשתמש ביטל.
+    /// </summary>
+    public static bool Authorize(IEnumerable<string> paths, string prompt)
+    {
+        if (!OperatingSystem.IsMacOS()) return false;
+        var rights = paths.Select(p => "sys.openfile.readonly." + p).Distinct().ToArray();
+        if (rights.Length == 0) return true;
+
+        var names = rights.Select(r => Marshal.StringToCoTaskMemUTF8(r)).ToArray();
+        IntPtr promptText = Marshal.StringToCoTaskMemUTF8(prompt), promptName = Marshal.StringToCoTaskMemUTF8("prompt");
+        int itemSize = Marshal.SizeOf<AuthItem>();
+        IntPtr items = Marshal.AllocHGlobal(itemSize * names.Length), environment = Marshal.AllocHGlobal(itemSize);
+        try
+        {
+            for (int i = 0; i < names.Length; i++)
+                Marshal.StructureToPtr(new AuthItem { Name = names[i] }, items + i * itemSize, false);
+            Marshal.StructureToPtr(new AuthItem { Name = promptName, ValueLength = (nuint)Encoding.UTF8.GetByteCount(prompt), Value = promptText },
+                environment, false);
+            var requested = new AuthSet { Count = (uint)names.Length, Items = items };
+            var env = new AuthSet { Count = 1, Items = environment };
+
+            if (AuthorizationCreate(IntPtr.Zero, IntPtr.Zero, 0, out IntPtr auth) != 0) return false;
+            const int Interaction = 1, Extend = 2, PreAuthorize = 16;
+            if (AuthorizationCopyRights(auth, ref requested, ref env, Interaction | Extend | PreAuthorize, IntPtr.Zero) != 0) return false;
+            byte[] form = new byte[32];
+            if (AuthorizationMakeExternalForm(auth, form) != 0) return false;
+            _external = form;
+            return true;
+        }
+        finally
+        {
+            foreach (var n in names) Marshal.FreeCoTaskMem(n);
+            Marshal.FreeCoTaskMem(promptText);
+            Marshal.FreeCoTaskMem(promptName);
+            Marshal.FreeHGlobal(items);
+            Marshal.FreeHGlobal(environment);
+        }
+    }
+
     /// <summary>ידית לכונן, או null כשהמשתמש ביטל או שהפתיחה נכשלה.</summary>
     public static SafeFileHandle? Open(string path, bool write)
     {
@@ -46,7 +90,12 @@ internal static class MacAuthOpen
         {
             IntPtr actions = IntPtr.Zero;
             if (posix_spawn_file_actions_init(ref actions) != 0) return -1;
+            // הרשאה שכבר ניתנה עוברת ל-authopen בקלט שלו — בלי חלון סיסמה נוסף.
+            byte[]? external = write ? null : _external;
+            int[] input = [-1, -1];
+            if (external is not null && pipe(input) != 0) return -1;
             var args = new List<string> { Tool, "-stdoutpipe" };
+            if (external is not null) args.Add("-extauth");
             if (write) args.AddRange(["-o", "2"]);              // O_RDWR
             args.Add(path);
             IntPtr[] argv = args.Select(a => Marshal.StringToCoTaskMemUTF8(a)).Append(IntPtr.Zero).ToArray();
@@ -54,9 +103,16 @@ internal static class MacAuthOpen
             try
             {
                 posix_spawn_file_actions_adddup2(ref actions, sockets[1], 1);
+                if (external is not null) posix_spawn_file_actions_adddup2(ref actions, input[0], 0);
                 if (posix_spawn(out int pid, Tool, ref actions, IntPtr.Zero, argv, envp) != 0) return -1;
                 close(sockets[1]);
                 sockets[1] = -1;
+                if (external is not null)
+                {
+                    close(input[0]);
+                    WriteFd(input[1], external, (nuint)external.Length);
+                    close(input[1]);
+                }
 
                 int fd = ReceiveHandle(sockets[0]);
                 waitpid(pid, out int status, 0);
@@ -117,6 +173,19 @@ internal static class MacAuthOpen
         public int Flags;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AuthItem { public IntPtr Name; public nuint ValueLength; public IntPtr Value; public uint Flags; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AuthSet { public uint Count; public IntPtr Items; }
+
+    private const string Security = "/System/Library/Frameworks/Security.framework/Security";
+    [DllImport(Security)] private static extern int AuthorizationCreate(IntPtr rights, IntPtr environment, int flags, out IntPtr authorization);
+    [DllImport(Security)] private static extern int AuthorizationCopyRights(IntPtr authorization, ref AuthSet rights, ref AuthSet environment, int flags, IntPtr authorizedRights);
+    [DllImport(Security)] private static extern int AuthorizationMakeExternalForm(IntPtr authorization, byte[] externalForm);
+
+    [DllImport("libc", SetLastError = true)] private static extern int pipe(int[] fds);
+    [DllImport("libc", EntryPoint = "write", SetLastError = true)] private static extern nint WriteFd(int fd, byte[] buffer, nuint count);
     [DllImport("libc", SetLastError = true)] private static extern int socketpair(int domain, int type, int protocol, int[] sv);
     [DllImport("libc", SetLastError = true)] private static extern int close(int fd);
     [DllImport("libc", SetLastError = true)] private static extern int dup(int fd);
