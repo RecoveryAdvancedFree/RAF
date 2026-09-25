@@ -379,7 +379,7 @@ public static class RecoveryWriter
                 Csv(StatusLabel(e.Status)), Csv(e.Reason), e.Sha256 ?? "", Csv(e.Location)));
         }
 
-        File.WriteAllText(path, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        File.WriteAllText(path, WindowsLines(csv.ToString()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         return path;
     }
 
@@ -470,7 +470,7 @@ public static class RecoveryWriter
         previous = previous.TrimStart('\r', '\n');
 
         string header = title + Environment.NewLine + new string('=', 40) + Environment.NewLine + Environment.NewLine;
-        File.WriteAllText(path, header + t + previous, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        File.WriteAllText(path, WindowsLines(header + t) + previous, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
 
         static string Previous(string file)
         {
@@ -649,4 +649,11 @@ public static class RecoveryWriter
             // חותמות זמן הן נתון משני; כישלון בהן אינו מכשיל את השחזור.
         }
     }
+
+    /// <summary>
+    /// סופי שורות של Windows (CRLF) גם כשהשחזור רץ במק: הדוח וקובץ ההסבר נפתחים הרבה פעמים
+    /// ב-Windows, ו-Excel ו-Notepad ישנים מציגים אותם נכון רק כך.
+    /// </summary>
+    private static string WindowsLines(string text)
+        => Environment.NewLine == "\r\n" ? text : text.Replace("\r\n", "\n").Replace("\n", "\r\n");
 }

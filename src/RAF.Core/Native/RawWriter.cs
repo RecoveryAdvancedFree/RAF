@@ -42,6 +42,20 @@ internal sealed class RawWriter : IDisposable
                 throw new InvalidOperationException(L.T("כונן וירטואלי נפתח לקריאה בלבד — התוכנה אינה כותבת אליו."));
         }
 
+        // במק ובלינוקס: קובץ או התקן נפתחים כמו כל קובץ.
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var file = File.OpenHandle(devicePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                return new RawWriter(IntPtr.Zero, devicePath, sectorSize) { _file = file };
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
         IntPtr handle = Win32.CreateFile(
             devicePath,
             Win32.GENERIC_READ | Win32.GENERIC_WRITE,
@@ -60,7 +74,10 @@ internal sealed class RawWriter : IDisposable
 
     internal static int LastError => Marshal.GetLastWin32Error();
 
-    internal bool IsValid => _handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE;
+    internal bool IsValid => _file is not null ? !_file.IsClosed : _handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE;
+
+    /// <summary>הקובץ או ההתקן, במק ובלינוקס (ב-Windows — _handle).</summary>
+    private Microsoft.Win32.SafeHandles.SafeFileHandle? _file;
 
     /// <summary>
     /// כתיבת בתים בהיסט מוחלט.
@@ -71,6 +88,17 @@ internal sealed class RawWriter : IDisposable
         if (!IsValid) return false;
         if (offset % SectorSize != 0) return false;
         if (data.Length % SectorSize != 0) return false;
+
+        if (_file is not null)
+        {
+            try
+            {
+                RandomAccess.Write(_file, data, offset);
+                RandomAccess.FlushToDisk(_file);
+                return true;
+            }
+            catch (IOException) { return false; }
+        }
 
         byte[] buffer = data.ToArray();
         GCHandle pin = GCHandle.Alloc(buffer, GCHandleType.Pinned);
@@ -97,7 +125,8 @@ internal sealed class RawWriter : IDisposable
 
     public void Dispose()
     {
-        if (IsValid)
+        if (_file is not null) _file.Dispose();
+        else if (IsValid)
         {
             Win32.CloseHandle(_handle);
             _handle = Win32.INVALID_HANDLE_VALUE;
