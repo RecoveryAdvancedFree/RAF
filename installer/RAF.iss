@@ -88,7 +88,9 @@ Name: "{app}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: taskbar
 ; ההצמדה לא רצה בהתקנה שקטה, כלומר בעדכון מתוך התוכנה: מי שהסיר את הפריט משורת
 ; המשימות לא אמור למצוא אותו שם שוב אחרי כל עדכון.
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\Pin-Taskbar.ps1"" ""{app}\{#AppName}.lnk"" -Silent"; Flags: runhidden skipifsilent; Tasks: taskbar
-Filename: "{app}\{#AppExe}"; Description: "פתח כעת"; Flags: postinstall nowait skipifsilent
+; runascurrentuser: בלעדיו Inno מפעיל את מה שמסומן postinstall כמשתמש המקורי, בלי הרשאות מנהל —
+; והתוכנה, שדורשת אותן, נכשלת בקוד 740. כך היא רצה בהרשאות של ההתקנה, בלי בקשת אישור נוספת.
+Filename: "{app}\{#AppExe}"; Description: "פתח כעת"; Flags: postinstall nowait skipifsilent runascurrentuser
 ; עדכון מתוך התוכנה: ההתקנה סגרה אותה, והיא נפתחת מחדש בסיום.
 Filename: "{app}\{#AppExe}"; Flags: nowait; Check: RelaunchRequested
 
