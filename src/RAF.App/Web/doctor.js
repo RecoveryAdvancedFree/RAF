@@ -291,8 +291,9 @@ async function rebuildPhoto(path, kind) {
   el('doctor-body').innerHTML = `
     ${r.succeeded
       ? notice('ok-notice', Icon.check, t(database ? 'המסד שוחזר' : 'התמונה תוקנה'), esc(r.message))
-      : notice(r.output ? 'warn' : 'danger', Icon.alert, t(database ? (r.output ? 'המסד שוחזר חלקית' : 'המסד לא שוחזר')
-          : (r.output ? 'התמונה תוקנה חלקית' : 'התמונה לא תוקנה')), esc(r.message))}
+      : notice(r.output ? 'warn' : 'danger', Icon.alert, database
+          ? (r.output ? t('המסד שוחזר חלקית') : t('המסד לא שוחזר'))
+          : (r.output ? t('התמונה תוקנה חלקית') : t('התמונה לא תוקנה')), esc(r.message))}
     <div class="doc-list"><div class="doc-row">
       <div class="doc-top"><span class="doc-name"><bdi>${esc(r.name)}</bdi></span></div>
       ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
