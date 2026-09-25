@@ -30,8 +30,10 @@ jobs:
           hdiutil attach "$RUNNER_TEMP/test.dmg"
           diskutil list
       - name: קריאת הכונן — ישירות (כמנהל)
+        timeout-minutes: 5
         run: sudo -E env "PATH=$PATH" RAF_MAC_DEVICE_TESTS=1 dotnet test tests/RAF.Core.Tests -c Release --no-build --filter "FullyQualifiedName~MacDiskTests" --logger "console;verbosity=normal"
       - name: קריאת הכונן — דרך authopen
+        timeout-minutes: 5
         run: sudo -E env "PATH=$PATH" RAF_MAC_DEVICE_TESTS=1 RAF_MAC_AUTHOPEN=1 dotnet test tests/RAF.Core.Tests -c Release --no-build --filter "FullyQualifiedName~MacDiskTests" --logger "console;verbosity=normal"
 
       - name: תוצאות

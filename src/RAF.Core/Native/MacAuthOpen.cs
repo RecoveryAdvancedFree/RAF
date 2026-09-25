@@ -30,6 +30,7 @@ internal static class MacAuthOpen
     public static bool Authorize(IEnumerable<string> paths, string prompt)
     {
         if (!OperatingSystem.IsMacOS()) return false;
+        if (geteuid() == 0) return true;                    // מנהל פותח ישירות — אין מה לבקש
         var rights = paths.Select(p => "sys.openfile.readonly." + p).Distinct().ToArray();
         if (rights.Length == 0) return true;
 
@@ -72,7 +73,9 @@ internal static class MacAuthOpen
         {
             if (!Opened.TryGetValue((path, write), out int fd))
             {
-                fd = Request(path, write);
+                fd = Request(path, write, _external is not null && !write);
+                // ההרשאה שניתנה לא התקבלה (למשל פג תוקפה) — authopen יבקש סיסמה בעצמו.
+                if (fd < 0 && _external is not null && !write) fd = Request(path, write, false);
                 if (fd < 0) return null;
                 Opened[(path, write)] = fd;
             }
@@ -82,7 +85,7 @@ internal static class MacAuthOpen
     }
 
     /// <summary>הרצת authopen עם הפלט שלו מחובר לשקע, וקבלת הידית שהוא שולח בו.</summary>
-    private static int Request(string path, bool write)
+    private static int Request(string path, bool write, bool useGranted)
     {
         int[] sockets = new int[2];
         if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) != 0) return -1;
@@ -91,7 +94,7 @@ internal static class MacAuthOpen
             IntPtr actions = IntPtr.Zero;
             if (posix_spawn_file_actions_init(ref actions) != 0) return -1;
             // הרשאה שכבר ניתנה עוברת ל-authopen בקלט שלו — בלי חלון סיסמה נוסף.
-            byte[]? external = write ? null : _external;
+            byte[]? external = useGranted ? _external : null;
             int[] input = [-1, -1];
             if (external is not null && pipe(input) != 0) return -1;
             var args = new List<string> { Tool, "-stdoutpipe" };
@@ -185,6 +188,7 @@ internal static class MacAuthOpen
     [DllImport(Security)] private static extern int AuthorizationMakeExternalForm(IntPtr authorization, byte[] externalForm);
 
     [DllImport("libc", SetLastError = true)] private static extern int pipe(int[] fds);
+    [DllImport("libc")] private static extern uint geteuid();
     [DllImport("libc", EntryPoint = "write", SetLastError = true)] private static extern nint WriteFd(int fd, byte[] buffer, nuint count);
     [DllImport("libc", SetLastError = true)] private static extern int socketpair(int domain, int type, int protocol, int[] sv);
     [DllImport("libc", SetLastError = true)] private static extern int close(int fd);
