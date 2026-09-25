@@ -1258,6 +1258,29 @@ internal static class EnglishTexts
         ["סוג האזור ({0}) עוד לא נתמך. סריקה מתקדמת תמצא את הקבצים לפי סוג."] =
             "The volume type ({0}) isn't supported yet. An Advanced scan will find the files by type.",
         ["תיאור האזור פגום."] = "The volume description is damaged.",
+
+        // btrfs
+        ["מיקום התוכן פגום."] = "The content location is damaged.",
+        ["לא ניתן היה לקרוא את התוכן מהכונן."] = "The content couldn't be read from the drive.",
+        ["הקובץ דחוס בשיטת zstd, שעוד לא נתמכת. סריקה מתקדמת לא תעזור כאן — התוכן בדיסק דחוס."] =
+            "The file is compressed with zstd, which isn't supported yet. An Advanced scan won't help here — the content on the drive is compressed.",
+        ["התוכן הדחוס פגום — לא ניתן לפרוס אותו."] = "The compressed content is damaged — it can't be decompressed.",
+        ["המחיצה אינה btrfs תקינה, או שהכותרת שלה פגומה."] = "The partition isn't a valid btrfs, or its header is damaged.",
+        ["מערכת הקבצים מפוזרת על כמה כוננים בעצמה (בלי מערך מתחת). זה עוד לא נתמך — חלק מהקבצים עלולים לחזור פגומים."] =
+            "The file system spreads itself across several drives (without an array underneath). This isn't supported yet — some files may come back damaged.",
+        ["קורא את עץ השורשים"] = "Reading the root tree",
+        ["עץ הקבצים הראשי של המחיצה אינו נקרא."] = "The partition's main file tree can't be read.",
+        ["{0} קבצים דחוסים לא נפרסו — הסיבה ליד כל אחד מהם."] = "{0} compressed files weren't decompressed — the reason is next to each.",
+        ["קורא את התיקיות"] = "Reading the folders",
+        ["מחפש קבצים שנמחקו בעותקים הישנים של הרשומות"] = "Looking for deleted files in old copies of the records",
+        ["הגודל המקורי לא נשמר, והקובץ משוחזר עד סוף הבלוק האחרון שלו, בלי האפסים שבסופו."] =
+            "The original size wasn't kept, so the file is recovered up to the end of its last block, without the trailing zeros.",
+        ["{0} קבצים שנמחקו נמצאו בעותקים הישנים של הרשומות, שמערכת הקבצים משאירה בדיסק אחרי כל שינוי."] =
+            "{0} deleted files were found in old copies of the records, which the file system leaves on the drive after every change.",
+        ["אצל {0} מהם המקום שהתוכן תפס כבר נתפס מחדש, ולכן הם עלולים לחזור פגומים."] =
+            "For {0} of them the space the content occupied has been taken again, so they may come back damaged.",
+        ["הרשומה, השם והמיקום נלקחו מעותק ישן שנשאר בדיסק."] = "The record, name and location were taken from an old copy left on the drive.",
+        ["הקובץ דחוס וגדול מדי לפריסה בזיכרון בגרסה זו."] = "The file is compressed and too large to decompress in memory in this version.",
         ["גודל הרצועה של המערך אינו ידוע."] = "The array's stripe size is unknown.",
         ["המערך היה באמצע שינוי מבנה (הוספת כונן או שינוי סוג) כשנעצר. מערך כזה עוד לא נתמך."] =
             "The array was in the middle of a reshape (adding a drive or changing type) when it stopped. Such an array isn't supported yet.",

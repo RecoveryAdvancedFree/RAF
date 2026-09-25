@@ -47,7 +47,7 @@ public static class LvmDisk
         {
             // התיאור העדכני ביותר (מספר הגרסה הגבוה) קובע.
             var group = byGroup.OrderByDescending(h => h.Group.Sequence).First().Group;
-            var pvs = group.Pvs.Select(p => byGroup.FirstOrDefault(h => h.Label.PvId == p.Id).Pv).ToList();
+            var pvs = group.Pvs.Select(p => (Pv?)byGroup.FirstOrDefault(h => h.Label.PvId == p.Id).Pv).ToList();
             var missing = group.Pvs.Where((p, i) => pvs[i] is null).Select(p => p.Name).ToList();
 
             var volumes = group.Volumes.Where(v => v.Visible).Select(v => new Volume(v.Name, v.Size,
@@ -92,7 +92,7 @@ public static class LvmDisk
             var scheme = table.Scheme;
             if (partitions.Count == 0)
             {
-                var fs = FileSystemIdentifier.Identify(device.ReadBlock(0, 8192));
+                var fs = FileSystemIdentifier.Identify(device.ReadBlock(0, FileSystemIdentifier.HeadBytes));
                 var kind = fs.Kind is FileSystemKind.Unknown ? FileSystemKind.Raw : fs.Kind;
                 scheme = PartitionScheme.SuperFloppy;
                 partitions = new List<PartitionInfo>

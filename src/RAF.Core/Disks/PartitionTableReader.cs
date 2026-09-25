@@ -46,7 +46,7 @@ internal static class PartitionTableReader
         }
 
         // ללא טבלת מחיצות: ייתכן שמערכת הקבצים יושבת ישירות על ההתקן (נפוץ בכרטיסי זיכרון).
-        var direct = FileSystemIdentifier.Identify(device.ReadBlock(0, 8192));
+        var direct = FileSystemIdentifier.Identify(device.ReadBlock(0, FileSystemIdentifier.HeadBytes));
         if (direct.Kind is not (FileSystemKind.Unknown or FileSystemKind.Raw))
         {
             return new TableResult(PartitionScheme.SuperFloppy, new List<PartitionInfo>
@@ -116,7 +116,7 @@ internal static class PartitionTableReader
             long size = (lastLba - firstLba + 1) * sectorSize;
             if (size <= 0) continue;
 
-            var fs = FileSystemIdentifier.Identify(device.ReadBlock(offset, 8192));
+            var fs = FileSystemIdentifier.Identify(device.ReadBlock(offset, FileSystemIdentifier.HeadBytes));
 
             result.Add(new PartitionInfo
             {
@@ -181,7 +181,7 @@ internal static class PartitionTableReader
 
             long offset = (long)startLba * sectorSize;
             long size = (long)sectors * sectorSize;
-            var fs = FileSystemIdentifier.Identify(device.ReadBlock(offset, 8192));
+            var fs = FileSystemIdentifier.Identify(device.ReadBlock(offset, FileSystemIdentifier.HeadBytes));
 
             result.Add(new PartitionInfo
             {
@@ -225,7 +225,7 @@ internal static class PartitionTableReader
             {
                 long offset = current + (long)startLba * sectorSize;
                 long size = (long)sectors * sectorSize;
-                var fs = FileSystemIdentifier.Identify(device.ReadBlock(offset, 8192));
+                var fs = FileSystemIdentifier.Identify(device.ReadBlock(offset, FileSystemIdentifier.HeadBytes));
 
                 result.Add(new PartitionInfo
                 {

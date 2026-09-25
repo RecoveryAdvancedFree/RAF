@@ -467,7 +467,7 @@ function openScanPanel(diskNumber, partIndex) {
   const fsNotice = !part.scannable
     ? notice('warn', Icon.alert, t('מערכת הקבצים {0} אינה נתמכת', esc(t(part.fsLabel))),
         t('<b>סריקה מתקדמת</b> עדיין תעבוד — היא אינה תלויה במערכת הקבצים.'),
-        t('נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4 ו-XFS.'))
+        t('נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4, XFS ו-btrfs.'))
     : '';
 
   const readThroughNotice = part.readThrough

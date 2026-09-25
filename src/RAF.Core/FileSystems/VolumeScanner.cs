@@ -27,7 +27,8 @@ public static class VolumeScanner
         or FileSystemKind.Fat16
         or FileSystemKind.Fat12
         or FileSystemKind.Ext
-        or FileSystemKind.Xfs;
+        or FileSystemKind.Xfs
+        or FileSystemKind.Btrfs;
 
     /// <summary>
     /// סריקת מחיצה במנוע המתאים לה. checkpoint מקבל נקודות ביניים — כרגע רק
@@ -127,6 +128,10 @@ public static class VolumeScanner
                 diskNumber, partitionOffset, partitionSize, sectorSize,
                 mode, includeExisting, trim, progress, token),
 
+            FileSystemKind.Btrfs => Btrfs.BtrfsScanner.ScanAsync(
+                diskNumber, partitionOffset, partitionSize, sectorSize,
+                mode, includeExisting, trim, progress, token),
+
             _ => throw new InvalidOperationException(
                 L.T("מערכת הקבצים {0} אינה נתמכת לסריקה בגרסה זו.", kind)),
         };
@@ -150,6 +155,7 @@ public static class VolumeScanner
         FileSystemKind.Fat32 or FileSystemKind.Fat16 or FileSystemKind.Fat12 => FatVolume.Open(reader),
         FileSystemKind.Ext => ExtVolume.Open(reader),
         FileSystemKind.Xfs => XfsVolume.Open(reader),
+        FileSystemKind.Btrfs => FileSystems.Btrfs.BtrfsVolume.Open(reader),
         _ => null,
     };
 }

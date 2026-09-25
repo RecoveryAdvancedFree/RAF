@@ -154,7 +154,7 @@ public static class RaidDisk
             var table = PartitionTableReader.Read(device, number, array.Size);
             var partitions = table.Partitions;
             var scheme = table.Scheme;
-            byte[] head = device.ReadBlock(0, 4096);
+            byte[] head = device.ReadBlock(0, FileSystemIdentifier.HeadBytes);
             if (partitions.Count == 0)
             {
                 var fs = FileSystemIdentifier.Identify(head);

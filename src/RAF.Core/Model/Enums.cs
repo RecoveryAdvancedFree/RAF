@@ -33,6 +33,7 @@ public enum FileSystemKind
     Xfs,            // לינוקס, שרתי אחסון ביתיים
     LinuxRaid,      // כונן במערך RAID של לינוקס (mdadm) — נקרא אחרי הרכבת המערך
     Lvm,            // כונן במאגר לוגי של לינוקס — כל אזור במאגר נפתח ככונן נוסף
+    Btrfs,          // Synology ולינוקס
 }
 
 /// <summary>סכמת טבלת המחיצות של הדיסק.</summary>

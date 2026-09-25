@@ -15,6 +15,7 @@ internal static class Display
         FileSystemKind.ReFS => "ReFS",
         FileSystemKind.Ext => "ext2/3/4",
         FileSystemKind.Xfs => "XFS",
+        FileSystemKind.Btrfs => "btrfs",
         FileSystemKind.Apfs => "APFS",
         FileSystemKind.Hfs => "HFS+",
         FileSystemKind.BitLocker => "BitLocker",
