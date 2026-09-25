@@ -8,6 +8,12 @@ internal static class EnglishTexts
 {
     internal static readonly Dictionary<string, string> Texts = new()
     {
+        // ------------------------------------------------ מחיצת NTFS שנבנתה מחדש (NtfsRebuild)
+        ["למחיצה הזו אין מגזר אתחול על הכונן — הוא חושב מחדש מרשומות הקבצים, והוא קיים בזיכרון בלבד. רישום שלה בטבלה לא יעזור: Windows יבקש לפרמט אותה. אפשר לסרוק אותה ולהעתיק ממנה קבצים — בלי לכתוב לכונן."] =
+            "This partition has no boot sector on the drive — it was recalculated from the file records and exists in memory only. Listing it in the table would not help: Windows would ask to format it. You can scan it and copy files from it — without writing to the drive.",
+        ["מחיצה שנבנתה מחדש · "] =
+            "Rebuilt partition · ",
+
         // ------------------------------------------------ RAF.Shell — עדכונים (Bridge.Update.cs)
         ["לא ניתן לבדוק אם יש עדכון. בדקו את החיבור לאינטרנט ונסו שוב."] =
             "Could not check for updates. Check the internet connection and try again.",

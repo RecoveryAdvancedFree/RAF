@@ -8,6 +8,17 @@
 
 const EN = {};
 
+/* ------------------------------------------------------------ מחיצה שנבנתה מחדש */
+Object.assign(EN, {
+  'נבנתה מחדש': 'Rebuilt',
+  'מגזר האתחול של המחיצה אבד. הוא חושב מחדש מרשומות הקבצים שלה, ונמצא בזיכרון בלבד — על הכונן לא נכתב דבר':
+    "The partition's boot sector was lost. It was recalculated from the partition's file records and exists in memory only — nothing was written to the drive",
+  'מחיצה שלא נקראה נבנתה מחדש': 'A partition that could not be read was rebuilt',
+  '{0} מחיצות שלא נקראו נבנו מחדש': '{0} partitions that could not be read were rebuilt',
+  'מגזר האתחול אבד, ולכן Windows לא מזהה את המחיצה ומבקש לפרמט. הוא חושב מחדש מרשומות הקבצים — בזיכרון בלבד, בלי לכתוב לכונן. עכשיו אפשר לסרוק אותה ולשחזר קבצים עם השמות והתיקיות.':
+    'The boot sector was lost, so Windows does not recognize the partition and asks to format it. It was recalculated from the file records — in memory only, without writing to the drive. You can now scan it and recover files with their names and folders.',
+});
+
 /* ------------------------------------------------------------ עדכונים (update.js) */
 Object.assign(EN, {
   'בדיקת עדכונים': 'Check for updates',

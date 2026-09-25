@@ -49,6 +49,11 @@ public static class PartitionTableWriter
     internal static RestorePlan Plan(
         VolumeReader reader, long diskSize, int sector, IReadOnlyList<PartitionInfo> existing, FoundPartition found)
     {
+        // מגזר האתחול שלה קיים רק בזיכרון: ברישום בטבלה Windows היה רואה מחיצה ריקה ומציע לפרמט אותה.
+        if (found.Rebuilt is not null)
+            return Refuse(L.T("למחיצה הזו אין מגזר אתחול על הכונן — הוא חושב מחדש מרשומות הקבצים, והוא קיים בזיכרון בלבד. " +
+                              "רישום שלה בטבלה לא יעזור: Windows יבקש לפרמט אותה. אפשר לסרוק אותה ולהעתיק ממנה קבצים — בלי לכתוב לכונן."));
+
         if (found.Offset % sector != 0 || found.Size % sector != 0)
             return Refuse(L.T("גבולות המחיצה שנמצאה אינם תקינים, ולכן אי אפשר לרשום אותה בטבלה."));
 

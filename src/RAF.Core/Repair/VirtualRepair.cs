@@ -38,6 +38,13 @@ public static class VirtualRepair
         return diagnosis;
     }
 
+    /// <summary>
+    /// קריאת מחיצת NTFS שנבנתה מחדש מרשומות הקבצים שלה (NtfsRebuild): מגזר האתחול
+    /// שחושב מוצג במקום הראשון של המחיצה — בזיכרון בלבד, כמו עותק הגיבוי למעלה.
+    /// </summary>
+    public static void ApplyRebuilt(int diskNumber, RAF.Core.FileSystems.Ntfs.RebuiltNtfs rebuilt)
+        => ReadOverlays.Set(diskNumber, rebuilt.Offset, 0, rebuilt.BootSector);
+
     public static void Remove(int diskNumber, long partitionOffset) => ReadOverlays.Remove(diskNumber, partitionOffset);
 
     public static bool IsActive(int diskNumber, long partitionOffset) => ReadOverlays.Has(diskNumber, partitionOffset);

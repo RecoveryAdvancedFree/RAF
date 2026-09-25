@@ -120,7 +120,12 @@ internal sealed partial class MainForm : Form
         // לפיתוח, או בבניית בדיקה של גרסת ההפצה (RafUiTest) — פורט דיבאג פתוח נותן
         // לכל תהליך מקומי שליטה בתוכנה שרצה כמנהל, ולכן לעולם לא בקובץ שמופץ.
         if (int.TryParse(Environment.GetEnvironmentVariable("RAF_REMOTE_DEBUG_PORT"), out int debugPort))
+        {
             options.AdditionalBrowserArguments += $" --remote-debugging-port={debugPort}";
+            // תיקיית נתונים משלה: מנוע התצוגה מסרב לעלות בהגדרות שונות משל מופע אחר שמחזיק
+            // את אותה תיקייה (0x8007139F) — למשל חלון רגיל של התוכנה שפתוח במקביל.
+            userDataFolder += "-debug-" + debugPort;
+        }
 #endif
 
         CoreWebView2Environment environment;

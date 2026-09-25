@@ -326,6 +326,7 @@ internal sealed partial class Bridge
         // מחיצת BitLocker שנפתחה ב-Windows: יש לה אות, ו-Windows מדווח על המקום הפנוי בה.
         unlocked = p.FileSystem == FileSystemKind.BitLocker && p.DriveLetter.Length > 0 && p.FreeBytes.HasValue,
         readThrough = _readThrough.ContainsKey((p.DiskNumber, p.OffsetBytes)),
+        rebuilt = _rebuilt.Contains((p.DiskNumber, p.OffsetBytes)),
         found = p.Index >= FoundIndexBase,
         foundInfo = FoundInfo(p),
     };
@@ -340,6 +341,7 @@ internal sealed partial class Bridge
         return new
         {
             damaged = f.BootSectorDamaged,
+            rebuilt = f.Rebuilt is not null,
             overlaps = f.OverlapsExisting,
             inside = f.InsideAnother,
             fsLabel = Display.FileSystem(f.FileSystem),
@@ -1012,6 +1014,9 @@ internal sealed partial class Bridge
     /// <summary>מחיצות שנמצאו בסריקת כונן, לפי מספר הדיסק. שורדות רענון של הרשימה.</summary>
     private readonly Dictionary<int, List<FoundPartition>> _found = new();
 
+    /// <summary>מחיצות שמגזר האתחול שלהן חושב מחדש מרשומות הקבצים (NtfsRebuild), ונקראות דרכו.</summary>
+    private readonly HashSet<(int Disk, long Offset)> _rebuilt = new();
+
     private CancellationTokenSource? _huntCancel;
 
     private async Task<object> HuntAsync(JsonObject? p)
@@ -1051,12 +1056,26 @@ internal sealed partial class Bridge
 
         var result = await PartitionHunter.HuntAsync(tableOnly, progress, _huntCancel.Token);
 
-        _found[disk.DiskNumber] = result.Found;
+        // מחיצת NTFS ששני מגזרי האתחול שלה אבדו נקראת דרך מגזר שחושב מרשומות הקבצים — בזיכרון
+        // בלבד. כשהיא כבר רשומה בטבלה (Windows מציג אותה כ-RAW), היא נפתחת במקומה ולא כמחיצה נוספת.
+        int rebuiltInPlace = 0;
+        foreach (var f in result.Found.Where(f => f.Rebuilt is not null))
+        {
+            VirtualRepair.ApplyRebuilt(disk.DiskNumber, f.Rebuilt!);
+            _rebuilt.Add((disk.DiskNumber, f.Offset));
+            if (!f.OnExisting) continue;
+            _readThrough[(disk.DiskNumber, f.Offset)] = FileSystemKind.Ntfs;
+            rebuiltInPlace++;
+        }
+        ApplyReadThrough(disk);
+
+        _found[disk.DiskNumber] = result.Found.Where(f => !f.OnExisting).ToList();
         AttachFound(disk);
 
         return new
         {
-            found = result.Found.Count,
+            found = result.Found.Count - rebuiltInPlace,
+            rebuiltInPlace,
             cancelled = result.Cancelled,
             duration = result.Duration.TotalSeconds,
             unreadable = result.UnreadableBytes,
@@ -1083,8 +1102,8 @@ internal sealed partial class Bridge
 
                 // מחיצה שתחילתה נהרסה אינה נקראת ישירות — היא מוצגת כלא מזוהה,
                 // והממשק מוביל אותה לאבחון ולקריאה דרך עותק הגיבוי.
-                FileSystem = f.BootSectorDamaged ? FileSystemKind.Raw : f.FileSystem,
-                TypeName = L.T("מחיצה שנמצאה · ") + Display.FileSystem(f.FileSystem),
+                FileSystem = f.BootSectorDamaged && f.Rebuilt is null ? FileSystemKind.Raw : f.FileSystem,
+                TypeName = (f.Rebuilt is null ? L.T("מחיצה שנמצאה · ") : L.T("מחיצה שנבנתה מחדש · ")) + Display.FileSystem(f.FileSystem),
                 Label = f.Label,
                 IsUnmounted = true,
             });

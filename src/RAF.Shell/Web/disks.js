@@ -472,15 +472,18 @@ function renderPartition(disk, p) {
 
   if (p.found) {
     tags.push(chip('accent', 'נמצאה בסריקה'));
-    if (p.foundInfo && p.foundInfo.damaged) tags.push(chip('warn', 'תחילתה פגומה'));
+    if (p.foundInfo && p.foundInfo.rebuilt) tags.push(chip('ok', 'נבנתה מחדש', 'מגזר האתחול של המחיצה אבד. הוא חושב מחדש מרשומות הקבצים שלה, ונמצא בזיכרון בלבד — על הכונן לא נכתב דבר'));
+    else if (p.foundInfo && p.foundInfo.damaged) tags.push(chip('warn', 'תחילתה פגומה'));
     if (p.foundInfo && p.foundInfo.overlaps) tags.push(chip('warn', 'חופפת למחיצה קיימת'));
     if (p.foundInfo && p.foundInfo.inside) tags.push(chip('warn', 'בתוך מחיצה אחרת'));
+  } else if (p.rebuilt) {
+    tags.push(chip('ok', 'נבנתה מחדש', 'מגזר האתחול של המחיצה אבד. הוא חושב מחדש מרשומות הקבצים שלה, ונמצא בזיכרון בלבד — על הכונן לא נכתב דבר'));
   } else if (p.readThrough) {
     tags.push(chip('ok', 'נקראת דרך הגיבוי'));
   } else if (p.unmounted) {
     tags.push(chip('warn', 'לא מחוברת'));
   }
-  if (p.found && p.readThrough) tags.push(chip('ok', 'נקראת דרך הגיבוי'));
+  if (p.found && p.readThrough && !p.rebuilt) tags.push(chip('ok', 'נקראת דרך הגיבוי'));
   if (p.fs === 'BitLocker') {
     tags.push(p.unlocked
       ? chip('ok', 'נעילה פתוחה', 'הנעילה נפתחה ב-Windows — אפשר לסרוק')

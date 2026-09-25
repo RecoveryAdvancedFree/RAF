@@ -28,6 +28,15 @@ public sealed class FoundPartition
     /// <summary>המחיצה יושבת בתוך מחיצה אחרת שנמצאה — ייתכן שזו תמונת דיסק בתוך קובץ.</summary>
     public bool InsideAnother { get; set; }
 
+    /// <summary>
+    /// מחיצת NTFS ששני מגזרי האתחול שלה אבדו, ונבנתה מחדש מרשומות הקבצים שלה (ראו NtfsRebuild).
+    /// מגזר האתחול שחושב מוצג לקוראי המחיצה בזיכרון בלבד.
+    /// </summary>
+    public RebuiltNtfs? Rebuilt { get; init; }
+
+    /// <summary>המחיצה שנבנתה מחדש היא מחיצה שכבר רשומה בטבלה ואינה נקראת — לא מחיצה נוספת.</summary>
+    public bool OnExisting { get; init; }
+
     public long End => Offset + Size;
 }
 
@@ -86,26 +95,36 @@ public static class PartitionHunter
                 ?? throw new IOException(Native.RawDevice.OpenFailure(L.T("הכונן")));
 
             // מחיצה שהתוכנה רק הניחה (ראו PartitionInfo.Assumed) אינה מסתירה מה שנמצא בתוכה.
-            var existing = disk.Partitions
-                .Where(p => p.SizeBytes > 0 && !p.Assumed)
-                .Select(p => (p.OffsetBytes, p.SizeBytes))
-                .ToList();
+            var listed = disk.Partitions.Where(p => p.SizeBytes > 0 && !p.Assumed).ToList();
+            var existing = listed.Select(p => (p.OffsetBytes, p.SizeBytes)).ToList();
+            // מחיצה בטבלה שמערכת הקבצים שלה אינה מזוהה — ייתכן שהיא זו שתיבנה מחדש.
+            var readable = listed.Where(p => p.FileSystem is not (FileSystemKind.Raw or FileSystemKind.Unknown))
+                                 .Select(p => p.OffsetBytes).ToList();
 
-            return Hunt(new ReaderSource(reader, disk.SizeBytes, disk.LogicalSectorSize), existing, progress, token);
+            return Hunt(new ReaderSource(reader, disk.SizeBytes, disk.LogicalSectorSize), existing, progress, token, readable);
         }, token);
 
     /// <summary>השערה: מגזר אתחול שמעיד על מחיצה שמתחילה ב-Start.</summary>
     private sealed record Hypothesis(long Start, long Size, FileSystemKind Kind, bool FromBackup, byte[] Sector);
 
+    /// <param name="readable">
+    /// היסטים של מחיצות בטבלה שנקראות כרגיל. null — כולן. מחיצה בטבלה שאינה ביניהן
+    /// יכולה להיבנות מחדש מרשומות הקבצים שלה.
+    /// </param>
     internal static HuntResult Hunt(
         ISectorSource source, List<(long Offset, long Size)> existing,
-        IProgress<HuntProgress>? progress, CancellationToken token)
+        IProgress<HuntProgress>? progress, CancellationToken token,
+        IReadOnlyCollection<long>? readable = null)
     {
         var clock = Stopwatch.StartNew();
         int sector = source.SectorSize;
         long length = source.Length;
 
         var hypotheses = new List<Hypothesis>();
+        var rebuild = new NtfsRebuild(sector);
+        // איסוף הרשומות רץ במקביל לקריאת הבלוק הבא, על עותק — בכונן מהיר הוא אחרת היה מאט את הסריקה.
+        byte[] collectBuffer = new byte[BlockSize];
+        Task? collecting = null;
         byte[] block = new byte[BlockSize];
         long unreadable = 0;
         var lastReport = TimeSpan.Zero;
@@ -148,6 +167,11 @@ public static class PartitionHunter
             {
                 for (int s = 0; s + 512 <= read; s += sector)
                     Examine(block.AsSpan(s, sector), at + s, sector, hypotheses);
+                collecting?.Wait();
+                Buffer.BlockCopy(block, 0, collectBuffer, 0, read);
+                long position = at;
+                int count = read;
+                collecting = Task.Run(() => rebuild.Collect(collectBuffer.AsSpan(0, count), position));
                 map.Add(at, read, SectorState.Read);
             }
 
@@ -171,12 +195,38 @@ public static class PartitionHunter
             }
         }
 
+        collecting?.Wait();
+
         var all = Resolve(source, hypotheses, existing);
 
         // מחיצה שיושבת כולה בתוך מחיצה אחרת היא כמעט תמיד שריד: תמונת דיסק
         // שנשמרה כקובץ (למשל אזור האתחול בתוך קובץ ISO), או מחיצה ישנה שנדרסה.
         // הצגתה כ"מחיצה שנמצאה" רק מבלבלת — הקבצים שבה נגישים דרך המחיצה שמכילה אותה.
         var found = all.Where(f => !f.InsideAnother && !InsideExisting(f, existing)).ToList();
+
+        // מחיצות NTFS בלי אף מגזר אתחול — מהרשומות שנאספו בדרך. רק אם הסריקה הגיעה לסוף:
+        // חישוב על חצי כונן היה מחמיץ, או ממקם לא נכון, את מה שבחצי השני.
+        if (!token.IsCancellationRequested && !disconnected)
+        {
+            var known = all.Select(f => f.Offset)
+                .Concat(readable ?? existing.Select(e => e.Offset))
+                .ToHashSet();
+            foreach (var r in rebuild.Infer(length, known))
+            {
+                bool onExisting = existing.Any(e => e.Offset == r.Offset);
+                var f = new FoundPartition
+                {
+                    Offset = r.Offset,
+                    Size = r.Size,
+                    FileSystem = FileSystemKind.Ntfs,
+                    Rebuilt = r,
+                    OnExisting = onExisting,
+                    OverlapsExisting = !onExisting && existing.Any(e => r.Offset < e.Offset + e.Size && e.Offset < r.Offset + r.Size),
+                };
+                if (onExisting || !InsideExisting(f, existing)) found.Add(f);
+            }
+            found = found.OrderBy(f => f.Offset).ToList();
+        }
 
         progress?.Report(new HuntProgress
         {
