@@ -614,7 +614,7 @@ public static class RecoveryWriter
     /// </summary>
     private static string SanitizeSegment(string segment)
     {
-        var invalid = Path.GetInvalidFileNameChars();
+        var invalid = RAF.Core.Text.FileNames.Invalid;
         var cleaned = new string(segment.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
 
         cleaned = cleaned.Trim().TrimEnd('.');

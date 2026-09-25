@@ -159,3 +159,28 @@ public class BitLockerTests
         Assert.Contains("לקריאה בלבד", ex.Message);
     }
 }
+
+/// <summary>הפענוח שנכתב לבד (למק) — מול AesCcm של Windows, על אותם נתונים.</summary>
+public class CcmTests
+{
+    [Theory]
+    [InlineData(16, 0)]
+    [InlineData(32, 1)]
+    [InlineData(32, 44)]
+    [InlineData(16, 300)]
+    public void Managed_ccm_matches_the_system_one(int keySize, int length)
+    {
+        var random = new Random(length + keySize);
+        byte[] key = new byte[keySize], nonce = new byte[12], plain = new byte[length], cipher = new byte[length], tag = new byte[16];
+        random.NextBytes(key); random.NextBytes(nonce); random.NextBytes(plain);
+        if (!System.Security.Cryptography.AesCcm.IsSupported) return;      // במק — אין מול מה להשוות; BitLockerTests בודקים שם
+        using (var ccm = new System.Security.Cryptography.AesCcm(key)) ccm.Encrypt(nonce, plain, cipher, tag);
+
+        byte[] back = new byte[length];
+        Assert.True(RAF.Core.Crypto.Ccm.DecryptManaged(key, nonce, cipher, tag, back));
+        Assert.Equal(plain, back);
+
+        tag[0] ^= 1;
+        Assert.False(RAF.Core.Crypto.Ccm.DecryptManaged(key, nonce, cipher, tag, back));
+    }
+}

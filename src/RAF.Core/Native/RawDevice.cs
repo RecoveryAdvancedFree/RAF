@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace RAF.Core.Native;
 
@@ -67,6 +68,38 @@ internal sealed class RawDevice : IDisposable
                 members[i] = opened;
             }
             return new RawDevice(IntPtr.Zero, devicePath, sectorSize) { _raid = raid, _members = members };
+        }
+
+        // במק ובלינוקס: קובץ או התקן (/dev/rdisk…) נפתחים כמו כל קובץ. הקריאות ממילא
+        // מיושרות לסקטור, כפי שהתקן גולמי במק דורש.
+        if (!OperatingSystem.IsWindows())
+        {
+            SafeFileHandle file;
+            try
+            {
+                file = File.OpenHandle(devicePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+                    sequential ? FileOptions.SequentialScan : FileOptions.RandomAccess);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _openError = ex is UnauthorizedAccessException ? 5 : ex is FileNotFoundException or DirectoryNotFoundException ? 2 : 1;
+                return null;
+            }
+            var opened = new RawDevice(IntPtr.Zero, devicePath, sectorSize) { _file = file };
+            if (!DevicePaths.IsDevicePath(devicePath))
+            {
+                try
+                {
+                    long length = RandomAccess.GetLength(file);
+                    opened.Virtual = VirtualDisk.TryOpen((at, count) => opened.ReadBlockPhysical(at, count), length, devicePath);
+                }
+                catch
+                {
+                    opened.Dispose();
+                    throw;
+                }
+            }
+            return opened;
         }
 
         // NO_BUFFERING רק בהתקן: בקובץ תמונה הוא היה מחייב יישור לסקטור של
@@ -145,7 +178,11 @@ internal sealed class RawDevice : IDisposable
     /// <summary>שגיאת Win32 האחרונה, לצורך הודעות שגיאה מדויקות למשתמש.</summary>
     public static int LastError => Marshal.GetLastWin32Error();
 
-    public bool IsValid => _members is not null || (_inner?.IsValid ?? (_handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE));
+    public bool IsValid => _members is not null || (_inner?.IsValid ?? (_file is not null ? !_file.IsClosed
+        : _handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE));
+
+    /// <summary>הקובץ או ההתקן, במק ובלינוקס (ב-Windows — _handle).</summary>
+    private SafeFileHandle? _file;
 
     /// <summary>
     /// ההתקן נותק (נשלף, או שהחיבור נפל) — ולא סקטור פגום. Windows מבחין בין השניים
@@ -242,13 +279,31 @@ internal sealed class RawDevice : IDisposable
                     Disconnected = true;
                     return 0;
                 }
-                if (!Win32.SetFilePointerEx(_handle, alignedStart, out _position, 0 /* FILE_BEGIN */))
+                if (_file is not null)
+                {
+                    try
+                    {
+                        int got = 0;
+                        while (got < alignedLength)
+                        {
+                            int n = RandomAccess.Read(_file, buffer.AsSpan(got), alignedStart + got);
+                            if (n <= 0) break;
+                            got += n;
+                        }
+                        read = (uint)got;
+                    }
+                    catch (IOException)
+                    {
+                        return 0;
+                    }
+                }
+                else if (!Win32.SetFilePointerEx(_handle, alignedStart, out _position, 0 /* FILE_BEGIN */))
                 {
                     Failed();
                     return 0;
                 }
 
-                if (!Win32.ReadFile(_handle, pin.AddrOfPinnedObject(), (uint)alignedLength, out read, IntPtr.Zero))
+                else if (!Win32.ReadFile(_handle, pin.AddrOfPinnedObject(), (uint)alignedLength, out read, IntPtr.Zero))
                 {
                     Failed();
                     return 0;
@@ -280,7 +335,8 @@ internal sealed class RawDevice : IDisposable
     {
         lock (_gate)
         {
-            if (IsValid)
+            if (_file is not null) _file.Dispose();
+            else if (IsValid)
             {
                 Win32.CloseHandle(_handle);
                 _handle = Win32.INVALID_HANDLE_VALUE;

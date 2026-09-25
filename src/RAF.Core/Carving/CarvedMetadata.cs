@@ -66,7 +66,7 @@ internal static class CarvedMetadata
         foreach (char c in text)
         {
             if (char.IsControl(c) || c == '﻿') continue;
-            sb.Append(Array.IndexOf(Path.GetInvalidFileNameChars(), c) >= 0 ? ' ' : c);
+            sb.Append(Array.IndexOf(RAF.Core.Text.FileNames.Invalid, c) >= 0 ? ' ' : c);
         }
 
         string name = Regex.Replace(sb.ToString(), @"\s+", " ").Trim().TrimEnd('.', ' ');

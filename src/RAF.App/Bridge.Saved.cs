@@ -47,7 +47,7 @@ internal sealed partial class Bridge
 
     private static string NewAutosavePath(string title)
     {
-        foreach (char c in Path.GetInvalidFileNameChars()) title = title.Replace(c, '_');
+        foreach (char c in RAF.Core.Text.FileNames.Invalid) title = title.Replace(c, '_');
         return Path.Combine(AutosaveFolder, $"{DateTime.Now:yyyyMMdd-HHmmss}-{title.Trim()}{ScanArchive.Extension}");
     }
 
@@ -95,7 +95,7 @@ internal sealed partial class Bridge
         var session = RequireSession();
 
         string title = session.PartitionTitle;
-        foreach (char c in Path.GetInvalidFileNameChars()) title = title.Replace(c, '_');
+        foreach (char c in RAF.Core.Text.FileNames.Invalid) title = title.Replace(c, '_');
 
         string? path = null;
         _form.InvokeOnUiSync(() =>

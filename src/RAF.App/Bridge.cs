@@ -1177,7 +1177,7 @@ internal sealed partial class Bridge
             : !string.IsNullOrEmpty(part.DriveLetter) ? $"{disk.DisplayName}-{part.DriveLetter.TrimEnd(':')}"
             : $"{disk.DisplayName}-part{part.Index}";
 
-        foreach (char c in Path.GetInvalidFileNameChars()) baseName = baseName.Replace(c, '_');
+        foreach (char c in RAF.Core.Text.FileNames.Invalid) baseName = baseName.Replace(c, '_');
         string suggested = $"RAF-{baseName.Trim()}-{DateTime.Now:yyyyMMdd-HHmm}.img";
 
         string? selected = null;

@@ -251,16 +251,7 @@ internal sealed class BitLockerMetadata
         if (data.Length < 0x24 || key.Length is not (16 or 24 or 32)) return null;
 
         byte[] plain = new byte[data.Length - 0x24];
-        try
-        {
-            using var ccm = new AesCcm(key);
-            ccm.Decrypt(data.AsSpan(8, 12), data.AsSpan(0x24), data.AsSpan(0x14, 16), plain);
-            return plain;
-        }
-        catch (CryptographicException)
-        {
-            return null;
-        }
+        return Ccm.Decrypt(key, data.AsSpan(8, 12), data.AsSpan(0x24), data.AsSpan(0x14, 16), plain) ? plain : null;
     }
 
     /// <summary>ערך מסוג "מפתח": שיטה ב-8, והמפתח מ-12 עד סוף הערך.</summary>
