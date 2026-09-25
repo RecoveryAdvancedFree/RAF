@@ -104,7 +104,10 @@ public sealed class ExtScanner
             ? ExtDirectory.ParseInline(data, _volume.Super.FileTypeInEntries, _volume.Super.InodesCount)
             : ExtDirectory.Parse(data, _volume.Super.BlockSize, _volume.Super.FileTypeInEntries,
                 _volume.Super.InodesCount, indexed: (directory.Flags & 0x1000) != 0);
+        if (!directory.HasInlineData && _volume.Super.HasJournal)
+            entries.AddRange(JournalEntries(directory, entries));
 
+        var live = entries.Where(e => !e.Deleted).Select(e => e.Name).ToHashSet();
         foreach (var entry in entries)
         {
             if (_token.IsCancellationRequested) return;
@@ -115,8 +118,9 @@ public sealed class ExtScanner
 
             if (entry.Inode == 0)
             {
-                // רשומה ראשונה בבלוק שנמחקה: יש שם, אבל מספר האינוד אופס.
-                if (entry.FileType is 0 or 1) files.Add(Lost(entry.Name, path, null));
+                // שם בלי מספר אינוד (רשומה ראשונה בבלוק, או ext2): עדות בלבד. שם שקיים היום
+                // באותה תיקייה — כנראה שמירה של עורך (קובץ חדש במקום הישן), לא קובץ שאבד.
+                if (entry.FileType is 0 or 1 && live.Add(entry.Name)) files.Add(Lost(entry.Name, path, null));
                 continue;
             }
 
@@ -164,6 +168,26 @@ public sealed class ExtScanner
                     Elapsed = clock.Elapsed,
                 });
         }
+    }
+
+    /// <summary>
+    /// רשומות שנמחקו מהתיקייה, מעותקים ישנים של הבלוקים שלה ביומן. מלינוקס 6.4 המחיקה
+    /// מאפסת את השם בתיקייה עצמה — אבל היומן שומר את הבלוק כפי שהיה לפני כן. רשומה
+    /// שמופיעה בעותק ישן ולא בתיקייה היום — נמחקה (או שונה שמה; את זה מסננים לפי האינוד).
+    /// </summary>
+    private IEnumerable<ExtEntry> JournalEntries(ExtInode directory, List<ExtEntry> current)
+    {
+        if (_journal.Value is not { } journal || _volume.ExtentsOf(directory) is not { } extents) yield break;
+        var seen = current.Select(e => (e.Inode, e.Name)).ToHashSet();
+        var sb = _volume.Super;
+        bool indexed = (directory.Flags & 0x1000) != 0;
+
+        foreach (var extent in extents.Where(e => !e.IsSparse))
+            for (long i = 0; i < extent.ClusterCount && i < 16384; i++)
+                foreach (var copy in journal.BlockCopies(extent.StartCluster + i))
+                    foreach (var entry in ExtDirectory.Parse(copy, sb.BlockSize, sb.FileTypeInEntries, sb.InodesCount, indexed))
+                        if (entry.Inode != 0 && entry.Name is not ("." or "..") && seen.Add((entry.Inode, entry.Name)))
+                            yield return entry with { Deleted = true };
     }
 
     /// <summary>

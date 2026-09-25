@@ -75,14 +75,19 @@ internal sealed class XfsVolume : IClusterVolume
     private int LongHeader => Super.IsV5 ? 72 : 24;
     private int ShortHeader => Super.IsV5 ? 56 : 16;
 
-    /// <summary>הליכה על בלוק בעץ המקטעים של קובץ. level — 0 הוא עלה.</summary>
-    internal bool WalkBmapBlock(long linear, int level, List<(long, long, long, bool)> runs, int depth)
+    /// <summary>
+    /// הליכה על בלוק בעץ המקטעים של קובץ. level — 0 הוא עלה. owner — האינוד שהבלוק
+    /// אמור להיות שלו (בגרסה 5 הוא רשום בכותרת): כך בלוק של קובץ שנמחק, שכבר עבר
+    /// לקובץ אחר, לא ייקרא בטעות כשלו.
+    /// </summary>
+    internal bool WalkBmapBlock(long linear, int level, List<(long, long, long, bool)> runs, int depth, ulong owner)
     {
         if (depth > 10) return false;
         var block = ReadBlock(linear);
         if (block is null) return false;
         var magic = block.AsSpan(0, 4);
         if (!magic.SequenceEqual("BMAP"u8) && !magic.SequenceEqual("BMA3"u8)) return false;
+        if (Super.IsV5 && BinaryPrimitives.ReadUInt64BigEndian(block.AsSpan(56)) != owner) return false;
         int count = BinaryPrimitives.ReadUInt16BigEndian(block.AsSpan(6));
         int hdr = LongHeader;
 
@@ -100,7 +105,7 @@ internal sealed class XfsVolume : IClusterVolume
         for (int i = 0; i < count; i++)
         {
             ulong child = BinaryPrimitives.ReadUInt64BigEndian(block.AsSpan(hdr + max * 8 + i * 8));
-            if (!WalkBmapBlock(Super.Linear(child), level - 1, runs, depth + 1)) return false;
+            if (!WalkBmapBlock(Super.Linear(child), level - 1, runs, depth + 1, owner)) return false;
         }
         return true;
     }

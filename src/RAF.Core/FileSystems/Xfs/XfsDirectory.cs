@@ -16,7 +16,11 @@ internal readonly record struct XfsEntry(ulong Inode, string Name, int FileType,
 /// </summary>
 internal static class XfsDirectory
 {
-    /// <summary>תיקייה קטנה שבתוך האינוד.</summary>
+    /// <summary>
+    /// תיקייה קטנה שבתוך האינוד. מחיקה מזיזה את הרשומות שאחריה אחורה ומקצרת את התיקייה,
+    /// אבל לינוקס כותב לדיסק רק את החלק שבשימוש — מה שהיה אחריו נשאר כמו שהיה. לכן אחרי
+    /// סוף התיקייה נמצאות לרוב הרשומות שנמחקו, שלמות, עם מספר האינוד.
+    /// </summary>
     internal static List<XfsEntry> ParseShort(ReadOnlySpan<byte> fork, long size, bool fileTypes)
     {
         var entries = new List<XfsEntry>();
@@ -37,6 +41,23 @@ internal static class XfsDirectory
             int type = fileTypes ? fork[nameAt + nameLen] : 0;
             ulong inode = wide ? BinaryPrimitives.ReadUInt64BigEndian(fork[after..]) : BinaryPrimitives.ReadUInt32BigEndian(fork[after..]);
             if (name is not null) entries.Add(new XfsEntry(inode, name, type, false, false));
+            at = after + inodeBytes;
+        }
+
+        // שרידים אחרי הסוף. אחרי מחיקה מהאמצע השארית מתחילה באמצע רשומה — לכן מתקדמים
+        // בית-בית, ומקבלים רק מה שנראה כרשומה: היסט בכפולות של 8, שם תקין, סוג קובץ ואינוד.
+        at = Math.Max(at, end);
+        while (at + 3 < fork.Length)
+        {
+            int nameLen = fork[at];
+            int offset = BinaryPrimitives.ReadUInt16BigEndian(fork[(at + 1)..]);
+            int after = at + 3 + nameLen + (fileTypes ? 1 : 0);
+            if (nameLen == 0 || (offset & 7) != 0 || offset < 16 || after + inodeBytes > fork.Length) { at++; continue; }
+            int type = fileTypes ? fork[at + 3 + nameLen] : 0;
+            ulong inode = wide ? BinaryPrimitives.ReadUInt64BigEndian(fork[after..]) : BinaryPrimitives.ReadUInt32BigEndian(fork[after..]);
+            if ((fileTypes && type is < 1 or > 7) || inode == 0 || Name(fork.Slice(at + 3, nameLen)) is not { } name
+                || name is "." or "..") { at++; continue; }
+            entries.Add(new XfsEntry(inode, name, type, true, false));
             at = after + inodeBytes;
         }
         return entries;

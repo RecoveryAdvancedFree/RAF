@@ -55,7 +55,8 @@ internal static class ExtDirectory
             long inode = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(at));
             int nameLen = fileTypes ? data[at + 6] : BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(at + 6));
             int recLen = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(at + 4));
-            if (inode == 0 || inode > maxInode || nameLen == 0 || at + 8 + nameLen > to) continue;
+            // מספר אינוד 0: מנהל ההתקן ext2 של לינוקס מאפס אותו במחיקה — נשאר רק השם.
+            if (inode > maxInode || nameLen == 0 || at + 8 + nameLen > to) continue;
             if (recLen < 8 + nameLen || (recLen & 3) != 0) continue;
             if (fileTypes && data[at + 7] > 7) continue;
             if (Name(data, at + 8, nameLen) is not { } name || name is "." or "..") continue;

@@ -520,8 +520,8 @@ Object.assign(EN, {
     'The {0} file system is not supported',
   '<b>סריקה מתקדמת</b> עדיין תעבוד — היא אינה תלויה במערכת הקבצים.':
     'An <b>Advanced scan</b> will still work — it doesn\'t depend on the file system.',
-  'נתמכות: NTFS, exFAT, FAT32, FAT16 ו-FAT12.':
-    'Supported: NTFS, exFAT, FAT32, FAT16 and FAT12.',
+  'נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4 ו-XFS.':
+    'Supported: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4 and XFS.',
   'המחיצה נקראת דרך עותק הגיבוי':
     'The partition is read through its backup copy',
   'בחרו <b>סריקה מהירה</b> — יוצגו כל הקבצים עם השמות, ולא רק קבצים שנמחקו.':

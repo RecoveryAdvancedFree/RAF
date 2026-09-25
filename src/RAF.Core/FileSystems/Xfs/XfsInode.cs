@@ -108,22 +108,7 @@ internal sealed class XfsInode
         var sb = volume.Super;
         var runs = new List<(long, long, long, bool)>();
 
-        if (Format == 3)
-        {
-            // שורש עץ במזלג: רמה, מספר רשומות, מפתחות ואז מצביעים.
-            var fork = DataFork;
-            int level = BinaryPrimitives.ReadUInt16BigEndian(fork);
-            int count = BinaryPrimitives.ReadUInt16BigEndian(fork[2..]);
-            int max = (fork.Length - 4) / 16;
-            if (level == 0 || count > max) return null;
-            for (int i = 0; i < count; i++)
-            {
-                ulong child = BinaryPrimitives.ReadUInt64BigEndian(fork[(4 + max * 8 + i * 8)..]);
-                if (!volume.WalkBmapBlock(sb.Linear(child), level - 1, runs, 0)) return null;
-            }
-            return runs;
-        }
-
+        if (Format == 3) return TreeRuns(volume);
         if (Format != 2) return null;
         var area = DataFork;
         long limit = InUse ? Math.Min(ExtentCount, area.Length / 16) : area.Length / 16;
@@ -137,7 +122,41 @@ internal sealed class XfsInode
             runs.Add((offset, linear, blocks, unwritten));
             lastEnd = offset + blocks;
         }
-        return runs.Count == 0 && !InUse ? null : runs;
+        if (runs.Count == 0 && !InUse)
+        {
+            // קובץ מפוצל שנמחק: המחיקה הופכת את הסוג ל"מקטעים", אבל שורש העץ נשאר במזלג,
+            // והבלוקים של העץ נשארים בחלל הפנוי עד שנכתב עליהם — מזוהים לפי החתימה שלהם.
+            return TreeRuns(volume);
+        }
+        return runs;
+    }
+
+    /// <summary>שורש עץ המקטעים שבמזלג: רמה, מספר רשומות, מפתחות ואז מצביעים.</summary>
+    private List<(long Offset, long Block, long Count, bool Unwritten)>? TreeRuns(XfsVolume volume)
+    {
+        var fork = DataFork;
+        int level = BinaryPrimitives.ReadUInt16BigEndian(fork);
+        int count = BinaryPrimitives.ReadUInt16BigEndian(fork[2..]);
+        int max = (fork.Length - 4) / 16;
+        if (level is 0 or > 8 || count == 0 || count > max) return null;
+        if (InUse) return Walk(max);
+
+        // המצביעים יושבים אחרי max מפתחות, ו-max נגזר מגודל המזלג. בקובץ עם תכונות נוספות
+        // המזלג היה קטן יותר — וגבול המזלג אופס במחיקה. מנסים כל גודל; העץ עצמו מאמת.
+        for (int m = max; m >= count; m--)
+            if (Walk(m) is { } runs) return runs;
+        return null;
+
+        List<(long, long, long, bool)>? Walk(int keys)
+        {
+            var runs = new List<(long, long, long, bool)>();
+            for (int i = 0; i < count; i++)
+            {
+                ulong child = BinaryPrimitives.ReadUInt64BigEndian(DataFork[(4 + keys * 8 + i * 8)..]);
+                if (!volume.WalkBmapBlock(volume.Super.Linear(child), level - 1, runs, 0, Number)) return null;
+            }
+            return runs;
+        }
     }
 
     /// <summary>המקטעים כרשימה רציפה לשחזור, עם חורים דלילים; size — עד כמה.</summary>
