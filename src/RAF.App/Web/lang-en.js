@@ -959,6 +959,22 @@ Object.assign(EN, {
     'The database wasn\'t restored',
   'המסד המקורי לא שונה. המסד המשוחזר נבנה מחדש במנוע SQLite ועבר את בדיקת השלמות שלו.':
     'The original database wasn\'t changed. The restored database was rebuilt in the SQLite engine and passed its integrity check.',
+  'צריך הקלטה לדוגמה':
+    'Needs a sample recording',
+  'בחירת הקלטה תקינה מאותו מכשיר…':
+    'Choose a working recording from the same device…',
+  'הקלטה שצריכה הקלטה לדוגמה':
+    'recording needs a sample recording',
+  'הקלטות שצריכות הקלטה לדוגמה':
+    'recordings need a sample recording',
+  'בונה מחדש את כותרת ההקלטה…':
+    'Rebuilding the recording\'s header…',
+  'ההקלטה תוקנה':
+    'The recording was repaired',
+  'ההקלטה לא תוקנה':
+    'The recording wasn\'t repaired',
+  'ההקלטה המקורית לא שונתה. האזינו להקלטה המתוקנת כדי לוודא שהיא נשמעת כרגיל.':
+    'The original recording wasn\'t changed. Listen to the repaired recording to make sure it sounds normal.',
   'צריך סרטון לדוגמה':
     'Needs a sample video',
   'לא ניתן לתקן':

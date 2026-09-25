@@ -67,6 +67,9 @@ public enum FileIssueKind
 
     /// <summary>הדף הראשון של מסד SQLite (הכותרת ורשימת הטבלאות) נהרס. משוחזר בעזרת מסד תקין מאותה אפליקציה.</summary>
     DatabaseSchemaLost,
+
+    /// <summary>כותרת הקלטת WAV (הגדרות השמע) נדרסה. נבנית מחדש בעזרת הקלטה תקינה מאותו מכשיר.</summary>
+    AudioHeaderLost,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -100,6 +103,9 @@ public sealed class FileDiagnosis
 
     /// <summary>התיקון דורש מסד תקין מאותה אפליקציה — ראו SqliteTransplant.</summary>
     public bool NeedsReferenceDatabase => Issues.Any(i => i.Kind == FileIssueKind.DatabaseSchemaLost);
+
+    /// <summary>התיקון דורש הקלטה תקינה מאותו מכשיר — ראו WavTransplant.</summary>
+    public bool NeedsReferenceAudio => Issues.Any(i => i.Kind == FileIssueKind.AudioHeaderLost);
 
     // ---- נתונים פנימיים לשלב התיקון ----
     internal FileSignature? Format { get; init; }
@@ -216,6 +222,10 @@ public static class FileDoctor
                      && JpegTransplant.SurvivingData(File.ReadAllBytes(path), 0) is { } survived)
             {
                 issues.Add(PhotoHeaderLost(survived));
+            }
+            else if (expected.Structure == "wav" && WavTransplant.LostHeader(WithHeader(head, expected), size))
+            {
+                issues.Add(AudioHeaderLost());
             }
             else if (expected.Structure == "db" && size <= SqliteTransplant.MaxSize && SqliteTransplant.LostSchema(head, read, size))
             {
@@ -350,6 +360,8 @@ public static class FileDoctor
                 ? restored.AsSpan((int)at, count).ToArray()
                 : volume.ReadAt(at, count), size);
 
+            if (wav is null && WavTransplant.LostHeader(restored, size))
+                issues.Add(AudioHeaderLost());
             if (wav is not null)
             {
                 archiveDamaged = true;                                   // האורך נקבע כאן, לא בבדיקה הכללית
@@ -560,6 +572,11 @@ public static class FileDoctor
         L.T("נתוני התמונה עצמם שרדו (⁦{0}⁩). אפשר לבנות את התחילה מחדש בעזרת תמונה תקינה אחת " +
         "שצולמה באותה מצלמה ובאותן הגדרות.", Size(survived)), false);
 
+    private static FileIssue AudioHeaderLost() => new(FileIssueKind.AudioHeaderLost,
+        L.T("כותרת ההקלטה נדרסה: ההגדרות שאומרות איך לקרוא את השמע (ערוצים, קצב דגימה, עומק) אבדו, ולכן נגנים " +
+        "לא פותחים אותה. השמע עצמו נמצא בקובץ. אפשר לבנות את הכותרת מחדש בעזרת הקלטה תקינה אחת מאותו מכשיר " +
+        "ובאותן הגדרות."), false);
+
     private static FileIssue DatabaseSchemaLost() => new(FileIssueKind.DatabaseSchemaLost,
         L.T("הדף הראשון של מסד הנתונים נהרס: הכותרת ורשימת הטבלאות — מה שאומר איזה נתון שייך לאיזו טבלה — " +
         "אבדו, ולכן המסד לא נפתח. שאר הדפים, עם השורות עצמן, נמצאים בקובץ. אפשר לשחזר את המסד בעזרת מסד תקין " +
@@ -701,9 +718,10 @@ public static class FileDoctor
         Directory.CreateDirectory(outputFolder);
         string extension = System.IO.Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
         bool raw = TiffTransplant.RawExtensions.Contains(extension);
-        bool database = FileSignatures.ForExtension(extension).FirstOrDefault()?.Structure == "db";
+        string? structure = FileSignatures.ForExtension(extension).FirstOrDefault()?.Structure;
+        bool database = structure == "db", audio = structure == "wav";
         string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)),
-            raw || database ? extension : "jpg");
+            raw || database || audio ? extension : "jpg");
 
         if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
             return new FileRepairResult { Message = L.T("נתיב היעד זהה לקובץ המקורי. התיקון בוטל.") };
@@ -711,7 +729,8 @@ public static class FileDoctor
         PhotoRebuildResult rebuilt;
         try
         {
-            rebuilt = database ? SqliteTransplant.Rebuild(path, referencePath, output)
+            rebuilt = audio ? WavTransplant.Rebuild(path, referencePath, output)
+                : database ? SqliteTransplant.Rebuild(path, referencePath, output)
                 : raw ? TiffTransplant.Rebuild(path, referencePath, output)
                 : JpegTransplant.Rebuild(path, referencePath, output);
         }
@@ -732,7 +751,7 @@ public static class FileDoctor
             Applied = rebuilt.Applied,
             After = after,
             Message = after.IsHealthy
-                ? rebuilt.Message + (database ? "" : L.T(" העותק נבדק מחדש — התמונה אמורה להיפתח."))
+                ? rebuilt.Message + (database || audio ? "" : L.T(" העותק נבדק מחדש — התמונה אמורה להיפתח."))
                 : rebuilt.Message,
         };
     }

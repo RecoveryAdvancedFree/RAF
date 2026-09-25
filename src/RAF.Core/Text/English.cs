@@ -1043,6 +1043,26 @@ internal static class EnglishTexts
             "The restored database didn't pass SQLite's integrity check.",
         ["המסד שוחזר, ועבר את בדיקת השלמות של SQLite."] =
             "The database was restored and passed SQLite's integrity check.",
+        ["בחרו הקלטה תקינה מאותו מכשיר ובאותן הגדרות"] =
+            "Choose a working recording from the same device with the same settings",
+        ["הקלטות WAV|*.wav|כל הקבצים|*.*"] =
+            "WAV recordings|*.wav|All files|*.*",
+        ["כותרת ההקלטה נדרסה: ההגדרות שאומרות איך לקרוא את השמע (ערוצים, קצב דגימה, עומק) אבדו, ולכן נגנים לא פותחים אותה. השמע עצמו נמצא בקובץ. אפשר לבנות את הכותרת מחדש בעזרת הקלטה תקינה אחת מאותו מכשיר ובאותן הגדרות."] =
+            "The recording's header was overwritten: the settings that say how to read the audio (channels, sample rate, depth) are lost, so players won't open it. The audio itself is in the file. The header can be rebuilt using one working recording from the same device with the same settings.",
+        ["הקובץ שנבחר אינו הקלטת WAV תקינה."] =
+            "The selected file is not a working WAV recording.",
+        ["הקלטת הדוגמה היא ההקלטה הפגומה עצמה. בחרו הקלטה תקינה אחרת מאותו מכשיר."] =
+            "The sample recording is the damaged recording itself. Choose another working recording from the same device.",
+        ["אין בהקלטה הפגומה שמע אחרי מקום הכותרת."] =
+            "The damaged recording has no audio after the header position.",
+        ["השמע בהקלטה הפגומה אינו נקרא נכון בפורמט של הדוגמה (ערוצים, קצב או עומק דגימה שונים). בחרו הקלטה מאותו מכשיר ובאותן הגדרות."] =
+            "The audio in the damaged recording doesn't read correctly in the sample's format (different channels, rate or sample depth). Choose a recording from the same device with the same settings.",
+        ["מהקלטת הדוגמה נלקחו הגדרות השמע: {0} ערוצים, {1} הרץ, {2} ביט. השמע עצמו — מההקלטה, ⁦{3}⁩."] =
+            "The audio settings were taken from the sample recording: {0} channels, {1} Hz, {2} bit. The audio itself is from the recording, {3}.",
+        ["הסימן של תחילת השמע נדרס, ולכן השמע נקרא מהמקום שבו הוא מתחיל בדוגמה. אם יש רעש קצר בהתחלה — זה מה שנשאר מהכותרת."] =
+            "The marker of the audio start was overwritten, so the audio is read from where it starts in the sample. A short noise at the start is what remains of the header.",
+        ["הכותרת נבנתה מחדש. אם ההקלטה מתנגנת מהר או לאט מדי, הדוגמה הוקלטה בקצב דגימה אחר — נסו הקלטה אחרת."] =
+            "The header was rebuilt. If the recording plays too fast or too slow, the sample was recorded at a different sample rate — try another recording.",
         ["הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."] =
             "The video got a new index and was checked again — it should open and play.",
         ["האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: "] =

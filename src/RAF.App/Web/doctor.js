@@ -106,18 +106,20 @@ function renderDoctorList() {
   const videos = files.filter((f) => f.referenceKind === 'video');
   const photos = files.filter((f) => f.referenceKind === 'photo');
   const databases = files.filter((f) => f.referenceKind === 'database');
-  const hopeless = files.length - healthy - fixable.length - [...videos, ...photos, ...databases].filter((f) => !f.canRepair).length;
+  const audios = files.filter((f) => f.referenceKind === 'audio');
+  const hopeless = files.length - healthy - fixable.length - [...videos, ...photos, ...databases, ...audios].filter((f) => !f.canRepair).length;
 
   const rows = files.map((f) => {
     const [cls, label] = f.healthy ? ['ok', 'תקין']                                  // מתורגם בהצגה
       : f.canRepair ? ['warn', 'ניתן לתקן']                                              // מתורגם בהצגה
       : f.referenceKind === 'video' ? ['warn', 'צריך סרטון לדוגמה']                      // מתורגם בהצגה
       : f.referenceKind === 'photo' ? ['warn', 'צריך תמונה לדוגמה']                      // מתורגם בהצגה
-      : f.referenceKind === 'database' ? ['warn', 'צריך מסד לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
+      : f.referenceKind === 'database' ? ['warn', 'צריך מסד לדוגמה']                    // מתורגם בהצגה
+      : f.referenceKind === 'audio' ? ['warn', 'צריך הקלטה לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
 
     const issues = f.issues.length
       ? `<ul class="doc-issues">${f.issues.map((i) =>
-          `<li class="${i.fixable || ['VideoIndexMissing', 'PhotoHeaderLost', 'RawHeaderLost', 'DatabaseSchemaLost'].includes(i.kind) ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
+          `<li class="${i.fixable || ['VideoIndexMissing', 'PhotoHeaderLost', 'RawHeaderLost', 'DatabaseSchemaLost', 'AudioHeaderLost'].includes(i.kind) ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
       : '';
 
     return `
@@ -135,6 +137,8 @@ function renderDoctorList() {
           <button class="btn btn-sm doc-action" data-rebuild-photo="${esc(f.path)}">${Icon.wrench}<span>${t('בחירת תמונה תקינה מאותה מצלמה…')}</span></button>` : ''}
         ${f.referenceKind === 'database' ? `
           <button class="btn btn-sm doc-action" data-rebuild-photo="${esc(f.path)}" data-kind="database">${Icon.wrench}<span>${t('בחירת מסד תקין של אותה אפליקציה…')}</span></button>` : ''}
+        ${f.referenceKind === 'audio' ? `
+          <button class="btn btn-sm doc-action" data-rebuild-photo="${esc(f.path)}" data-kind="audio">${Icon.wrench}<span>${t('בחירת הקלטה תקינה מאותו מכשיר…')}</span></button>` : ''}
       </div>`;
   }).join('');
 
@@ -149,6 +153,8 @@ function renderDoctorList() {
       <span><b>${photos.length}</b> ${plural(photos.length, 'תמונה שצריכה תמונה לדוגמה', 'תמונות שצריכות תמונה לדוגמה')}</span>` : ''}
       ${databases.length ? `<span class="sep">·</span>
       <span><b>${databases.length}</b> ${plural(databases.length, 'מסד שצריך מסד לדוגמה', 'מסדים שצריכים מסד לדוגמה')}</span>` : ''}
+      ${audios.length ? `<span class="sep">·</span>
+      <span><b>${audios.length}</b> ${plural(audios.length, 'הקלטה שצריכה הקלטה לדוגמה', 'הקלטות שצריכות הקלטה לדוגמה')}</span>` : ''}
       <span class="sep">·</span>
       <span><b class="danger-text">${hopeless}</b> ${t('לא ניתנים לתיקון')}</span>
     </div>
@@ -261,6 +267,7 @@ async function rebuildVideo(path) {
 async function rebuildPhoto(path, kind) {
   const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1) : '';
   const database = kind === 'database';
+  const audio = kind === 'audio';
   const ref = await Bridge.call('doctor.pickReference', { kind, ext }, 0);
   if (!ref.path) return;
   if (ref.problem) {
@@ -275,7 +282,7 @@ async function rebuildPhoto(path, kind) {
 
   el('doctor-body').innerHTML = `
     <div class="loading" style="height:200px"><div class="spinner"></div>
-      <p>${t(database ? 'משחזר את המסד — טבלה אחר טבלה…' : 'בונה מחדש את תחילת התמונה…')}</p></div>`;
+      <p>${database ? t('משחזר את המסד — טבלה אחר טבלה…') : audio ? t('בונה מחדש את כותרת ההקלטה…') : t('בונה מחדש את תחילת התמונה…')}</p></div>`;
   el('doctor-foot').innerHTML = '';
 
   let r;
@@ -290,8 +297,8 @@ async function rebuildPhoto(path, kind) {
 
   el('doctor-body').innerHTML = `
     ${r.succeeded
-      ? notice('ok-notice', Icon.check, t(database ? 'המסד שוחזר' : 'התמונה תוקנה'), esc(r.message))
-      : notice(r.output ? 'warn' : 'danger', Icon.alert, database
+      ? notice('ok-notice', Icon.check, database ? t('המסד שוחזר') : audio ? t('ההקלטה תוקנה') : t('התמונה תוקנה'), esc(r.message))
+      : notice(r.output ? 'warn' : 'danger', Icon.alert, audio ? t('ההקלטה לא תוקנה') : database
           ? (r.output ? t('המסד שוחזר חלקית') : t('המסד לא שוחזר'))
           : (r.output ? t('התמונה תוקנה חלקית') : t('התמונה לא תוקנה')), esc(r.message))}
     <div class="doc-list"><div class="doc-row">
@@ -299,7 +306,8 @@ async function rebuildPhoto(path, kind) {
       ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
     </div></div>
-    <p class="doc-hint">${database ? t('המסד המקורי לא שונה. המסד המשוחזר נבנה מחדש במנוע SQLite ועבר את בדיקת השלמות שלו.')
+    <p class="doc-hint">${audio ? t('ההקלטה המקורית לא שונתה. האזינו להקלטה המתוקנת כדי לוודא שהיא נשמעת כרגיל.')
+      : database ? t('המסד המקורי לא שונה. המסד המשוחזר נבנה מחדש במנוע SQLite ועבר את בדיקת השלמות שלו.')
       : ext.toLowerCase() === 'jpg' || ext.toLowerCase() === 'jpeg'
       ? t('התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.')
       : t('הקובץ המקורי לא שונה. פתחו את הקובץ המתוקן בתוכנת העריכה שלכם כדי לוודא שהוא נפתח.')}</p>`;
