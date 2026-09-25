@@ -917,6 +917,26 @@ Object.assign(EN, {
     'OK',
   'ניתן לתקן':
     'Can be repaired',
+  'צריך תמונה לדוגמה':
+    'Needs a sample photo',
+  'בחירת תמונה תקינה מאותה מצלמה…':
+    'Choose a working photo from the same camera…',
+  'תמונה שצריכה תמונה לדוגמה':
+    'photo needs a sample photo',
+  'תמונות שצריכות תמונה לדוגמה':
+    'photos need a sample photo',
+  'בונה מחדש את תחילת התמונה…':
+    'Rebuilding the beginning of the photo…',
+  'בניית התמונה לא הושלמה':
+    'Rebuilding the photo didn\'t finish',
+  'התמונה תוקנה':
+    'The photo was repaired',
+  'התמונה תוקנה חלקית':
+    'The photo was partially repaired',
+  'התמונה לא תוקנה':
+    'The photo wasn\'t repaired',
+  'התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.':
+    'The original photo wasn\'t changed. If the colors or brightness look different from usual, the camera probably changes its compression tables from photo to photo — try another sample photo, preferably one taken close to the damaged photo.',
   'צריך סרטון לדוגמה':
     'Needs a sample video',
   'לא ניתן לתקן':

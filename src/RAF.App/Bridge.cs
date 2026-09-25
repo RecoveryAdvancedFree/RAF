@@ -103,8 +103,9 @@ internal sealed partial class Bridge
         "doctor.diagnose" => await Task.Run(() => DoctorDiagnose(p)),
         "doctor.diagnoseFolder" => await Task.Run(() => DoctorDiagnoseFolder(p)),
         "doctor.repair" => await Task.Run(() => DoctorRepair(p)),
-        "doctor.pickReference" => PickReferenceVideo(),
+        "doctor.pickReference" => PickReference(p),
         "doctor.rebuildVideo" => await Task.Run(() => DoctorRebuildVideo(p)),
+        "doctor.rebuildPhoto" => await Task.Run(() => DoctorRebuildPhoto(p)),
 
         "disk.hunt" => await Tracked(LongOperation.Hunt, () => HuntAsync(p)),
         "disk.huntCancel" => Cancel(_huntCancel),
@@ -1743,18 +1744,24 @@ internal sealed partial class Bridge
     }
 
     /// <summary>
-    /// בחירת סרטון ייחוס — תקין, מאותו מכשיר. נבדק מיד שיש בו אינדקס ותמונה בקידוד
-    /// שאפשר לעבוד איתו, כדי שהשגיאה תופיע עכשיו ולא אחרי בנייה ארוכה.
+    /// בחירת קובץ ייחוס — סרטון או תמונה תקינים, מאותו מכשיר. נבדק מיד שהוא מתאים
+    /// (בסרטון: אינדקס ותמונה בקידוד שאפשר לעבוד איתו), כדי שהשגיאה תופיע עכשיו ולא
+    /// אחרי בנייה ארוכה.
     /// </summary>
-    private object PickReferenceVideo()
+    private object PickReference(JsonObject? p)
     {
+        bool photo = p?["kind"]?.GetValue<string>() == "photo";
         string? selected = null;
         _form.InvokeOnUiSync(() =>
         {
             using var dialog = new OpenFileDialog
             {
-                Title = L.T("בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות"),
-                Filter = L.T("סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*"),
+                Title = photo
+                    ? L.T("בחרו תמונה תקינה שצולמה באותה מצלמה ובאותן הגדרות")
+                    : L.T("בחרו סרטון תקין שצולם באותו מכשיר ובאותן הגדרות"),
+                Filter = photo
+                    ? L.T("תמונות JPEG|*.jpg;*.jpeg|כל הקבצים|*.*")
+                    : L.T("סרטונים|*.mp4;*.mov;*.m4v;*.3gp;*.3g2|כל הקבצים|*.*"),
                 CheckFileExists = true,
             };
             if (dialog.ShowDialog(_form) == DialogResult.OK) selected = dialog.FileName;
@@ -1765,7 +1772,9 @@ internal sealed partial class Bridge
         string? problem = null;
         try
         {
-            problem = RAF.Core.Repair.Mp4Rebuilder.DescribeReference(selected);
+            problem = photo
+                ? RAF.Core.Repair.JpegTransplant.DescribeReference(selected)
+                : RAF.Core.Repair.Mp4Rebuilder.DescribeReference(selected);
         }
         catch (Exception ex)
         {
@@ -1802,10 +1811,30 @@ internal sealed partial class Bridge
         };
     }
 
+    private object DoctorRebuildPhoto(JsonObject? p)
+    {
+        string path = p?["path"]?.GetValue<string>() ?? "";
+        string reference = p?["reference"]?.GetValue<string>() ?? "";
+        string output = p?["output"]?.GetValue<string>() ?? "";
+        if (string.IsNullOrWhiteSpace(output))
+            throw new InvalidOperationException(L.T("יש לבחור תיקייה לשמירת התמונה המתוקנת."));
+
+        var r = FileDoctor.RepairPhoto(path, reference, output);
+        return new
+        {
+            name = Path.GetFileName(path),
+            succeeded = r.Succeeded,
+            output = r.OutputPath,
+            folder = r.OutputPath is null ? null : Path.GetDirectoryName(r.OutputPath),
+            applied = r.Applied,
+            message = r.Message,
+        };
+    }
+
     private sealed record DiagnosisView(
         string path, string name, long size, bool healthy, bool canRepair,
         string? detected, string? expected, string? suggestedExtension,
-        List<IssueView> issues, bool needsReference = false);
+        List<IssueView> issues, bool needsReference = false, string? referenceKind = null);
 
     private sealed record IssueView(string kind, string description, bool fixable);
 
@@ -1818,7 +1847,8 @@ internal sealed partial class Bridge
                 path, Path.GetFileName(path), d.Size, d.IsHealthy, d.CanRepair,
                 d.DetectedFormat, d.ExpectedFormat, d.SuggestedExtension,
                 d.Issues.Select(i => new IssueView(i.Kind.ToString(), i.Description, i.Fixable)).ToList(),
-                d.NeedsReferenceVideo);
+                d.NeedsReferenceVideo || d.NeedsReferencePhoto,
+                d.NeedsReferencePhoto ? "photo" : d.NeedsReferenceVideo ? "video" : null);
         }
         catch (Exception ex)
         {

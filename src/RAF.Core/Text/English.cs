@@ -937,6 +937,56 @@ internal static class EnglishTexts
             "{0} (repaired)",
         ["נתיב היעד זהה לקובץ המקורי. התיקון בוטל."] =
             "The destination path is the same as the original file. The repair was cancelled.",
+        ["בחרו תמונה תקינה שצולמה באותה מצלמה ובאותן הגדרות"] =
+            "Choose a working photo taken with the same camera and the same settings",
+        ["תמונות JPEG|*.jpg;*.jpeg|כל הקבצים|*.*"] =
+            "JPEG photos|*.jpg;*.jpeg|All files|*.*",
+        ["יש לבחור תיקייה לשמירת התמונה המתוקנת."] =
+            "Choose a folder for the repaired photo.",
+        ["תחילת התמונה נהרסה: הטבלאות וההגדרות שדרושות כדי לפענח אותה אבדו, ולכן היא לא נפתחת. "] =
+            "The beginning of the photo is destroyed: the tables and settings needed to decode it are lost, so it won't open. ",
+        ["נתוני התמונה עצמם שרדו (⁦{0}⁩). אפשר לבנות את התחילה מחדש בעזרת תמונה תקינה אחת שצולמה באותה מצלמה ובאותן הגדרות."] =
+            "The image data itself survived ({0}). The beginning can be rebuilt using one working photo taken with the same camera and the same settings.",
+        [" העותק נבדק מחדש — התמונה אמורה להיפתח."] =
+            " The copy was checked again — the photo should open.",
+        ["תמונת הדוגמה גדולה מדי."] =
+            "The sample photo is too large.",
+        ["הקובץ שנבחר אינו תמונת JPEG."] =
+            "The selected file is not a JPEG photo.",
+        ["תמונת הדוגמה שמורה בשיטה שאינה נתמכת (למשל JPEG מדורג, שנוצר בעריכה). בחרו תמונה כפי שיצאה מהמצלמה."] =
+            "The sample photo is saved in an unsupported way (for example progressive JPEG, created by editing). Choose a photo as it came out of the camera.",
+        ["תמונת הדוגמה עצמה פגומה. בחרו תמונה תקינה."] =
+            "The sample photo itself is damaged. Choose a working photo.",
+        ["תמונת הדוגמה היא התמונה הפגומה עצמה. בחרו תמונה תקינה אחרת מאותה מצלמה."] =
+            "The sample photo is the damaged photo itself. Choose another working photo from the same camera.",
+        ["התמונה גדולה מדי לבנייה מחדש."] =
+            "The photo is too large to rebuild.",
+        ["לא ניתן לקרוא את תחילת תמונת הדוגמה."] =
+            "The beginning of the sample photo can't be read.",
+        ["לא נמצאו בתמונה הפגומה הנתונים הדחוסים שלה — הם נדרסו יחד עם תחילת הקובץ."] =
+            "The compressed data of the damaged photo wasn't found — it was overwritten along with the beginning of the file.",
+        ["תמונת הדוגמה אינה מתאימה לתמונה הפגומה: הנתונים של התמונה אינם מתפענחים עם ההגדרות שלה. בחרו תמונה שצולמה באותה מצלמה ובאותן הגדרות (גודל התמונה ואיכותה)."] =
+            "The sample photo doesn't match the damaged photo: the photo's data doesn't decode with its settings. Choose a photo taken with the same camera and the same settings (image size and quality).",
+        ["פרטי הצילום (תאריך, מצלמה, כיוון) אבדו עם תחילת הקובץ. אם התמונה מוצגת שוכבת, סובבו אותה."] =
+            "The shooting details (date, camera, orientation) were lost with the beginning of the file. If the photo appears sideways, rotate it.",
+        ["תחילת התמונה נבנתה מחדש, וכל התמונה מתפענחת."] =
+            "The beginning of the photo was rebuilt, and the whole photo decodes.",
+        ["תחילת התמונה נבנתה מחדש, אבל רק כ-{0} ממנה מתפענח — משם והלאה הנתונים פגומים."] =
+            "The beginning of the photo was rebuilt, but only about {0} of it decodes — from there on the data is damaged.",
+        ["הכותרת נבנתה מחדש מהחלקים ששרדו בתמונה עצמה."] =
+            "The header was rebuilt from the parts that survived in the photo itself.",
+        ["מתמונת הדוגמה נלקחו: {0}. השאר נלקח מהתמונה עצמה."] =
+            "Taken from the sample photo: {0}. The rest was taken from the photo itself.",
+        ["טבלאות הדחיסה"] =
+            "the compression tables",
+        ["טבלאות הפענוח"] =
+            "the decoding tables",
+        ["מידות התמונה"] =
+            "the image dimensions",
+        ["מרווח ההתחלה מחדש"] =
+            "the restart interval",
+        ["כל הכותרת (טבלאות, מידות והגדרות)"] =
+            "the whole header (tables, dimensions and settings)",
         ["הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן."] =
             "The video got a new index and was checked again — it should open and play.",
         ["האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: "] =

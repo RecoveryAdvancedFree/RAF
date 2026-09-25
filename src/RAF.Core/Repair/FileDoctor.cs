@@ -58,6 +58,9 @@ public enum FileIssueKind
 
     /// <summary>לפני תחילת הקובץ האמיתית יש נתונים זרים.</summary>
     LeadingData,
+
+    /// <summary>תחילת התמונה (הטבלאות והמידות) נהרסה והנתונים שרדו. נבנית מחדש בעזרת תמונה תקינה מאותה מצלמה.</summary>
+    PhotoHeaderLost,
 }
 
 /// <summary>בעיה אחת בקובץ, עם הסבר ועם ציון האם ניתן לתקן אותה.</summary>
@@ -85,6 +88,9 @@ public sealed class FileDiagnosis
 
     /// <summary>התיקון דורש סרטון תקין מאותו מכשיר — ראו Mp4Rebuilder.</summary>
     public bool NeedsReferenceVideo => Issues.Any(i => i.Kind == FileIssueKind.VideoIndexMissing);
+
+    /// <summary>התיקון דורש תמונה תקינה מאותה מצלמה — ראו JpegTransplant.</summary>
+    public bool NeedsReferencePhoto => Issues.Any(i => i.Kind == FileIssueKind.PhotoHeaderLost);
 
     // ---- נתונים פנימיים לשלב התיקון ----
     internal FileSignature? Format { get; init; }
@@ -196,6 +202,11 @@ public static class FileDoctor
                 issues.Add(new FileIssue(FileIssueKind.HeaderDamaged,
                     L.T("תחילת הקובץ נפגעה: חתימת הפתיחה של {0} — הבתים שמזהים את סוג הקובץ — " +
                     "חלקית או מאופסת. זה סימן לנזק, ולא לסוג קובץ אחר, ולכן ניתן לשחזר אותה.", L.T(expected.Name)), true));
+            }
+            else if (expected.Extensions[0] == "jpg" && size <= JpegTransplant.MaxSize
+                     && JpegTransplant.SurvivingData(File.ReadAllBytes(path), 0) is { } survived)
+            {
+                issues.Add(PhotoHeaderLost(survived));
             }
             else
             {
@@ -447,14 +458,19 @@ public static class FileDoctor
             if (detected is null) RestoreHeader(all, format);
 
             var check = JpegDecoder.Check(JpegBytes.Of(all));
-            if (check.Verdict == JpegVerdict.Corrupt)
+            // נכשל עוד לפני יחידת התמונה הראשונה — הכותרת נהרסה. אם הנתונים שרדו אחריה,
+            // אפשר לבנות אותה מחדש מתמונה תקינה מאותה מצלמה.
+            if (check.Verdict != JpegVerdict.Complete && check.McusDecoded == 0
+                && JpegTransplant.SurvivingData(all, check.Offset) is { } survived)
+                issues.Add(PhotoHeaderLost(survived));
+            else if (check.Verdict == JpegVerdict.Corrupt)
                 issues.Add(new FileIssue(FileIssueKind.ImageDamaged,
                     L.T("התמונה פגומה: רק כ-{0} ממנה מתפענח, ומשם והלאה הנתונים אינם של התמונה — " +
                     "הקובץ נקטע, נדרס, או שחלקו נלקח מקובץ אחר. את החלק החסר אי אפשר להשלים.", check.Fraction.ToString("P0")), false));
 
             // התמונה המוקטנת שבתוכה שורדת לעיתים קרובות — היא בתחילת הקובץ.
             bool damaged = issues.Any(i => i.Kind is FileIssueKind.ImageDamaged or FileIssueKind.Truncated
-                                                   or FileIssueKind.FooterMissing
+                                                   or FileIssueKind.FooterMissing or FileIssueKind.PhotoHeaderLost
                                            || (i.Kind == FileIssueKind.HeaderDamaged && !i.Fixable));
             if (damaged && JpegPreviews.Best(all) is { } best)
             {
@@ -499,6 +515,12 @@ public static class FileDoctor
             Patches = patches,
         };
     }
+
+    private static FileIssue PhotoHeaderLost(long survived) => new(FileIssueKind.PhotoHeaderLost,
+        L.T("תחילת התמונה נהרסה: הטבלאות וההגדרות שדרושות כדי לפענח אותה אבדו, ולכן היא לא נפתחת. ") +
+        // הגודל מבודד משמאל לימין — אחרת "3.2 MB" מוצג הפוך בתוך משפט בעברית.
+        L.T("נתוני התמונה עצמם שרדו (⁦{0}⁩). אפשר לבנות את התחילה מחדש בעזרת תמונה תקינה אחת " +
+        "שצולמה באותה מצלמה ובאותן הגדרות.", Size(survived)), false);
 
     private static byte[] UInt32(long value)
     {
@@ -619,6 +641,45 @@ public static class FileDoctor
             Message = after.IsHealthy
                 ? L.T("הסרטון קיבל אינדקס חדש ונבדק מחדש — הוא אמור להיפתח ולהתנגן.")
                 : L.T("האינדקס נכתב, אך הבדיקה החוזרת מצאה בעיות: ") + string.Join(" ", after.Issues.Select(i => i.Description)),
+        };
+    }
+
+    /// <summary>
+    /// בניית תחילת תמונה שנהרסה, לעותק חדש בתיקיית היעד — בעזרת תמונה תקינה מאותה
+    /// מצלמה. העותק נבדק שוב אחרי הכתיבה, כמו כל תיקון.
+    /// </summary>
+    public static FileRepairResult RepairPhoto(string path, string referencePath, string outputFolder)
+    {
+        Directory.CreateDirectory(outputFolder);
+        string output = UniquePath(outputFolder, L.T("{0} (תוקן)", System.IO.Path.GetFileNameWithoutExtension(path)), "jpg");
+
+        if (string.Equals(System.IO.Path.GetFullPath(output), System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase))
+            return new FileRepairResult { Message = L.T("נתיב היעד זהה לקובץ המקורי. התיקון בוטל.") };
+
+        PhotoRebuildResult rebuilt;
+        try
+        {
+            rebuilt = JpegTransplant.Rebuild(path, referencePath, output);
+        }
+        catch
+        {
+            try { File.Delete(output); } catch { }
+            throw;
+        }
+
+        if (!rebuilt.Written)
+            return new FileRepairResult { Message = rebuilt.Message };
+
+        var after = Diagnose(output);
+        return new FileRepairResult
+        {
+            Succeeded = after.IsHealthy,
+            OutputPath = output,
+            Applied = rebuilt.Applied,
+            After = after,
+            Message = after.IsHealthy
+                ? rebuilt.Message + L.T(" העותק נבדק מחדש — התמונה אמורה להיפתח.")
+                : rebuilt.Message,
         };
     }
 

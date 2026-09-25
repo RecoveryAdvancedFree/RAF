@@ -103,17 +103,19 @@ function renderDoctorList() {
   const files = Doctor.files;
   const healthy = files.filter((f) => f.healthy).length;
   const fixable = files.filter((f) => !f.healthy && f.canRepair);
-  const videos = files.filter((f) => f.needsReference);
-  const hopeless = files.length - healthy - fixable.length - videos.filter((f) => !f.canRepair).length;
+  const videos = files.filter((f) => f.referenceKind === 'video');
+  const photos = files.filter((f) => f.referenceKind === 'photo');
+  const hopeless = files.length - healthy - fixable.length - [...videos, ...photos].filter((f) => !f.canRepair).length;
 
   const rows = files.map((f) => {
     const [cls, label] = f.healthy ? ['ok', 'תקין']                                  // מתורגם בהצגה
       : f.canRepair ? ['warn', 'ניתן לתקן']                                              // מתורגם בהצגה
-      : f.needsReference ? ['warn', 'צריך סרטון לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
+      : f.referenceKind === 'video' ? ['warn', 'צריך סרטון לדוגמה']                      // מתורגם בהצגה
+      : f.referenceKind === 'photo' ? ['warn', 'צריך תמונה לדוגמה'] : ['danger', 'לא ניתן לתקן'];  // מתורגם בהצגה
 
     const issues = f.issues.length
       ? `<ul class="doc-issues">${f.issues.map((i) =>
-          `<li class="${i.fixable || i.kind === 'VideoIndexMissing' ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
+          `<li class="${i.fixable || i.kind === 'VideoIndexMissing' || i.kind === 'PhotoHeaderLost' ? '' : 'nofix'}">${esc(i.description)}</li>`).join('')}</ul>`
       : '';
 
     return `
@@ -125,8 +127,10 @@ function renderDoctorList() {
         </div>
         ${f.detected ? `<div class="doc-meta">${t('זוהה:')} ${esc(t(f.detected))}</div>` : ''}
         ${issues}
-        ${f.needsReference ? `
+        ${f.referenceKind === 'video' ? `
           <button class="btn btn-sm doc-action" data-rebuild="${esc(f.path)}">${Icon.play}<span>${t('בחירת סרטון תקין מאותו מכשיר…')}</span></button>` : ''}
+        ${f.referenceKind === 'photo' ? `
+          <button class="btn btn-sm doc-action" data-rebuild-photo="${esc(f.path)}">${Icon.wrench}<span>${t('בחירת תמונה תקינה מאותה מצלמה…')}</span></button>` : ''}
       </div>`;
   }).join('');
 
@@ -137,6 +141,8 @@ function renderDoctorList() {
       <span><b>${fixable.length}</b> ${t('ניתנים לתיקון')}</span>
       ${videos.length ? `<span class="sep">·</span>
       <span><b>${videos.length}</b> ${plural(videos.length, 'סרטון שצריך סרטון לדוגמה', 'סרטונים שצריכים סרטון לדוגמה')}</span>` : ''}
+      ${photos.length ? `<span class="sep">·</span>
+      <span><b>${photos.length}</b> ${plural(photos.length, 'תמונה שצריכה תמונה לדוגמה', 'תמונות שצריכות תמונה לדוגמה')}</span>` : ''}
       <span class="sep">·</span>
       <span><b class="danger-text">${hopeless}</b> ${t('לא ניתנים לתיקון')}</span>
     </div>
@@ -151,6 +157,9 @@ function renderDoctorList() {
   if (fix) fix.onclick = () => runDoctorRepair(fixable.map((f) => f.path));
   document.querySelectorAll('[data-rebuild]').forEach((b) => {
     b.onclick = () => rebuildVideo(b.dataset.rebuild);
+  });
+  document.querySelectorAll('[data-rebuild-photo]').forEach((b) => {
+    b.onclick = () => rebuildPhoto(b.dataset.rebuildPhoto);
   });
   el('btn-doctor-more').onclick = pickDoctorFiles;
   el('btn-doctor-close').onclick = closePanel;
@@ -234,6 +243,53 @@ async function rebuildVideo(path) {
       ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
     </div></div>
     <p class="doc-hint">${t('הסרטון המקורי לא שונה. אם התמונה בסרטון המתוקן משובשת, כנראה שסרטון הדוגמה צולם בהגדרות אחרות (רזולוציה או קצב תמונות) — נסו סרטון אחר מאותו מכשיר.')}</p>`;
+
+  el('doctor-foot').innerHTML = `
+    ${r.folder ? `<button class="btn btn-primary" id="btn-doctor-open">${Icon.folder}<span>${t('פתיחת התיקייה')}</span></button>` : ''}
+    <button class="btn" id="btn-doctor-back">${t('חזרה לרשימה')}</button>`;
+  if (r.folder) el('btn-doctor-open').onclick = () => Bridge.call('recover.openFolder', { path: r.folder });
+  el('btn-doctor-back').onclick = renderDoctorList;
+}
+
+/// תמונה שתחילתה נהרסה: תמונת ייחוס מאותה מצלמה, תיקיית יעד, ובנייה.
+async function rebuildPhoto(path) {
+  const ref = await Bridge.call('doctor.pickReference', { kind: 'photo' }, 0);
+  if (!ref.path) return;
+  if (ref.problem) {
+    const row = document.querySelector(`[data-rebuild-photo="${CSS.escape(path)}"]`)?.closest('.doc-row');
+    row?.querySelector('.doc-ref-problem')?.remove();
+    row?.insertAdjacentHTML('beforeend', `<div class="doc-meta danger-text doc-ref-problem">${esc(ref.problem)}</div>`);
+    return;
+  }
+
+  const { path: output } = await Bridge.call('doctor.pickFolder', {}, 0);
+  if (!output) return;
+
+  el('doctor-body').innerHTML = `
+    <div class="loading" style="height:200px"><div class="spinner"></div>
+      <p>${t('בונה מחדש את תחילת התמונה…')}</p></div>`;
+  el('doctor-foot').innerHTML = '';
+
+  let r;
+  try {
+    r = await Bridge.call('doctor.rebuildPhoto', { path, reference: ref.path, output }, 0);
+  } catch (err) {
+    el('doctor-body').innerHTML = errorNotice(t('בניית התמונה לא הושלמה'), err);
+    el('doctor-foot').innerHTML = `<button class="btn" id="btn-doctor-back">${t('חזרה לרשימה')}</button>`;
+    el('btn-doctor-back').onclick = renderDoctorList;
+    return;
+  }
+
+  el('doctor-body').innerHTML = `
+    ${r.succeeded
+      ? notice('ok-notice', Icon.check, t('התמונה תוקנה'), esc(r.message))
+      : notice(r.output ? 'warn' : 'danger', Icon.alert, t(r.output ? 'התמונה תוקנה חלקית' : 'התמונה לא תוקנה'), esc(r.message))}
+    <div class="doc-list"><div class="doc-row">
+      <div class="doc-top"><span class="doc-name"><bdi>${esc(r.name)}</bdi></span></div>
+      ${r.applied.length ? `<ul class="doc-issues fixed">${r.applied.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+      ${r.output ? `<div class="doc-meta"><span class="ltr-inline">${esc(r.output)}</span></div>` : ''}
+    </div></div>
+    <p class="doc-hint">${t('התמונה המקורית לא שונתה. אם הצבעים או הבהירות נראים שונים מהרגיל, המצלמה כנראה משנה את טבלאות הדחיסה מתמונה לתמונה — נסו תמונת דוגמה אחרת, רצוי כזו שצולמה סמוך לתמונה הפגומה.')}</p>`;
 
   el('doctor-foot').innerHTML = `
     ${r.folder ? `<button class="btn btn-primary" id="btn-doctor-open">${Icon.folder}<span>${t('פתיחת התיקייה')}</span></button>` : ''}
