@@ -1,5 +1,7 @@
+#if WINDOWS
 using System.Drawing;
 using System.Drawing.Imaging;
+#endif
 using RAF.Core.Carving;
 using Xunit;
 
@@ -26,6 +28,9 @@ public class JpegValidationTests
     /// <summary>JPEG אמיתי מהמקודד של Windows — כדי לא לבדוק את המפענח רק מול המקודד שלנו.</summary>
     private static byte[] WindowsJpeg(int width, int height, int seed)
     {
+#if !WINDOWS
+        return JpegEncoder.Encode(width, height, seed);      // אין מקודד של Windows — המקודד שלנו
+#else
         using var bitmap = new Bitmap(width, height);
         var random = new Random(seed);
         using (var g = Graphics.FromImage(bitmap))
@@ -44,6 +49,7 @@ public class JpegValidationTests
         parameters.Param[0] = new EncoderParameter(Encoder.Quality, 90L);
         bitmap.Save(output, codec, parameters);
         return output.ToArray();
+#endif
     }
 
     // ------------------------------------------------------------ קבצים תקינים

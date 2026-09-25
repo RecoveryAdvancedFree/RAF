@@ -19,6 +19,7 @@ public static class DiskEnumerator
     {
         get
         {
+            if (!OperatingSystem.IsWindows()) return Environment.UserName == "root";
             try
             {
                 using var identity = WindowsIdentity.GetCurrent();

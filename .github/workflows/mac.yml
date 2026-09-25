@@ -1,0 +1,30 @@
+# בדיקת המנוע במק: בנייה והרצת כל הבדיקות, בשני סוגי המעבדים (שבב של Apple ו-Intel).
+# מה שדורש את Windows (גישה ישירה לכוננים, המקודד של Windows) רץ רק ב-Windows.
+name: mac
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: בנייה
+        run: dotnet build tests/RAF.Core.Tests -c Release
+      - name: בדיקות
+        run: dotnet test tests/RAF.Core.Tests -c Release --no-build --logger "trx;LogFileName=results.trx" --logger "console;verbosity=normal"
+      - name: תוצאות
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.os }}
+          path: tests/RAF.Core.Tests/TestResults/*.trx

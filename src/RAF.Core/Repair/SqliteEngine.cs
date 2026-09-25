@@ -25,6 +25,23 @@ internal sealed class SqliteEngine : IDisposable
 
     private IntPtr _db;
 
+    static SqliteEngine() => UseSystemSqlite(typeof(SqliteEngine).Assembly);
+
+    /// <summary>
+    /// במק ובלינוקס אין winsqlite3 — יש את ספריית SQLite של המערכת. אותו ממשק, שם אחר.
+    /// </summary>
+    internal static void UseSystemSqlite(System.Reflection.Assembly assembly)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        try
+        {
+            NativeLibrary.SetDllImportResolver(assembly, (name, _, _) =>
+                name != "winsqlite3.dll" ? IntPtr.Zero
+                : NativeLibrary.Load(OperatingSystem.IsMacOS() ? "/usr/lib/libsqlite3.dylib" : "libsqlite3.so.0"));
+        }
+        catch (InvalidOperationException) { }              // כבר הוגדר
+    }
+
     private SqliteEngine(IntPtr db) => _db = db;
 
     private static byte[] Utf8(string s) => Encoding.UTF8.GetBytes(s + "\0");

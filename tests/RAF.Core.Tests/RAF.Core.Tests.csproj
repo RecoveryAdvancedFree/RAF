@@ -1,14 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- ב-Windows — הכול; במערכות אחרות (בדיקה אוטומטית במק) — מה שלא דורש את Windows -->
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">net8.0-windows</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' != 'Windows_NT'">net8.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Platforms>x64</Platforms>
     <IsPackable>false</IsPackable>
     <RootNamespace>RAF.Core.Tests</RootNamespace>
     <!-- ל-System.Drawing: JPEG אמיתי מהמקודד של Windows, לבדיקת המפענח מול קובץ שלא אנחנו כתבנו -->
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWindowsForms Condition="'$(OS)' == 'Windows_NT'">true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
