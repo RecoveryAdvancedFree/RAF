@@ -443,7 +443,7 @@ function renderDisk(disk) {
         <div class="chips">
           ${foundCount ? `<span class="chip accent">${foundCount === 1 ? t('נמצאה מחיצה אחת') : t('נמצאו {0} מחיצות', foundCount)}</span>` : ''}
           <span class="chip accent ltr">${esc(disk.mediaShort)}</span>
-          ${disk.isImage ? '' : `<span class="chip ltr">${esc(t(disk.bus))}</span>`}
+          ${disk.isImage || !disk.bus ? '' : `<span class="chip ltr">${esc(t(disk.bus))}</span>`}
           <span class="chip ltr">${esc(t(disk.scheme))}</span>
           ${disk.isImage ? '' : trimChip}${stateChip}
           <span class="health-slot" data-health-chip="${disk.number}">${disk.isImage ? '' : healthChip(disk)}</span>
