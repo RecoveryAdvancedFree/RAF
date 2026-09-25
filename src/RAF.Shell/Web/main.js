@@ -24,6 +24,7 @@ async function init() {
     const info = await Bridge.call('system.info');
     State.sysInfo = info;
     renderStatusInfo();
+    Update.init(info);
     // לפני כל קריאה אחרת — כדי שההודעות הראשונות מהמנוע (רשימת הכוננים) כבר יגיעו בשפה הנכונה.
     await Bridge.call('system.language', { lang: I18n.lang }).catch(() => {});
 

@@ -8,6 +8,24 @@ internal static class EnglishTexts
 {
     internal static readonly Dictionary<string, string> Texts = new()
     {
+        // ------------------------------------------------ RAF.Shell — עדכונים (Bridge.Update.cs)
+        ["לא ניתן לבדוק אם יש עדכון. בדקו את החיבור לאינטרנט ונסו שוב."] =
+            "Could not check for updates. Check the internet connection and try again.",
+        ["לא נמצא עדכון. בדקו שוב אם יש גרסה חדשה."] =
+            "No update was found. Check again for a new version.",
+        ["עדכון אוטומטי אינו זמין במערכת הזו."] =
+            "Automatic updates are not available on this system.",
+        ["אי אפשר לעדכן באמצע פעולה: העדכון סוגר את התוכנה, והפעולה הייתה נעצרת. אפשר לעדכן כשהיא תסתיים."] =
+            "Cannot update in the middle of an operation: the update closes the program, which would stop the operation. You can update when it finishes.",
+        ["לא ניתן לאתר את קובץ התוכנה."] =
+            "Could not locate the program file.",
+        ["העדכון לא הושלם: לא ניתן לכתוב לתיקייה של התוכנה. אפשר להוריד את הגרסה החדשה ידנית מדף השחרורים בגיטהאב."] =
+            "The update did not complete: the program's folder cannot be written to. You can download the new version manually from the releases page on GitHub.",
+        ["הקובץ שהורד אינו תואם לקובץ שפורסם. העדכון בוטל; נסו שוב מאוחר יותר."] =
+            "The downloaded file does not match the published file. The update was cancelled; try again later.",
+        ["ההורדה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב."] =
+            "The download failed. Check the internet connection and try again.",
+
         // ------------------------------------------------ RAF.App — הודעות החלון והגשר
         ["בקשה ריקה"] =
             "Empty request",

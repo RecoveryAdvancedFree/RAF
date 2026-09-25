@@ -49,6 +49,7 @@ internal sealed partial class Bridge
     {
         _host = form;
         LoadCustomTypes();
+        CleanupAfterUpdate();
     }
 
     internal async Task<string> HandleAsync(string rawMessage)
@@ -152,6 +153,10 @@ internal sealed partial class Bridge
         "recover.cancel" => Cancel(_recoverCancel),
         "recover.openFolder" => OpenFolder(p),
 
+        "update.check" => await CheckForUpdate(),
+        "update.prepare" => PrepareUpdate(),
+        "update.install" => await InstallUpdate(),
+
         "window.theme" => _host.InvokeOnUi(() => _host.ApplyTheme(p?["dark"]?.GetValue<bool>() ?? true)),
         "window.minimize" => _host.InvokeOnUi(_host.Minimize),
         "window.toTray" => _host.InvokeOnUi(_host.ToTray),
@@ -220,6 +225,7 @@ internal sealed partial class Bridge
             appName = L.T("שחזור מתקדם חינם"),
             version = (System.Reflection.Assembly.GetEntryAssembly() ?? typeof(Bridge).Assembly).GetName().Version?.ToString(3) ?? "0.1.0",
             elevated = DiskEnumerator.IsElevated,
+            updates = UpdatesSupported,
             machine = Environment.MachineName,
             windowWidth = m.Width,
             windowHeight = m.Height,

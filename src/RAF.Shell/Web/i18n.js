@@ -71,6 +71,7 @@ const I18n = (() => {
     closePanel();
     Theme.refresh();
     renderStatusInfo();
+    Update.refresh();
     Steps.set(Steps.current);
     // המנוע עובר לשפה החדשה לפני שמבקשים ממנו שוב את המסך (למשל ההסברים ברשימת הכוננים)
     await Bridge.call('system.language', { lang }).catch(() => {});

@@ -5,8 +5,16 @@ namespace RAF.App;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        // אחרי עדכון של הגרסה הניידת: הגרסה הקודמת הפעילה אותנו ועדיין נסגרת. מחכים לה —
+        // מנוע התצוגה מסרב לעלות בהגדרות שונות משל מופע שעדיין מחזיק את תיקיית הנתונים שלו.
+        if (args.Length == 2 && args[0] == "--after-update" && int.TryParse(args[1], out int previous))
+        {
+            try { using var p = System.Diagnostics.Process.GetProcessById(previous); p.WaitForExit(30_000); }
+            catch (ArgumentException) { /* כבר נסגרה */ }
+        }
+
         // ממשק עברי מלא: תרבות עברית ו-RTL כברירת מחדל בכל התוכנה.
         var hebrew = new CultureInfo("he-IL");
         CultureInfo.DefaultThreadCurrentCulture = hebrew;

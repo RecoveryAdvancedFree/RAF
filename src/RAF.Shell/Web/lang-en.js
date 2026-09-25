@@ -8,6 +8,37 @@
 
 const EN = {};
 
+/* ------------------------------------------------------------ עדכונים (update.js) */
+Object.assign(EN, {
+  'בדיקת עדכונים': 'Check for updates',
+  'התקן כעת': 'Install now',
+  'גרסה {0} זמינה': 'Version {0} is available',
+  'יש לכם את הגרסה העדכנית ({0})': 'You have the latest version ({0})',
+  'אפשר לעדכן כשהפעולה הנוכחית תסתיים': 'You can update when the current operation finishes',
+  'תוצאות הסריקה נשמרו': 'The scan results are saved',
+  'העדכון יסגור אותן. אחרי העדכון אפשר לפתוח אותן שוב מ"סריקות אחרונות" במסך הכוננים.':
+    'The update will close them. Afterwards you can open them again from "Recent scans" on the drives screen.',
+  'תוצאות הסריקה לא נשמרו': 'The scan results are not saved',
+  'העדכון יסגור אותן והן יאבדו. כדי לשמור אותן, סגרו את החלון הזה ולחצו על כפתור השמירה במסך התוצאות.':
+    'The update will close them and they will be lost. To keep them, close this window and click the save button on the results screen.',
+  'עדכון לגרסה {0}': 'Update to version {0}',
+  'הגרסה הנוכחית: {0}': 'Current version: {0}',
+  'פעולה פועלת כעת': 'An operation is running',
+  'העדכון סוגר את התוכנה, והפעולה הייתה נעצרת באמצע. אפשר לעדכן כשהיא תסתיים.':
+    'The update closes the program, which would stop the operation midway. You can update when it finishes.',
+  'העדכון כותב לכונן {0}': 'The update writes to drive {0}',
+  'יורדים כ-{0}. אם אתם משחזרים קבצים מכונן זה, סיימו את השחזור לפני העדכון, כדי שהכתיבה לא תדרוס אותם.':
+    'About {0} is downloaded. If you are recovering files from this drive, finish the recovery before updating, so the writing does not overwrite them.',
+  'התוכנה תיסגר, הגרסה החדשה תותקן, והתוכנה תיפתח מחדש.': 'The program will close, the new version will be installed, and the program will open again.',
+  'קובץ התוכנה יוחלף בגרסה החדשה, והתוכנה תיפתח מחדש.': 'The program file will be replaced with the new version, and the program will open again.',
+  'מוריד את העדכון…': 'Downloading the update…',
+  'מוריד את העדכון… {0}%': 'Downloading the update… {0}%',
+  'עדכן עכשיו': 'Update now',
+  'לא עכשיו': 'Not now',
+  'מתקין… התוכנה תיסגר ותיפתח מחדש.': 'Installing… the program will close and open again.',
+  'העדכון לא הושלם': 'The update did not complete',
+});
+
 /* ------------------------------------------------------------ כללי */
 Object.assign(EN, {
   'שחזור מתקדם חינם': 'Recovery Advanced Free',

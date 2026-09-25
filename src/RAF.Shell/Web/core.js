@@ -457,7 +457,7 @@ const Help = (() => {
 })();
 
 // כפתורים בשורת הכותרת — שליטת חלון ושלבים שאפשר לחזור אליהם — אינם גוררים את החלון.
-const NOT_DRAG = '.win-btn, .step.link';
+const NOT_DRAG = '.win-btn, .step.link, .update-pill';
 
 el('titlebar').addEventListener('mousedown', (e) => {
   if (Host.mac || e.button !== 0 || e.target.closest(NOT_DRAG)) return;

@@ -40,6 +40,14 @@
     <!-- ===================== שורת כותרת ===================== -->
     <header class="titlebar" id="titlebar">
       <div class="win-controls">
+        <div class="update-pill" id="update-pill" role="status" hidden>
+          <span id="update-text"></span>
+          <button class="update-install" id="btn-update-install" data-t hidden>התקן כעת</button>
+        </div>
+        <button class="win-btn update-btn" id="btn-update" title="בדיקת עדכונים" aria-label="בדיקת עדכונים"
+                data-t-label="בדיקת עדכונים" data-t-title="בדיקת עדכונים" hidden>
+          <svg viewBox="0 0 12 12"><path d="M10.5 6a4.5 4.5 0 1 1-1.3-3.2"/><path d="M10.5 1.5v2.5H8"/></svg>
+        </button>
         <button class="win-btn lang-btn" id="btn-lang"></button>
         <button class="win-btn help-btn" id="btn-help" title="שאלות נפוצות (F1)" aria-label="שאלות נפוצות"
                 data-t-label="שאלות נפוצות" data-t-title="שאלות נפוצות (F1)"></button>
@@ -115,6 +123,7 @@
   <script src="scanning.js"></script>
   <script src="results.js"></script>
   <script src="recovery.js"></script>
+  <script src="update.js"></script>
   <script src="a11y.js"></script>
   <script src="main.js"></script>
 </body>

@@ -227,6 +227,26 @@ svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
 .win-btn:hover { background: var(--surface-3); color: var(--text); }
 .win-btn.danger:hover { background: #e5484d; color: #fff; }
 
+/* עדכון: כפתור הבדיקה, וההודעה הקטנה "גרסה X זמינה" עם "התקן כעת" */
+.update-btn.spinning svg { animation: spin 0.9s linear infinite; }
+.update-btn[hidden] { display: none; }
+.update-pill {
+  display: flex; align-items: center; gap: 8px;
+  height: 26px; margin: 3px 6px 0; padding: 0 4px 0 10px;
+  border: 1px solid var(--accent-line); border-radius: 13px;
+  background: var(--accent-soft); color: var(--text);
+  font-size: 12px; white-space: nowrap;
+}
+.update-pill[hidden] { display: none; }
+.update-pill.danger { border-color: var(--danger-line); background: var(--danger-soft); color: var(--danger-text); padding: 0 10px; }
+.update-install {
+  height: 20px; padding: 0 10px; border: 0; border-radius: 10px;
+  background: var(--accent); color: var(--on-accent);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.update-install:hover { background: var(--accent-hover); }
+.update-install[hidden] { display: none; }
+
 /* ---------- תוכן ---------- */
 .content {
   overflow-y: auto;
