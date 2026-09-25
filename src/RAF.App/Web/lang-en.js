@@ -553,6 +553,25 @@ Object.assign(EN, {
   'הרכבת המערך': 'Assemble the array',
   'מרכיב את המערך…': 'Assembling the array…',
   'המערך לא הורכב': 'The array wasn\'t assembled',
+  'אזור במאגר לוגי · {0}': 'Logical volume · {0}',
+  'לחצו לפתיחת האזורים': 'Click to open the volumes',
+  'המחיצה מחולקת לאזורים בשכבה של לינוקס — כל אזור נפתח ככונן נוסף':
+    'The partition is divided into volumes by a Linux layer — each volume opens as another drive',
+  'המחיצה מחולקת לאזורים': 'The partition is divided into volumes',
+  'לינוקס ושרתי אחסון ביתיים מחלקים מחיצה (או כמה מחיצות ביחד) לאזורים, וכל אזור הוא כמו כונן נפרד עם הקבצים שלו. בחרו אזור, והוא יופיע ברשימה ככונן נוסף, לקריאה בלבד.':
+    'Linux and home storage servers divide a partition (or several partitions together) into volumes, and each volume is like a separate drive with its own files. Choose a volume and it will appear in the list as another drive, read-only.',
+  'קורא את תיאור האזורים…': 'Reading the volume layout…',
+  'תיאור האזורים לא נקרא': 'The volume layout couldn\'t be read',
+  'ייתכן שהוא ניזוק. <b>סריקה מתקדמת</b> של המחיצה עדיין תמצא קבצים לפי סוג.':
+    'It may be damaged. An <b>Advanced scan</b> of the partition will still find files by type.',
+  'כונן שלא נמצא': 'A drive that wasn\'t found',
+  'חסרים כוננים במאגר': 'Drives are missing from the pool',
+  'אזורים שיושבים גם עליהם לא ייפתחו. חברו את כל הכוננים של השרת (או פתחו את התמונות שלהם) ולחצו <b>חיפוש שוב</b>.':
+    'Volumes that also sit on them won\'t open. Connect all the server\'s drives (or open their images) and click <b>Search again</b>.',
+  'מעבר לאזור': 'Go to the volume',
+  'הכוננים של המאגר:': 'The pool\'s drives:',
+  'אין במאגר אזורים.': 'The pool has no volumes.',
+  'האזור לא נפתח': 'The volume didn\'t open',
   '<b>סריקה מתקדמת</b> עדיין תעבוד — היא אינה תלויה במערכת הקבצים.':
     'An <b>Advanced scan</b> will still work — it doesn\'t depend on the file system.',
   'נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4 ו-XFS.':
@@ -1361,6 +1380,7 @@ Object.assign(EN, {
   'דרך Windows': 'Through Windows',
   'מערך RAID': 'RAID array',
   'חלק ממערך RAID': 'Part of a RAID array',
+  'מאגר לוגי': 'Logical volume pool',
   'נתונים בסיסיים': 'Basic data',
   'מחיצת מערכת EFI': 'EFI system partition',
   'שחזור Windows': 'Windows recovery',

@@ -188,7 +188,7 @@ internal sealed class RawDevice : IDisposable
         if (_raid is { } raid)
         {
             var members = _members!;
-            return raid.Array.Read(offset, destination, (role, at, buffer) =>
+            return raid.Volume.Read(offset, destination, (role, at, buffer) =>
                 members[role] is { } m ? m.Read(raid.Members[role]!.Value.Offset + at, buffer) : 0);
         }
 

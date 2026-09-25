@@ -391,6 +391,8 @@ function renderDisk(disk) {
 
   const sub = disk.raid
     ? t('מערך RAID שהתוכנה הרכיבה · {0} · {1}', formatSize(disk.size), countText)
+    : disk.lvm
+    ? t('אזור במאגר לוגי · {0}', formatSize(disk.size))
     : disk.decrypted
     ? t('כונן מוצפן שהתוכנה מפענחת · {0}', formatSize(disk.size))
     : disk.isVolume
@@ -404,7 +406,7 @@ function renderDisk(disk) {
     actions.push(`<button class="btn btn-sm" data-hunt-disk="${disk.number}" title="${t('חיפוש מחיצות שנמחקו או שאבדו בכל הכונן')}">${Icon.search}<span>${t('סריקת כונן')}</span></button>`);
   }
   if (disk.isImage) {
-    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>${t(disk.isVolume || disk.raid ? 'סגירה' : 'סגירת התמונה')}</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>${t(disk.isVolume || disk.raid || disk.lvm ? 'סגירה' : 'סגירת התמונה')}</span></button>`);
   } else if (disk.rawAccessible) {
     actions.push(`<button class="btn btn-sm" data-image-disk="${disk.number}" title="${t('העתקת הדיסק כולו לקובץ, וסריקה מתוכו')}">${Icon.copy}<span>${t('יצירת תמונת דיסק')}</span></button>`);
   }
@@ -483,8 +485,9 @@ function renderPartition(disk, p) {
       : chip('warn', 'נעול', 'הכונן מוצפן. פתחו אותו ב-Windows כדי לסרוק'));
   }
   if (p.fs === 'LinuxRaid') tags.push(chip('accent', 'לחצו להרכבת המערך', 'הכונן הזה הוא חלק ממערך RAID של שרת לינוקס או שרת אחסון ביתי'));
+  if (p.fs === 'Lvm') tags.push(chip('accent', 'לחצו לפתיחת האזורים', 'המחיצה מחולקת לאזורים בשכבה של לינוקס — כל אזור נפתח ככונן נוסף'));
   if (p.bootable) tags.push(chip('', 'אתחול'));
-  if (!p.found && !p.scannable && !['Unknown', 'BitLocker', 'LinuxRaid'].includes(p.fs)) tags.push(chip('', 'לא נתמכת לסריקה'));
+  if (!p.found && !p.scannable && !['Unknown', 'BitLocker', 'LinuxRaid', 'Lvm'].includes(p.fs)) tags.push(chip('', 'לא נתמכת לסריקה'));
 
   let bar = `<div class="part-bar-wrap"><div class="part-bar-text">${t('נפח לא זמין')}</div></div>`;
   if (p.used !== null && p.used !== undefined && p.size > 0) {

@@ -75,7 +75,7 @@ public class RaidRealTests
                 bool deleted = p[1] == "deleted";
                 var file = result.Files.FirstOrDefault(f => f.Name == fileName && f.IsDeleted == deleted && f.Quality != RecoveryQuality.Unrecoverable);
                 _out.WriteLine($"{p[1]} {p[2]}: {(file is null ? "not found" : file.Quality.ToString())}");
-                if (file is null) { Assert.True(deleted, $"{p[2]} not found"); continue; }
+                Assert.True(file is not null, $"{p[2]} not found");
 
                 string dir = Path.Combine(target, Guid.NewGuid().ToString("N"));
                 var report = await RecoveryWriter.RecoverAsync(part.FileSystem, array.DiskNumber, part.OffsetBytes, part.SizeBytes,

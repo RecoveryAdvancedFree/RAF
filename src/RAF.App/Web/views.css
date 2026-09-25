@@ -578,6 +578,8 @@
 .raid-members { margin: 6px 0 10px; padding-inline-start: 18px; font-size: 13px; line-height: 1.75; color: var(--text-dim); }
 .raid-members b { color: var(--text); font-weight: 600; }
 .raid-members .raid-missing { color: var(--warn, var(--text)); }
+.lvm-volume { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.lvm-volume .confirm-hint { margin: 2px 0 0; }
 
 .notice.ok-notice {
   background: var(--ok-soft);

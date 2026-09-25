@@ -44,7 +44,7 @@ public static class DevicePaths
     /// מערך RAID שהתוכנה מרכיבה: הגאומטריה, ולכל מקום במערך — הדיסק וההיסט שבו מתחיל
     /// הכונן (null — הכונן חסר).
     /// </summary>
-    internal sealed record RaidSource(Raid.RaidArray Array, (int Disk, long Offset)?[] Members);
+    internal sealed record RaidSource(Raid.IComposedVolume Volume, (int Disk, long Offset)?[] Members);
 
     private static readonly ConcurrentDictionary<string, RaidSource> Raids = new(StringComparer.OrdinalIgnoreCase);
     private const string RaidPrefix = "raid:";
@@ -55,6 +55,27 @@ public static class DevicePaths
         string path = RaidPrefix + id;
         Raids[path] = source;
         return RegisterImage(path);
+    }
+
+    /// <summary>
+    /// הכוננים המורכבים (מערכים, אזורים במאגר) שקוראים מהכונן הזה — ישירות או דרך כונן מורכב
+    /// אחר. כשהוא נסגר, גם הם צריכים להיסגר: אין להם יותר ממה לקרוא.
+    /// </summary>
+    public static List<int> DependentsOf(int number)
+    {
+        var result = new List<int>();
+        var pending = new Queue<int>(new[] { number });
+        while (pending.Count > 0)
+        {
+            int current = pending.Dequeue();
+            foreach (var (path, source) in Raids)
+            {
+                if (!source.Members.Any(m => m?.Disk == current)) continue;
+                int dependent = Images.FirstOrDefault(i => string.Equals(i.Value, path, StringComparison.OrdinalIgnoreCase)).Key;
+                if (dependent != 0 && !result.Contains(dependent)) { result.Add(dependent); pending.Enqueue(dependent); }
+            }
+        }
+        return result;
     }
 
     /// <summary>הנתיב שבו נרשם מערך לפי המזהה שלו.</summary>

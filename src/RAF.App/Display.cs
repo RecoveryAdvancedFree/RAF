@@ -19,6 +19,7 @@ internal static class Display
         FileSystemKind.Hfs => "HFS+",
         FileSystemKind.BitLocker => "BitLocker",
         FileSystemKind.LinuxRaid => "חלק ממערך RAID",
+        FileSystemKind.Lvm => "מאגר לוגי",
         FileSystemKind.Raw => "לא מזוהה",
         _ => "לא ידוע",
     };

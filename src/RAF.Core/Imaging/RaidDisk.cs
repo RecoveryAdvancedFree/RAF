@@ -184,8 +184,8 @@ public static class RaidDisk
                     : L.T("חסר כונן אחד — התוכן שלו מחושב מהזוגיות שבכוננים האחרים. הקריאה איטית יותר, וכל פגם נוסף באחד הכוננים יפגע בקבצים."));
             if (found.Members.Any(m => m.Stale))
                 note += " " + L.T("אחד הכוננים נפל מהמערך לפני האחרים, והנתונים בו אינם עדכניים — קבצים שנכתבו אחרי שנפל עלולים לחזור פגומים.");
-            if (IsLvm(head))
-                note += " " + L.T("בתוך המערך יש מאגר לוגי של לינוקס (LVM) — כמו ברוב שרתי האחסון הביתיים. הוא עוד לא נקרא בגרסה זו; סריקה מתקדמת תמצא את הקבצים לפי סוג.");
+            if (partitions.Any(p => p.FileSystem == FileSystemKind.Lvm))
+                note += " " + L.T("בתוך המערך יש מאגר לוגי — כמו ברוב שרתי האחסון הביתיים. לחצו עליו כדי לפתוח את האזורים שבו.");
 
             return new PhysicalDiskInfo
             {
@@ -209,13 +209,5 @@ public static class RaidDisk
             DevicePaths.UnregisterImage(number);
             throw;
         }
-    }
-
-    /// <summary>מאגר לוגי של לינוקס (LVM): התווית "LABELONE" באחד מארבעת הסקטורים הראשונים.</summary>
-    private static bool IsLvm(byte[] head)
-    {
-        for (int s = 0; s < 4 && (s + 1) * 512 <= head.Length; s++)
-            if (head.AsSpan(s * 512, 8).SequenceEqual("LABELONE"u8)) return true;
-        return false;
     }
 }

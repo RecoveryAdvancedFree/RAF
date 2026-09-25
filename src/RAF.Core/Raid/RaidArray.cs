@@ -11,19 +11,16 @@ namespace RAF.Core.Raid;
 /// מ-XOR של כל שאר הרצועות בשורה (כולל הזוגיות). ב-RAID 6 עם שני כוננים חסרים צריך את
 /// רצועת ה-Q (חשבון בשדה גלואה) — זה עוד לא נתמך.
 /// </summary>
-internal sealed class RaidArray
+internal sealed class RaidArray : IComposedVolume
 {
     internal int Level { get; }
     internal int Layout { get; }
     internal long Chunk { get; }
     internal int Disks { get; }
-    internal long Size { get; }
+    public long Size { get; }
     /// <summary>לכל מקום במערך: היכן מתחילים הנתונים בכונן, וכמה ממנו בשימוש (לשרשור).</summary>
     private readonly long[] _dataOffset, _memberSize;
     private readonly bool[] _present;
-
-    /// <summary>קריאה מכונן לפי מקומו במערך, מהיסט בתוך הכונן. מחזירה כמה נקרא.</summary>
-    internal delegate int MemberRead(int role, long offset, Span<byte> buffer);
 
     internal RaidArray(int level, int layout, long chunk, int disks, long componentSize,
         long[] dataOffset, long[] memberSize, bool[] present)
@@ -105,7 +102,7 @@ internal sealed class RaidArray
     /// קריאה מהמערך. כונן שחסר או שהקריאה ממנו נכשלה — מעותק או מהזוגיות. אזור שאי אפשר
     /// לשחזר מוחזר כאפסים, כדי שקריאה אחת פגומה לא תעצור סריקה של מערך שלם.
     /// </summary>
-    internal int Read(long offset, Span<byte> destination, MemberRead read)
+    public int Read(long offset, Span<byte> destination, MemberRead read)
     {
         if (offset >= Size) return 0;
         int total = (int)Math.Min(destination.Length, Size - offset);

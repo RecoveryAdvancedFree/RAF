@@ -317,6 +317,97 @@ async function findRaids(disk, part) {
   });
 }
 
+/// מחיצה (או מערך) שמחולקת לאזורים בשכבה של לינוקס — "מאגר לוגי". בשרתי אחסון ביתיים היא
+/// יושבת מעל המערך, ובהרבה מחשבי לינוקס — ישירות על הכונן. כל אזור נפתח ככונן נוסף.
+function openLvmPanel(disk, part) {
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">${esc(partTitle(part))}</div>
+        <div class="panel-sub">${esc(disk.name)} · ${t('מאגר לוגי')} · ${formatSize(part.size)}</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
+    </div>
+    <div class="panel-body">
+      ${notice('info', Icon.layers, t('המחיצה מחולקת לאזורים'),
+        t('לינוקס ושרתי אחסון ביתיים מחלקים מחיצה (או כמה מחיצות ביחד) לאזורים, וכל אזור הוא כמו כונן נפרד עם הקבצים שלו. ' +
+          'בחרו אזור, והוא יופיע ברשימה ככונן נוסף, לקריאה בלבד.'))}
+      <div id="lvm-list" aria-live="polite"><p class="confirm-hint">${t('קורא את תיאור האזורים…')}</p></div>
+    </div>
+    <div class="panel-foot">
+      <button class="btn" id="btn-lvm-again">${Icon.refresh}<span>${t('חיפוש שוב')}</span></button>
+      <button class="btn" id="btn-cancel-lvm">${t('ביטול')}</button>
+    </div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-cancel-lvm').onclick = closePanel;
+  el('btn-lvm-again').onclick = async () => {
+    el('lvm-list').innerHTML = `<p class="confirm-hint">${t('מרענן את רשימת הכוננים ומחפש…')}</p>`;
+    await loadDisks();
+    findLvm();
+  };
+  findLvm();
+}
+
+async function findLvm() {
+  const box = el('lvm-list');
+  if (!box) return;
+  let groups;
+  try {
+    groups = await Bridge.call('lvm.find', {}, 0);
+  } catch (err) {
+    box.innerHTML = errorNotice(t('החיפוש נכשל'), err, 'spaced');
+    return;
+  }
+  if (!el('lvm-list')) return;
+  if (!groups.length) {
+    box.innerHTML = notice('warn', Icon.alert, t('תיאור האזורים לא נקרא'),
+      t('ייתכן שהוא ניזוק. <b>סריקה מתקדמת</b> של המחיצה עדיין תמצא קבצים לפי סוג.'), null, 'spaced');
+    return;
+  }
+
+  box.innerHTML = groups.map((g) => {
+    const drives = g.pvs.map((title) => title
+      ? `<li><b>${esc(title)}</b></li>`
+      : `<li class="raid-missing">${t('כונן שלא נמצא')}</li>`).join('');
+    const missing = g.missing
+      ? notice('warn', Icon.info, t('חסרים כוננים במאגר'),
+          t('אזורים שיושבים גם עליהם לא ייפתחו. חברו את כל הכוננים של השרת (או פתחו את התמונות שלהם) ולחצו <b>חיפוש שוב</b>.'), null, 'spaced')
+      : '';
+    const volumes = g.volumes.map((v) => `
+      <div class="lvm-volume">
+        <div class="grow"><b>${esc(v.name)}</b> · ${formatSize(v.size)}
+          ${v.problem ? `<div class="confirm-hint">${esc(v.problem)}</div>` : ''}</div>
+        ${v.problem ? '' : `<button class="btn btn-sm btn-primary" data-lvm-open="${esc(v.name)}" data-lvm-group="${esc(g.id)}">${t(v.open ? 'מעבר לאזור' : 'פתיחה')}</button>`}
+      </div>`).join('');
+    return `
+      <div class="raid-card">
+        <div class="raid-title">${esc(g.name)}</div>
+        <div class="confirm-hint">${t('הכוננים של המאגר:')}</div>
+        <ul class="raid-members">${drives}</ul>
+        ${missing}
+        ${volumes || `<p class="confirm-hint">${t('אין במאגר אזורים.')}</p>`}
+        <div data-lvm-status="${esc(g.id)}"></div>
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-lvm-open]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.lvmGroup;
+      b.disabled = true;
+      const status = box.querySelector(`[data-lvm-status="${id}"]`);
+      try {
+        const r = await Bridge.call('lvm.open', { id, volume: b.dataset.lvmOpen }, 0);
+        await showOpenedVolume(r.number);
+      } catch (err) {
+        b.disabled = false;
+        status.innerHTML = errorNotice(t('האזור לא נפתח'), err, 'spaced');
+      }
+    };
+  });
+}
+
 function findPart(diskNumber, partIndex) {
   const disk = State.disks.find((d) => d.number === diskNumber);
   if (!disk) return null;
@@ -342,6 +433,12 @@ function openScanPanel(diskNumber, partIndex) {
   // כונן במערך RAID: לבד הוא מחזיק רק חלקים — קודם מרכיבים את המערך.
   if (part.fs === 'LinuxRaid') {
     openRaidPanel(disk, part);
+    return;
+  }
+
+  // מאגר לוגי: הקבצים באזורים שבתוכו — קודם פותחים אזור.
+  if (part.fs === 'Lvm') {
+    openLvmPanel(disk, part);
     return;
   }
 

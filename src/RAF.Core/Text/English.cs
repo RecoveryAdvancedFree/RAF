@@ -1244,8 +1244,20 @@ internal static class EnglishTexts
         ["אחד הכוננים נפל מהמערך לפני האחרים, והנתונים בו אינם עדכניים — קבצים שנכתבו אחרי שנפל עלולים לחזור פגומים."] =
             "One of the drives dropped out of the array before the others and its data is out of date — files written after it dropped out may come back damaged.",
         ["אחד מכונני המערך"] = "one of the array's drives",
-        ["בתוך המערך יש מאגר לוגי של לינוקס (LVM) — כמו ברוב שרתי האחסון הביתיים. הוא עוד לא נקרא בגרסה זו; סריקה מתקדמת תמצא את הקבצים לפי סוג."] =
-            "The array contains a Linux logical volume pool (LVM) — like most home storage servers. This version can't read it yet; an Advanced scan will find the files by type.",
+        ["בתוך המערך יש מאגר לוגי — כמו ברוב שרתי האחסון הביתיים. לחצו עליו כדי לפתוח את האזורים שבו."] =
+            "The array contains a logical volume pool — like most home storage servers. Click it to open its volumes.",
+        ["המאגר לא נמצא. חפשו שוב."] = "The pool wasn't found. Search again.",
+        ["חלק מהאזור יושב על כונן שלא נמצא. חברו את כל הכוננים של השרת ולחצו חיפוש שוב."] =
+            "Part of the volume sits on a drive that wasn't found. Connect all the server's drives and click Search again.",
+        ["האזור לא נמצא. חפשו שוב."] = "The volume wasn't found. Search again.",
+        ["אחד מכונני המאגר"] = "one of the pool's drives",
+        ["אזור \"{0}\" במאגר הלוגי \"{1}\" של לינוקס, שהתוכנה פתחה מ-{2} כוננים. הקריאה בלבד — שום דבר לא נכתב לכוננים."] =
+            "Volume \"{0}\" in the Linux logical volume pool \"{1}\", opened by the program from {2} drives. Read-only — nothing is written to the drives.",
+        ["האזור \"דליל\" (thin) — המיקום של כל קטע בו רשום במבנה נפרד, שעוד לא נקרא בגרסה זו. סריקה מתקדמת של המאגר תמצא את הקבצים לפי סוג."] =
+            "The volume is \"thin\" — the location of each piece is recorded in a separate structure this version can't read yet. An Advanced scan of the pool will find the files by type.",
+        ["סוג האזור ({0}) עוד לא נתמך. סריקה מתקדמת תמצא את הקבצים לפי סוג."] =
+            "The volume type ({0}) isn't supported yet. An Advanced scan will find the files by type.",
+        ["תיאור האזור פגום."] = "The volume description is damaged.",
         ["גודל הרצועה של המערך אינו ידוע."] = "The array's stripe size is unknown.",
         ["המערך היה באמצע שינוי מבנה (הוספת כונן או שינוי סוג) כשנעצר. מערך כזה עוד לא נתמך."] =
             "The array was in the middle of a reshape (adding a drive or changing type) when it stopped. Such an array isn't supported yet.",

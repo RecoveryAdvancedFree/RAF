@@ -122,6 +122,8 @@ internal sealed partial class Bridge
         "bitlocker.unlock" => await Task.Run(() => UnlockBitLocker(p)),
         "raid.find" => await Task.Run(FindRaids),
         "raid.assemble" => await Task.Run(() => AssembleRaid(p)),
+        "lvm.find" => await Task.Run(FindLvm),
+        "lvm.open" => await Task.Run(() => OpenLvm(p)),
 
         "scan.start" => await Tracked(LongOperation.Scan, () => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
@@ -286,7 +288,8 @@ internal sealed partial class Bridge
         imagePath = d.ImagePath,
         isVolume = d.ImagePath is { } path && DevicePaths.IsDecryptedVolume(path),
         decrypted = d.ImagePath is { } own && DevicePaths.IsDecryptedPath(own),
-        raid = d.ImagePath is { } assembled && DevicePaths.IsRaidPath(assembled),
+        raid = d.ImagePath is { } assembled && DevicePaths.IsRaidPath(assembled) && !assembled.Contains(":lvm-"),
+        lvm = d.ImagePath is { } volume && DevicePaths.IsRaidPath(volume) && volume.Contains(":lvm-"),
         imageNote = d.ImageNote,
         imageDamaged = d.ImageDamaged,
         partitions = d.Partitions.Select(PartitionDto).ToList(),
@@ -1399,17 +1402,57 @@ internal sealed partial class Bridge
         return new { number = array.DiskNumber };
     }
 
+    /// <summary>המאגרים שנמצאו בחיפוש האחרון — הפתיחה בוחרת מהם לפי המזהה.</summary>
+    private List<LvmDisk.Found> _lvms = new();
+
+    /// <summary>חיפוש מאגרים לוגיים של לינוקס בכל הכוננים, התמונות והמערכים שברשימה. קריאה בלבד.</summary>
+    private object FindLvm()
+    {
+        _lvms = LvmDisk.Find(_disks.ToList());
+        return _lvms.Select(g => new
+        {
+            id = g.Id,
+            name = g.Name,
+            pvs = g.Pvs.Select(p => p?.Title).ToList(),
+            missing = g.Missing.Count,
+            volumes = g.Volumes.Select(v => new
+            {
+                name = v.Name,
+                size = v.Size,
+                problem = v.Problem,
+                open = _images.Any(d => d.ImagePath == DevicePaths.RaidPathOf($"lvm-{g.Id}-{v.Name}")),
+            }).ToList(),
+        }).ToList();
+    }
+
+    /// <summary>פתיחת אזור במאגר ככונן נוסף, לקריאה בלבד.</summary>
+    private object OpenLvm(JsonObject? p)
+    {
+        string id = p?["id"]?.GetValue<string>() ?? "";
+        string name = p?["volume"]?.GetValue<string>() ?? "";
+        var group = _lvms.FirstOrDefault(g => g.Id == id)
+            ?? throw new InvalidOperationException(L.T("המאגר לא נמצא. חפשו שוב."));
+        var volume = LvmDisk.Open(group, name);
+        _images.RemoveAll(d => d.DiskNumber == volume.DiskNumber);
+        _images.Add(volume);
+        return new { number = volume.DiskNumber };
+    }
+
     private object? CloseImage(JsonObject? p)
     {
         int number = p?["disk"]?.GetValue<int>() ?? -1;
 
-        // תוצאות סריקה של התמונה מצביעות עליה; אחרי הסגירה אי אפשר לחלץ מהן.
-        if (_session?.DiskNumber == number)
-            _session = null;
+        // מערך או אזור במאגר שנבנו על הכונן הזה — נסגרים איתו: אין להם יותר ממה לקרוא.
+        foreach (int n in DevicePaths.DependentsOf(number).Append(number))
+        {
+            // תוצאות סריקה של התמונה מצביעות עליה; אחרי הסגירה אי אפשר לחלץ מהן.
+            if (_session?.DiskNumber == n)
+                _session = null;
 
-        _images.RemoveAll(d => d.DiskNumber == number);
-        _disks.RemoveAll(d => d.DiskNumber == number);
-        ImageDisk.Close(number);
+            _images.RemoveAll(d => d.DiskNumber == n);
+            _disks.RemoveAll(d => d.DiskNumber == n);
+            ImageDisk.Close(n);
+        }
         return null;
     }
 
