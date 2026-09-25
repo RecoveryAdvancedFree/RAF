@@ -518,6 +518,41 @@ Object.assign(EN, {
     'Not available',
   'מערכת הקבצים {0} אינה נתמכת':
     'The {0} file system is not supported',
+  'מערך RAID שהתוכנה הרכיבה · {0} · {1}':
+    'RAID array assembled by the program · {0} · {1}',
+  'לחצו להרכבת המערך': 'Click to assemble the array',
+  'הכונן הזה הוא חלק ממערך RAID של שרת לינוקס או שרת אחסון ביתי':
+    'This drive is part of a RAID array from a Linux server or a home storage server (NAS)',
+  'הכונן הזה הוא חלק ממערך RAID': 'This drive is part of a RAID array',
+  'שרתי אחסון ביתיים ושרתי לינוקס מפזרים את הקבצים על כמה כוננים. כל כונן לבד מחזיק רק חלקים — צריך להרכיב את המערך מכל הכוננים שלו. התוכנה עושה את זה בעצמה, בלי השרת, ושום דבר לא נכתב לכוננים.':
+    'Home storage servers and Linux servers spread files across several drives. Each drive alone holds only pieces — the array has to be assembled from all its drives. The program does this itself, without the server, and nothing is written to the drives.',
+  'מחפש את שאר הכוננים של המערך…': 'Looking for the array\'s other drives…',
+  'חסר כונן?': 'A drive is missing?',
+  'חברו למחשב את כל הכוננים שהוצאו מהשרת — כל אחד בחיבור משלו או במתאם USB. אין צורך בסדר מסוים.':
+    'Connect all the drives taken out of the server to this computer — each on its own port or USB adapter. The order doesn\'t matter.',
+  'יצרתם קודם תמונות דיסק מהכוננים? פתחו את כולן ברשימת הכוננים.':
+    'Made disk images of the drives first? Open all of them in the drive list.',
+  'לחצו <b>חיפוש שוב</b>.': 'Click <b>Search again</b>.',
+  'חיפוש שוב': 'Search again',
+  'מרענן את רשימת הכוננים ומחפש…': 'Refreshing the drive list and searching…',
+  'החיפוש נכשל': 'The search failed',
+  'לא נמצא מערך': 'No array found',
+  'הכותרת של המערך לא נקראה מהכונן. ייתכן שהיא ניזוקה — אז <b>סריקה מתקדמת</b> של כל כונן בנפרד עדיין תמצא קבצים קטנים.':
+    'The array header couldn\'t be read from the drive. It may be damaged — an <b>Advanced scan</b> of each drive separately can still find small files.',
+  '{0} כוננים': '{0} drives',
+  'רצועה של {0}': '{0} stripe',
+  'כונן {0} במערך:': 'Array drive {0}:',
+  'לא עדכני': 'Out of date',
+  'חסר: כונן {0} במערך': 'Missing: array drive {0}',
+  'חסרים: כוננים {0} במערך': 'Missing: array drives {0}',
+  'אי אפשר להרכיב את המערך': 'The array can\'t be assembled',
+  'אפשר להרכיב גם בלי הכונן החסר': 'It can be assembled without the missing drive',
+  'התוכן שלו מחושב מהכוננים האחרים. אם אפשר לחבר אותו — עדיף.':
+    'Its content is computed from the other drives. If you can connect it, that\'s better.',
+  'מעבר למערך': 'Go to the array',
+  'הרכבת המערך': 'Assemble the array',
+  'מרכיב את המערך…': 'Assembling the array…',
+  'המערך לא הורכב': 'The array wasn\'t assembled',
   '<b>סריקה מתקדמת</b> עדיין תעבוד — היא אינה תלויה במערכת הקבצים.':
     'An <b>Advanced scan</b> will still work — it doesn\'t depend on the file system.',
   'נתמכות: NTFS, exFAT, FAT32, FAT16, FAT12, ext2/3/4 ו-XFS.':
@@ -1324,6 +1359,8 @@ Object.assign(EN, {
   'TRIM לא ידוע': 'TRIM unknown',
   'קובץ תמונה': 'Image file',
   'דרך Windows': 'Through Windows',
+  'מערך RAID': 'RAID array',
+  'חלק ממערך RAID': 'Part of a RAID array',
   'נתונים בסיסיים': 'Basic data',
   'מחיצת מערכת EFI': 'EFI system partition',
   'שחזור Windows': 'Windows recovery',

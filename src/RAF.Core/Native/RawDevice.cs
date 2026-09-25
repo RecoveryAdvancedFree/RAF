@@ -47,6 +47,28 @@ internal sealed class RawDevice : IDisposable
             return null;
         }
 
+        // מערך RAID שהורכב בתוכנה: פותחים כל כונן שלו, והקריאה עוברת דרך הגאומטריה.
+        if (DevicePaths.IsRaidPath(devicePath))
+        {
+            if (DevicePaths.RaidSourceOf(devicePath) is not { } raid)
+            {
+                NotFound();
+                return null;
+            }
+            var members = new RawDevice?[raid.Members.Length];
+            for (int i = 0; i < members.Length; i++)
+            {
+                if (raid.Members[i] is not { } m) continue;
+                if (DevicePaths.PathOf(m.Disk) is not { } path || TryOpen(path, sectorSize, sequential: false) is not { } opened)
+                {
+                    foreach (var done in members) done?.Dispose();
+                    return null;
+                }
+                members[i] = opened;
+            }
+            return new RawDevice(IntPtr.Zero, devicePath, sectorSize) { _raid = raid, _members = members };
+        }
+
         // NO_BUFFERING רק בהתקן: בקובץ תמונה הוא היה מחייב יישור לסקטור של
         // הכונן המארח, שעשוי להיות 4096 גם כשהתמונה עצמה בסקטורים של 512.
         uint flags = (DevicePaths.IsDevicePath(devicePath) ? Win32.FILE_FLAG_NO_BUFFERING : 0) |
@@ -95,6 +117,10 @@ internal sealed class RawDevice : IDisposable
     private RawDevice? _inner;
     private DevicePaths.DecryptedSource? _decrypted;
 
+    /// <summary>מערך RAID: הגאומטריה, והכוננים שלו לפי מקומם במערך (null — חסר).</summary>
+    private DevicePaths.RaidSource? _raid;
+    private RawDevice?[]? _members;
+
     [ThreadStatic] private static int _openError;
 
     /// <summary>הכונן לא נמצא כלל (אין לו נתיב) — כמו "הקובץ לא נמצא".</summary>
@@ -119,7 +145,7 @@ internal sealed class RawDevice : IDisposable
     /// <summary>שגיאת Win32 האחרונה, לצורך הודעות שגיאה מדויקות למשתמש.</summary>
     public static int LastError => Marshal.GetLastWin32Error();
 
-    public bool IsValid => _inner?.IsValid ?? (_handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE);
+    public bool IsValid => _members is not null || (_inner?.IsValid ?? (_handle != IntPtr.Zero && _handle != Win32.INVALID_HANDLE_VALUE));
 
     /// <summary>
     /// ההתקן נותק (נשלף, או שהחיבור נפל) — ולא סקטור פגום. Windows מבחין בין השניים
@@ -158,6 +184,12 @@ internal sealed class RawDevice : IDisposable
         {
             var inner = _inner!;
             return s.Volume.Read(offset, destination, (at, buffer) => inner.Read(s.Offset + at, buffer));
+        }
+        if (_raid is { } raid)
+        {
+            var members = _members!;
+            return raid.Array.Read(offset, destination, (role, at, buffer) =>
+                members[role] is { } m ? m.Read(raid.Members[role]!.Value.Offset + at, buffer) : 0);
         }
 
         if (Virtual is not { } disk) return ReadPhysical(offset, destination);
@@ -256,6 +288,7 @@ internal sealed class RawDevice : IDisposable
         }
         Virtual?.Close();
         _inner?.Dispose();
+        if (_members is not null) foreach (var m in _members) m?.Dispose();
         GC.SuppressFinalize(this);
     }
 

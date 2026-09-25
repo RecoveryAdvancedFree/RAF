@@ -30,6 +30,9 @@ internal sealed class RawWriter : IDisposable
         // כתיבה שם הייתה עוברת הצפנה ונוחתת על הנתונים שמנסים להציל.
         if (DevicePaths.IsDecryptedVolume(devicePath))
             throw new InvalidOperationException(L.T("כונן שנפתח דרך Windows הוא לקריאה בלבד — התוכנה אינה כותבת אליו."));
+        // מערך RAID שהורכב בתוכנה: כתיבה הייתה צריכה לעדכן גם את הזוגיות בכל הכוננים.
+        if (DevicePaths.IsRaidPath(devicePath))
+            throw new InvalidOperationException(L.T("מערך RAID שהורכב בתוכנה הוא לקריאה בלבד — התוכנה אינה כותבת אליו."));
 
         // קובץ VHD/VHDX/VMDK: כתיבה ישירה הייתה הורסת את מבנה הכונן הווירטואלי.
         if (!DevicePaths.IsDevicePath(devicePath) && File.Exists(devicePath))

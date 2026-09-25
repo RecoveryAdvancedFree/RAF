@@ -159,7 +159,7 @@ public static class ImageDisk
             if (map?.Kind == "disk") return (table.Scheme, new List<PartitionInfo>());
         }
 
-        byte[] start = device.ReadBlock(0, 2048);
+        byte[] start = device.ReadBlock(0, 8192);
         var fs = FileSystemIdentifier.Identify(start);
 
         // תמונה בלי מפה (מכלי אחר) שמתחילה בטבלת מחיצות ריקה: זה כונן שלם שהמחיצות

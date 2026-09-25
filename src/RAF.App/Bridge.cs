@@ -120,6 +120,8 @@ internal sealed partial class Bridge
         "bitlocker.open" => OpenUnlockedVolume(p),
         "bitlocker.inspect" => await Task.Run(() => InspectBitLocker(p)),
         "bitlocker.unlock" => await Task.Run(() => UnlockBitLocker(p)),
+        "raid.find" => await Task.Run(FindRaids),
+        "raid.assemble" => await Task.Run(() => AssembleRaid(p)),
 
         "scan.start" => await Tracked(LongOperation.Scan, () => StartScanAsync(p)),
         "scan.cancel" => Cancel(_scanCancel),
@@ -284,6 +286,7 @@ internal sealed partial class Bridge
         imagePath = d.ImagePath,
         isVolume = d.ImagePath is { } path && DevicePaths.IsDecryptedVolume(path),
         decrypted = d.ImagePath is { } own && DevicePaths.IsDecryptedPath(own),
+        raid = d.ImagePath is { } assembled && DevicePaths.IsRaidPath(assembled),
         imageNote = d.ImageNote,
         imageDamaged = d.ImageDamaged,
         partitions = d.Partitions.Select(PartitionDto).ToList(),
@@ -971,7 +974,7 @@ internal sealed partial class Bridge
             files, new RecoveryOptions
             {
                 TargetFolder = target, PreservePaths = preservePaths,
-                Source = session.Disk.ImagePath is { } image && !DevicePaths.IsDecryptedVolume(image)
+                Source = session.Disk.ImagePath is { } image && !DevicePaths.IsDecryptedVolume(image) && !DevicePaths.IsRaidPath(image)
                     ? L.T("{0} · תמונת דיסק {1}", session.PartitionTitle, Path.GetFileName(image))
                     : $"{session.PartitionTitle} · {session.Disk.Model}",
             },
@@ -1356,6 +1359,44 @@ internal sealed partial class Bridge
         _images.Add(volume);
 
         return new { number = volume.DiskNumber };
+    }
+
+    /// <summary>המערכים שנמצאו בחיפוש האחרון — ההרכבה בוחרת מהם לפי המזהה.</summary>
+    private List<RaidDisk.Found> _raids = new();
+
+    /// <summary>
+    /// חיפוש מערכי RAID של לינוקס בכל הכוננים והתמונות שברשימה. קריאה בלבד.
+    /// לכל מערך: מה נמצא, מה חסר, ואם אפשר להרכיב אותו.
+    /// </summary>
+    private object FindRaids()
+    {
+        _raids = RaidDisk.Find(_disks.ToList());
+        return _raids.Select(r => new
+        {
+            id = r.Id,
+            name = r.Name,
+            level = r.Level,
+            disks = r.Disks,
+            size = r.Size,
+            chunk = r.Chunk,
+            updated = r.Updated,
+            problem = r.Problem,
+            missing = r.MissingRoles.Select(m => m + 1).ToList(),
+            members = r.Members.Select(m => new { disk = m.Disk, offset = m.Offset, title = m.Title, role = m.Role + 1, stale = m.Stale }).ToList(),
+            open = _images.Any(d => d.ImagePath == DevicePaths.RaidPathOf(r.Id)),
+        }).ToList();
+    }
+
+    /// <summary>הרכבת מערך שנמצא. הוא מופיע ברשימה ככונן נוסף, לקריאה בלבד.</summary>
+    private object AssembleRaid(JsonObject? p)
+    {
+        string id = p?["id"]?.GetValue<string>() ?? "";
+        var found = _raids.FirstOrDefault(r => r.Id == id)
+            ?? throw new InvalidOperationException(L.T("המערך לא נמצא. חפשו שוב."));
+        var array = RaidDisk.Assemble(found);
+        _images.RemoveAll(d => d.DiskNumber == array.DiskNumber);
+        _images.Add(array);
+        return new { number = array.DiskNumber };
     }
 
     private object? CloseImage(JsonObject? p)

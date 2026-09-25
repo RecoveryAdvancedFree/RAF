@@ -572,6 +572,13 @@
 .bitlocker-protectors .confirm-hint { margin: 0; }
 .key-field + .confirm-hint { margin-top: 8px; }
 
+/* מערך RAID שנמצא: מה נמצא, מה חסר, וכפתור הרכבה */
+.raid-card { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
+.raid-title { font-weight: 600; margin-bottom: 2px; }
+.raid-members { margin: 6px 0 10px; padding-inline-start: 18px; font-size: 13px; line-height: 1.75; color: var(--text-dim); }
+.raid-members b { color: var(--text); font-weight: 600; }
+.raid-members .raid-missing { color: var(--warn, var(--text)); }
+
 .notice.ok-notice {
   background: var(--ok-soft);
   border: 1px solid var(--ok-line);

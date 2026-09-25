@@ -164,4 +164,24 @@ public class RecoveryWriterTests : IDisposable
         Assert.True(twice.IndexOf(", חלקית.", StringComparison.Ordinal)
                     < twice.IndexOf("(600 בתים)", StringComparison.Ordinal), "השחזור החדש אמור להופיע ראשון");
     }
+
+    [Fact]
+    public async Task A_recovered_file_named_like_the_readme_is_left_untouched()
+    {
+        // "קרא אותי.txt" הוא שם נפוץ לקובץ של המשתמש. ההסבר נכתב אז בשם אחר — ולא מעל התוכן שלו.
+        byte[] image = new byte[ImageSectors * Sector];
+        byte[] content = Pattern(600, 7);
+        content.CopyTo(image, 5 * Sector);
+
+        await Recover(image, File_(1, RecoveryWriter.ReadmeName, "", 600, 5, 2));
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(_target, RecoveryWriter.ReadmeName)));
+        string ours = Path.Combine(_target, "קרא אותי - שחזור מתקדם חינם.txt");
+        Assert.Contains("הסבר על התיקייה הזו", File.ReadAllText(ours, Encoding.UTF8));
+
+        // שחזור נוסף לאותה תיקייה: שוב לא נוגע בקובץ, ומוסיף פרק להסבר שלנו.
+        await Recover(image, File_(2, "x.txt", "", 600, 5, 2));
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(_target, RecoveryWriter.ReadmeName)));
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(ours, Encoding.UTF8), "^שחזור מ-",
+            System.Text.RegularExpressions.RegexOptions.Multiline).Count);
+    }
 }

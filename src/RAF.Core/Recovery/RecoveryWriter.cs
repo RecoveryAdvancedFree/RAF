@@ -454,20 +454,29 @@ public static class RecoveryWriter
         t.AppendLine();
         t.AppendLine();
 
-        string path = Path.Combine(options.TargetFolder, ReadmeName);
-        string previous = "";
-        try
-        {
-            if (File.Exists(path)) previous = File.ReadAllText(path, Encoding.UTF8);
-        }
-        catch (IOException) { }
         string title = L.T("שחזור מתקדם חינם — הסבר על התיקייה הזו");
+        string path = Path.Combine(options.TargetFolder, ReadmeName);
+        string previous = Previous(path);
+        // בתיקייה כבר יש קובץ בשם הזה שאינו שלנו — קובץ ששוחזר. לא נוגעים בו: ההסבר בשם אחר.
+        if (previous.Length > 0 && !previous.StartsWith(title, StringComparison.Ordinal))
+        {
+            path = Path.Combine(options.TargetFolder, L.T("קרא אותי - שחזור מתקדם חינם.txt"));
+            previous = Previous(path);
+        }
         if (previous.StartsWith(title, StringComparison.Ordinal))
             previous = previous[title.Length..].TrimStart('\r', '\n', '=');
+        else
+            previous = "";   // לעולם לא מצרפים תוכן של קובץ שאינו שלנו
         previous = previous.TrimStart('\r', '\n');
 
         string header = title + Environment.NewLine + new string('=', 40) + Environment.NewLine + Environment.NewLine;
         File.WriteAllText(path, header + t + previous, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+        static string Previous(string file)
+        {
+            try { return File.Exists(file) ? File.ReadAllText(file, Encoding.UTF8) : ""; }
+            catch (IOException) { return ""; }
+        }
     }
 
     private static string FormatSize(long bytes)

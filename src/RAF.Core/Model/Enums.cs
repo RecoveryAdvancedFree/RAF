@@ -31,6 +31,7 @@ public enum FileSystemKind
     Hfs,            // זוהה אך אינו נתמך בגרסה זו
     BitLocker,      // מוצפנת — נקראת דרך Windows, או בפענוח של התוכנה עם המפתח
     Xfs,            // לינוקס, שרתי אחסון ביתיים
+    LinuxRaid,      // כונן במערך RAID של לינוקס (mdadm) — נקרא אחרי הרכבת המערך
 }
 
 /// <summary>סכמת טבלת המחיצות של הדיסק.</summary>

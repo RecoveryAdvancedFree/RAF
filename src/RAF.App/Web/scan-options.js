@@ -210,6 +210,113 @@ function openLockedBitLockerPanel(disk, part) {
   }).catch(() => { const box = el('bitlocker-protectors'); if (box) box.textContent = ''; });
 }
 
+/// כונן שהוא חלק ממערך RAID של לינוקס (שרת אחסון ביתי): מחפשים את שאר הכוננים של המערך
+/// בכל מה שברשימה, מראים מה נמצא ומה חסר, ומרכיבים. המערך יופיע ברשימה ככונן נוסף.
+function openRaidPanel(disk, part) {
+  el('panel').innerHTML = `
+    <div class="panel-head">
+      <div class="grow">
+        <div class="panel-title">${esc(partTitle(part))}</div>
+        <div class="panel-sub">${esc(disk.name)} · ${t('חלק ממערך RAID')} · ${formatSize(part.size)}</div>
+      </div>
+      <button class="panel-close" id="panel-close" aria-label="${t('סגירה')}">${Icon.close}</button>
+    </div>
+    <div class="panel-body">
+      ${notice('info', Icon.layers, t('הכונן הזה הוא חלק ממערך RAID'),
+        t('שרתי אחסון ביתיים ושרתי לינוקס מפזרים את הקבצים על כמה כוננים. כל כונן לבד מחזיק רק חלקים — ' +
+          'צריך להרכיב את המערך מכל הכוננים שלו. התוכנה עושה את זה בעצמה, בלי השרת, ושום דבר לא נכתב לכוננים.'))}
+      <div id="raid-list" aria-live="polite"><p class="confirm-hint">${t('מחפש את שאר הכוננים של המערך…')}</p></div>
+      <details class="scan-tech">
+        <summary>${t('חסר כונן?')}</summary>
+        <ol class="image-steps">
+          <li>${t('חברו למחשב את כל הכוננים שהוצאו מהשרת — כל אחד בחיבור משלו או במתאם USB. אין צורך בסדר מסוים.')}</li>
+          <li>${t('יצרתם קודם תמונות דיסק מהכוננים? פתחו את כולן ברשימת הכוננים.')}</li>
+          <li>${t('לחצו <b>חיפוש שוב</b>.')}</li>
+        </ol>
+      </details>
+    </div>
+    <div class="panel-foot">
+      <button class="btn" id="btn-raid-again">${Icon.refresh}<span>${t('חיפוש שוב')}</span></button>
+      <button class="btn" id="btn-cancel-raid">${t('ביטול')}</button>
+    </div>`;
+
+  el('overlay').hidden = false;
+  el('panel-close').onclick = closePanel;
+  el('btn-cancel-raid').onclick = closePanel;
+  el('btn-raid-again').onclick = async () => {
+    el('raid-list').innerHTML = `<p class="confirm-hint">${t('מרענן את רשימת הכוננים ומחפש…')}</p>`;
+    await loadDisks();
+    findRaids(disk, part);
+  };
+  findRaids(disk, part);
+}
+
+async function findRaids(disk, part) {
+  const box = el('raid-list');
+  if (!box) return;
+  let arrays;
+  try {
+    arrays = await Bridge.call('raid.find', {}, 0);
+  } catch (err) {
+    box.innerHTML = errorNotice(t('החיפוש נכשל'), err, 'spaced');
+    return;
+  }
+  if (!el('raid-list')) return;
+
+  // המערך של הכונן שנלחץ — ראשון.
+  const mine = (a) => a.members.some((m) => m.disk === disk.number && m.offset === part.offset);
+  arrays.sort((a, b) => mine(b) - mine(a));
+  if (!arrays.length) {
+    box.innerHTML = notice('warn', Icon.alert, t('לא נמצא מערך'),
+      t('הכותרת של המערך לא נקראה מהכונן. ייתכן שהיא ניזוקה — אז <b>סריקה מתקדמת</b> של כל כונן בנפרד עדיין תמצא קבצים קטנים.'), null, 'spaced');
+    return;
+  }
+
+  box.innerHTML = arrays.map((a) => {
+    const title = a.name ? `${esc(a.name)} · ${esc(a.level)}` : esc(a.level);
+    const facts = [t('{0} כוננים', a.disks), formatSize(a.size)];
+    if (a.chunk) facts.push(t('רצועה של {0}', formatSize(a.chunk)));
+    const members = a.members.map((m) =>
+      `<li>${t('כונן {0} במערך:', m.role)} <b>${esc(m.title)}</b>${m.stale ? ` <span class="chip warn">${t('לא עדכני')}</span>` : ''}</li>`).join('');
+    const missing = a.missing.length
+      ? `<li class="raid-missing">${a.missing.length === 1 ? t('חסר: כונן {0} במערך', a.missing[0]) : t('חסרים: כוננים {0} במערך', a.missing.join(', '))}</li>`
+      : '';
+    const state = a.problem
+      ? notice('danger', Icon.alert, t('אי אפשר להרכיב את המערך'), esc(a.problem), null, 'spaced')
+      : a.missing.length
+      ? notice('warn', Icon.info, t('אפשר להרכיב גם בלי הכונן החסר'),
+          t('התוכן שלו מחושב מהכוננים האחרים. אם אפשר לחבר אותו — עדיף.'), null, 'spaced')
+      : '';
+    const button = a.problem ? ''
+      : `<button class="btn btn-primary" data-raid-assemble="${esc(a.id)}">${Icon.layers}<span>${t(a.open ? 'מעבר למערך' : 'הרכבת המערך')}</span></button>`;
+    return `
+      <div class="raid-card">
+        <div class="raid-title">${title}</div>
+        <div class="confirm-hint">${facts.join(' · ')}</div>
+        <ul class="raid-members">${members}${missing}</ul>
+        ${state}
+        ${button}
+        <div data-raid-status="${esc(a.id)}"></div>
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-raid-assemble]').forEach((b) => {
+    b.onclick = async () => {
+      const id = b.dataset.raidAssemble;
+      b.disabled = true;
+      const status = box.querySelector(`[data-raid-status="${id}"]`);
+      status.innerHTML = `<p class="confirm-hint">${t('מרכיב את המערך…')}</p>`;
+      try {
+        const r = await Bridge.call('raid.assemble', { id }, 0);
+        await showOpenedVolume(r.number);
+      } catch (err) {
+        b.disabled = false;
+        status.innerHTML = errorNotice(t('המערך לא הורכב'), err, 'spaced');
+      }
+    };
+  });
+}
+
 function findPart(diskNumber, partIndex) {
   const disk = State.disks.find((d) => d.number === diskNumber);
   if (!disk) return null;
@@ -229,6 +336,12 @@ function openScanPanel(diskNumber, partIndex) {
   // מחיצה מוצפנת: אבחון ותיקון לא רלוונטיים — וכתיבה אליה הייתה הורסת אותה.
   if (part.fs === 'BitLocker' && !part.found) {
     openBitLockerPanel(disk, part);
+    return;
+  }
+
+  // כונן במערך RAID: לבד הוא מחזיק רק חלקים — קודם מרכיבים את המערך.
+  if (part.fs === 'LinuxRaid') {
+    openRaidPanel(disk, part);
     return;
   }
 

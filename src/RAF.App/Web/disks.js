@@ -389,7 +389,9 @@ function renderDisk(disk) {
   const countText = count === 0 ? t('ללא מחיצות')
     : count === 1 ? t('מחיצה אחת') : t('{0} מחיצות', count);
 
-  const sub = disk.decrypted
+  const sub = disk.raid
+    ? t('מערך RAID שהתוכנה הרכיבה · {0} · {1}', formatSize(disk.size), countText)
+    : disk.decrypted
     ? t('כונן מוצפן שהתוכנה מפענחת · {0}', formatSize(disk.size))
     : disk.isVolume
     ? t('כונן מוצפן שנקרא דרך Windows · {0}', formatSize(disk.size))
@@ -402,7 +404,7 @@ function renderDisk(disk) {
     actions.push(`<button class="btn btn-sm" data-hunt-disk="${disk.number}" title="${t('חיפוש מחיצות שנמחקו או שאבדו בכל הכונן')}">${Icon.search}<span>${t('סריקת כונן')}</span></button>`);
   }
   if (disk.isImage) {
-    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>${t(disk.isVolume ? 'סגירה' : 'סגירת התמונה')}</span></button>`);
+    actions.push(`<button class="btn btn-sm" data-close-image="${disk.number}">${Icon.close}<span>${t(disk.isVolume || disk.raid ? 'סגירה' : 'סגירת התמונה')}</span></button>`);
   } else if (disk.rawAccessible) {
     actions.push(`<button class="btn btn-sm" data-image-disk="${disk.number}" title="${t('העתקת הדיסק כולו לקובץ, וסריקה מתוכו')}">${Icon.copy}<span>${t('יצירת תמונת דיסק')}</span></button>`);
   }
@@ -480,8 +482,9 @@ function renderPartition(disk, p) {
       ? chip('ok', 'נעילה פתוחה', 'הנעילה נפתחה ב-Windows — אפשר לסרוק')
       : chip('warn', 'נעול', 'הכונן מוצפן. פתחו אותו ב-Windows כדי לסרוק'));
   }
+  if (p.fs === 'LinuxRaid') tags.push(chip('accent', 'לחצו להרכבת המערך', 'הכונן הזה הוא חלק ממערך RAID של שרת לינוקס או שרת אחסון ביתי'));
   if (p.bootable) tags.push(chip('', 'אתחול'));
-  if (!p.found && !p.scannable && p.fs !== 'Unknown' && p.fs !== 'BitLocker') tags.push(chip('', 'לא נתמכת לסריקה'));
+  if (!p.found && !p.scannable && !['Unknown', 'BitLocker', 'LinuxRaid'].includes(p.fs)) tags.push(chip('', 'לא נתמכת לסריקה'));
 
   let bar = `<div class="part-bar-wrap"><div class="part-bar-text">${t('נפח לא זמין')}</div></div>`;
   if (p.used !== null && p.used !== undefined && p.size > 0) {

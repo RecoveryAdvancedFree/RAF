@@ -775,6 +775,8 @@ internal static class EnglishTexts
             "Original path,Written to,Size (bytes),Quality,Result,Details,SHA-256,Location on drive",
         ["קרא אותי.txt"] =
             "Read me.txt",
+        ["קרא אותי - שחזור מתקדם חינם.txt"] =
+            "Read me - Recovery Advanced Free.txt",
         ["(תמונה מוקטנת"] =
             "(thumbnail",
         ["שחזור מ-{0} בשעה {1}"] =
@@ -1235,5 +1237,37 @@ internal static class EnglishTexts
         ["גיליון Excel ישן"] = "Old Excel spreadsheet",
         ["מצגת PowerPoint ישנה"] = "Old PowerPoint presentation",
         ["הודעת Outlook"] = "Outlook message",
+
+        // מערכי RAID
+        ["{0} · מחיצה {1}"] = "{0} · partition {1}",
+        ["{0} — מערך מורכב"] = "{0} — assembled array",
+        ["אחד הכוננים נפל מהמערך לפני האחרים, והנתונים בו אינם עדכניים — קבצים שנכתבו אחרי שנפל עלולים לחזור פגומים."] =
+            "One of the drives dropped out of the array before the others and its data is out of date — files written after it dropped out may come back damaged.",
+        ["אחד מכונני המערך"] = "one of the array's drives",
+        ["בתוך המערך יש מאגר לוגי של לינוקס (LVM) — כמו ברוב שרתי האחסון הביתיים. הוא עוד לא נקרא בגרסה זו; סריקה מתקדמת תמצא את הקבצים לפי סוג."] =
+            "The array contains a Linux logical volume pool (LVM) — like most home storage servers. This version can't read it yet; an Advanced scan will find the files by type.",
+        ["גודל הרצועה של המערך אינו ידוע."] = "The array's stripe size is unknown.",
+        ["המערך היה באמצע שינוי מבנה (הוספת כונן או שינוי סוג) כשנעצר. מערך כזה עוד לא נתמך."] =
+            "The array was in the middle of a reshape (adding a drive or changing type) when it stopped. Such an array isn't supported yet.",
+        ["הסידור של המערך ({0}) אינו נתמך. נתמכים ארבעת הסידורים הרגילים וזוגיות בכונן הראשון או האחרון."] =
+            "The array's layout ({0}) isn't supported. The four standard layouts and parity on the first or last drive are supported.",
+        ["חסר כונן אחד — התוכן שלו מחושב מהזוגיות שבכוננים האחרים. הקריאה איטית יותר, וכל פגם נוסף באחד הכוננים יפגע בקבצים."] =
+            "One drive is missing — its content is computed from the parity on the other drives. Reading is slower, and any further fault in one of the drives will damage files.",
+        ["חסר כונן במערך. במערך מסוג זה כל כונן מחזיק חלק מהנתונים ואין עותק — בלי כל הכוננים הקבצים יחזרו חלקיים. סריקה מתקדמת של הכוננים שנמצאו עדיין יכולה למצוא קבצים קטנים."] =
+            "A drive is missing from the array. In this kind of array each drive holds part of the data with no copy — without all the drives files will come back partial. An Advanced scan of the drives that were found can still find small files.",
+        ["חסרים {0} כוננים במערך — יותר ממה שהוא יכול לאבד."] = "{0} drives are missing from the array — more than it can lose.",
+        ["חסרים {0} כוננים — הנתונים נקראים מהעותקים שבכוננים האחרים."] = "{0} drives are missing — the data is read from the copies on the other drives.",
+        ["חסרים שני כוננים במערך RAID 6. שחזור שני כוננים חסרים עוד לא נתמך — חברו לפחות אחד מהם."] =
+            "Two drives are missing from the RAID 6 array. Rebuilding two missing drives isn't supported yet — connect at least one of them.",
+        ["מספר העותקים במערך אינו תקין."] = "The array's copy count is invalid.",
+        ["מערך RAID 10 בסידור \"רחוק\" או \"היסט\" אינו נתמך עדיין — רק הסידור הרגיל (\"קרוב\")."] =
+            "A RAID 10 array in the \"far\" or \"offset\" layout isn't supported yet — only the standard (\"near\") layout.",
+        ["מערך {0} של לינוקס, שהתוכנה הרכיבה מ-{1} כוננים. הקריאה בלבד — שום דבר לא נכתב לכוננים."] =
+            "Linux {0} array, assembled by the program from {1} drives. Read-only — nothing is written to the drives.",
+        ["סוג המערך (RAID {0}) אינו נתמך."] = "The array type (RAID {0}) isn't supported.",
+        ["שרשור (JBOD)"] = "Concatenation (JBOD)",
+        ["המערך לא נמצא. חפשו שוב."] = "The array wasn't found. Search again.",
+        ["מערך RAID שהורכב בתוכנה הוא לקריאה בלבד — התוכנה אינה כותבת אליו."] =
+            "A RAID array assembled by the program is read-only — the program doesn't write to it.",
     };
 }

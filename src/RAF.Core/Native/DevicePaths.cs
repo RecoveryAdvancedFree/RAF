@@ -20,7 +20,7 @@ public static class DevicePaths
     /// <summary>רישום קובץ תמונה. קובץ שכבר נרשם מקבל את אותו מספר.</summary>
     public static int RegisterImage(string imagePath)
     {
-        string full = IsDevicePath(imagePath) || IsDecryptedPath(imagePath) ? imagePath : Path.GetFullPath(imagePath);
+        string full = IsDevicePath(imagePath) || IsDecryptedPath(imagePath) || IsRaidPath(imagePath) ? imagePath : Path.GetFullPath(imagePath);
 
         foreach (var pair in Images)
             if (string.Equals(pair.Value, full, StringComparison.OrdinalIgnoreCase))
@@ -33,8 +33,38 @@ public static class DevicePaths
 
     public static void UnregisterImage(int number)
     {
-        if (Images.TryRemove(number, out var path)) Decrypted.TryRemove(path, out _);
+        if (Images.TryRemove(number, out var path))
+        {
+            Decrypted.TryRemove(path, out _);
+            Raids.TryRemove(path, out _);
+        }
     }
+
+    /// <summary>
+    /// מערך RAID שהתוכנה מרכיבה: הגאומטריה, ולכל מקום במערך — הדיסק וההיסט שבו מתחיל
+    /// הכונן (null — הכונן חסר).
+    /// </summary>
+    internal sealed record RaidSource(Raid.RaidArray Array, (int Disk, long Offset)?[] Members);
+
+    private static readonly ConcurrentDictionary<string, RaidSource> Raids = new(StringComparer.OrdinalIgnoreCase);
+    private const string RaidPrefix = "raid:";
+
+    /// <summary>רישום מערך RAID. מערך שכבר נרשם (לפי המזהה שלו) מקבל את אותו מספר.</summary>
+    internal static int RegisterRaid(string id, RaidSource source)
+    {
+        string path = RaidPrefix + id;
+        Raids[path] = source;
+        return RegisterImage(path);
+    }
+
+    /// <summary>הנתיב שבו נרשם מערך לפי המזהה שלו.</summary>
+    public static string RaidPathOf(string id) => RaidPrefix + id;
+
+    internal static RaidSource? RaidSourceOf(string path)
+        => path.StartsWith(RaidPrefix, StringComparison.Ordinal) && Raids.TryGetValue(path, out var s) ? s : null;
+
+    /// <summary>נתיב של מערך RAID שהתוכנה מרכיבה מכמה כוננים — לא קובץ ולא התקן, ולקריאה בלבד.</summary>
+    public static bool IsRaidPath(string path) => path.StartsWith(RaidPrefix, StringComparison.Ordinal);
 
     /// <summary>מחיצת BitLocker שהתוכנה פותחת בעצמה: על איזה דיסק היא, איפה, ואיך מפענחים.</summary>
     internal sealed record DecryptedSource(int Disk, long Offset, Crypto.BitLockerVolume Volume);
