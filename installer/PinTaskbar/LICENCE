@@ -1,0 +1,71 @@
+Pin-Taskbar License
+
+Copyright (c) 2026 - Léo GILLET / aka Freenitial on GitHub
+All rights reserved.
+
+
+1. DEFINITIONS
+
+"Software" refers to the Pin-Taskbar scripts (Pin-Taskbar.ps1, Pin-Taskbar.bat,
+Set-TaskbarPin.ps1) and any associated source code files distributed
+in this repository.
+
+"Documentation" refers to the reverse engineering documentation
+covering Windows taskbar internals, provided exclusively to commercial licensees.
+
+"Commercial use" means any use of the Software within a business,
+company, organization, government entity, or for-profit context,
+including but not limited to: deployment on company-owned machines,
+integration into commercial products or services, use in managed IT
+environments, and distribution to employees or clients.
+
+
+2. NON-COMMERCIAL USE
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Software, to use, copy, and modify the Software for
+personal, educational, or non-commercial purposes, subject to the
+following conditions:
+
+- This license notice shall be included in all copies or substantial
+  portions of the Software.
+- The Software shall not be sold, sublicensed, or redistributed as
+  part of a commercial product or service.
+
+
+3. COMMERCIAL USE
+
+Commercial use of the Software requires a paid license obtained by
+contacting the author at: freenitial@gmail.com
+
+The commercial license includes:
+- Permission to use the Software in a business/enterprise context.
+- The full reverse engineering Documentation.
+- Support within reasonable limits.
+
+
+4. DOCUMENTATION RESTRICTIONS
+
+The Documentation provided to commercial licensees is confidential
+and shall not be redistributed, published, shared publicly, or made
+available to third parties without prior written consent from the
+author.
+
+
+5. CONTRIBUTIONS
+
+By submitting a contribution (pull request, patch, or any code) to
+this repository, you grant the author a perpetual, worldwide,
+non-exclusive, royalty-free license to use, modify, and distribute
+your contribution under the terms of this license.
+
+
+6. DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.

@@ -46,6 +46,10 @@ dotnet publish src/RAF.App/RAF.App.csproj -c Release -o dist
 
 התוצר: `dist\RAF.exe` — קובץ יחיד (~47MB), ללא התקנה וללא תלות ב-.NET Runtime מותקן.
 
+קובץ ההתקנה (דורש Inno Setup 6): `.\installer\build-installer.ps1` בונה את `dist\RAF.exe`
+ואת `dist\RAF-Setup.exe`. האשף מאפשר לבחור קיצורי דרך (שולחן העבודה, תפריט התחל,
+שורת המשימות) ותיקיית התקנה, עם אזהרה לא להתקין בכונן שממנו משחזרים.
+
 **הרצה מחייבת הרשאות מנהל.** גישה גולמית לדיסק אינה אפשרית בלעדיהן;
 התוכנה מבקשת אותן אוטומטית דרך ה-manifest.
 
