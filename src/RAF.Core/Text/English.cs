@@ -321,6 +321,38 @@ internal static class EnglishTexts
             "The drive is still locked. Unlock it in Windows first, with the password or the recovery key.",
         ["{0} — BitLocker פתוח"] =
             "{0} — unlocked BitLocker",
+        ["המחיצה אינה ext2/3/4 תקינה, או שהכותרת שלה פגומה."] =
+            "The partition is not a valid ext2/3/4 file system, or its header is damaged.",
+        ["המחיצה אינה XFS תקינה, או שהכותרת שלה פגומה."] =
+            "The partition is not a valid XFS file system, or its header is damaged.",
+        ["קורא את היומן של מערכת הקבצים"] =
+            "Reading the file system journal",
+        ["בחלק מהתיקיות במחיצה הזו הופעלה הצפנה של לינוקס. שמות ותוכן בתיקיות כאלה מוצפנים ולא ייקראו."] =
+            "Linux encryption is enabled on some folders of this partition. Names and content in such folders are encrypted and will not be read.",
+        ["תיקיית השורש של המחיצה אינה נקראת."] =
+            "The partition's root folder cannot be read.",
+        ["{0} קבצים שנמחקו שוחזרו בעזרת עותק ישן של הרשומה שלהם, שנשמר ביומן של מערכת הקבצים."] =
+            "{0} deleted files were recovered using an old copy of their record, kept in the file system journal.",
+        ["ל-{0} קבצים שנמחקו נמצא השם, אבל לינוקס מחק את המידע על מיקום התוכן ולא נשאר ממנו עותק ביומן. סריקה מתקדמת עשויה למצוא את התוכן שלהם לפי סוג הקובץ, בלי השם."] =
+            "For {0} deleted files the name was found, but Linux erased the information on where the content is, and no copy of it remained in the journal. An advanced scan may find their content by file type, without the name.",
+        ["ל-{0} קבצים שנמחקו נמצא השם, אבל המידע על מיקום התוכן כבר לא קיים. סריקה מתקדמת עשויה למצוא את התוכן שלהם לפי סוג הקובץ, בלי השם."] =
+            "For {0} deleted files the name was found, but the information on where the content is no longer exists. An advanced scan may find their content by file type, without the name.",
+        ["הקובץ קיים, אבל המידע על מיקום התוכן שלו פגום."] =
+            "The file exists, but the information on where its content is, is damaged.",
+        ["מיקום התוכן נלקח מעותק של הרשומה שנשמר ביומן של מערכת הקבצים לפני המחיקה."] =
+            "The content's location was taken from a copy of the record that the file system journal kept before the deletion.",
+        ["הרשומה של הקובץ שמרה את מיקום התוכן גם אחרי המחיקה."] =
+            "The file's record kept the content's location even after the deletion.",
+        ["השם נשאר, אבל לינוקס מחק את המידע על מיקום התוכן, ולא נשאר ממנו עותק ביומן. סריקה מתקדמת עשויה למצוא את התוכן לפי סוג הקובץ."] =
+            "The name remains, but Linux erased the information on where the content is, and no copy of it remained in the journal. An advanced scan may find the content by file type.",
+        ["השם נשאר, אבל המידע על מיקום התוכן כבר לא קיים. סריקה מתקדמת עשויה למצוא את התוכן לפי סוג הקובץ."] =
+            "The name remains, but the information on where the content is no longer exists. An advanced scan may find the content by file type.",
+        ["המידע על מיקום התוכן פגום."] =
+            "The information on where the content is, is damaged.",
+        ["מחפש קבצים שנמחקו בלי שם"] =
+            "Looking for deleted files without a name",
+        ["המיקום נשאר ברשומת הקובץ. הגודל המקורי נמחק, ולכן הקובץ משוחזר עד סוף הבלוק האחרון שלו."] =
+            "The location remained in the file's record. The original size was erased, so the file is recovered up to the end of its last block.",
         ["{0} — BitLocker מפוענח"] =
             "{0} — decrypted BitLocker",
         ["מחיצה {0}"] =

@@ -1,7 +1,9 @@
 using RAF.Core.Carving;
 using RAF.Core.FileSystems.ExFat;
+using RAF.Core.FileSystems.Ext;
 using RAF.Core.FileSystems.Fat;
 using RAF.Core.FileSystems.Ntfs;
+using RAF.Core.FileSystems.Xfs;
 using RAF.Core.Model;
 using RAF.Core.Native;
 using RAF.Core.Recovery;
@@ -23,7 +25,9 @@ public static class VolumeScanner
         or FileSystemKind.ExFat
         or FileSystemKind.Fat32
         or FileSystemKind.Fat16
-        or FileSystemKind.Fat12;
+        or FileSystemKind.Fat12
+        or FileSystemKind.Ext
+        or FileSystemKind.Xfs;
 
     /// <summary>
     /// סריקת מחיצה במנוע המתאים לה. checkpoint מקבל נקודות ביניים — כרגע רק
@@ -115,6 +119,14 @@ public static class VolumeScanner
                     diskNumber, partitionOffset, partitionSize, sectorSize,
                     mode, includeExisting, trim, progress, token),
 
+            FileSystemKind.Ext => ExtScanner.ScanAsync(
+                diskNumber, partitionOffset, partitionSize, sectorSize,
+                mode, includeExisting, trim, progress, token),
+
+            FileSystemKind.Xfs => XfsScanner.ScanAsync(
+                diskNumber, partitionOffset, partitionSize, sectorSize,
+                mode, includeExisting, trim, progress, token),
+
             _ => throw new InvalidOperationException(
                 L.T("מערכת הקבצים {0} אינה נתמכת לסריקה בגרסה זו.", kind)),
         };
@@ -136,6 +148,8 @@ public static class VolumeScanner
         FileSystemKind.Ntfs => NtfsVolume.Open(reader),
         FileSystemKind.ExFat => ExFatVolume.Open(reader),
         FileSystemKind.Fat32 or FileSystemKind.Fat16 or FileSystemKind.Fat12 => FatVolume.Open(reader),
+        FileSystemKind.Ext => ExtVolume.Open(reader),
+        FileSystemKind.Xfs => XfsVolume.Open(reader),
         _ => null,
     };
 }

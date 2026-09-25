@@ -43,6 +43,8 @@ internal sealed class FreeSpaceMap
             NtfsVolume ntfs => Ntfs(ntfs),
             ExFatVolume exfat => (ExFatVolume.FirstCluster, exfat.MaxCluster),
             FatVolume fat => (FatVolume.FirstCluster, fat.MaxCluster),
+            FileSystems.Ext.ExtVolume ext => (ext.Super.FirstDataBlock, ext.Super.BlocksCount - 1),
+            FileSystems.Xfs.XfsVolume xfs => (0, xfs.TotalBlocks - 1),
             _ => (-1, -1),
         };
         if (first < 0 || last < first) return null;

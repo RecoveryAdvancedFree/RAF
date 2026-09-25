@@ -1,0 +1,4 @@
+ext2.raw.gz, ext4.raw.gz, xfs.raw.gz, xfs-bigtime.raw.gz — תמונות של כונני לינוקס (דחוסות ב-gzip), מתוך נתוני הבדיקה של dfVFS:
+https://github.com/log2timeline/dfvfs/tree/main/test_data
+נוצרו בלינוקס על ידי utils/generate_test_data_linux.sh שבאותו מאגר.
+רישיון: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
